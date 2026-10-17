@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/banner.png" alt="PDFBook" width="100%"></p>
+
 # PDFBook
 
 Android PDF 리더.
