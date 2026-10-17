@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.safeDrawingGridContentPadding
+import org.parkjw.apps.pdfbook.ui.safeDrawingHorizontalPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingPadding
 
 @Composable
@@ -99,7 +100,7 @@ fun LibraryScreen(
                 }
             }
         }
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize().safeDrawingHorizontalPadding()) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columnsFor(maxWidth.value.toInt())),
                 contentPadding = safeDrawingGridContentPadding(),

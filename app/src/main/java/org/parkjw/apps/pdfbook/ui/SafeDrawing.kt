@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
@@ -16,7 +14,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -43,9 +40,10 @@ fun SafeTopBar(
     content: @Composable RowScope.() -> Unit,
 ) {
     Row(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .safeDrawingTopBarPadding(),
+            .safeDrawingTopBarPadding()
+            .then(modifier),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = horizontalArrangement,
         content = content,
@@ -53,13 +51,11 @@ fun SafeTopBar(
 }
 
 @Composable
+fun Modifier.safeDrawingHorizontalPadding(): Modifier =
+    windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+
+@Composable
 fun safeDrawingGridContentPadding(base: Dp = 16.dp): PaddingValues {
-    val insets = WindowInsets.safeDrawing.asPaddingValues()
-    val layoutDirection = LocalLayoutDirection.current
-    return PaddingValues(
-        start = base + insets.calculateStartPadding(layoutDirection),
-        top = base,
-        end = base + insets.calculateEndPadding(layoutDirection),
-        bottom = base + insets.calculateBottomPadding(),
-    )
+    val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
+    return PaddingValues(start = base, top = base, end = base, bottom = base + bottom)
 }
