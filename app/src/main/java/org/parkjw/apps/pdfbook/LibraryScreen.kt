@@ -112,6 +112,7 @@ fun LibraryScreen(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
     covers: Map<String, Bitmap?> = emptyMap(),
+    onBack: (() -> Unit)? = null,
 ) {
     var byName by remember { mutableStateOf(false) }
     val sorted = remember(listing, states, byName) { sortBooks(listing.books, states, byName) }
@@ -121,7 +122,25 @@ fun LibraryScreen(
             modifier = Modifier.padding(horizontal = PdfBookSpacing.screenHorizontalFolded),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(listing.folderName, style = MaterialTheme.typography.titleLarge)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f),
+            ) {
+                if (onBack != null) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_arrow_back),
+                            contentDescription = stringResource(R.string.reader_back),
+                        )
+                    }
+                }
+                Text(
+                    listing.folderName,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(
                     onClick = { byName = !byName },
