@@ -89,6 +89,21 @@ class FolderRepository(
         }
     }
 
+    suspend fun replacePrimary(uri: String, displayName: String) {
+        uriPermissions.take(uri)
+        var releaseUris = emptyList<String>()
+        dataStore.edit { prefs ->
+            migrateInto(prefs)
+            val result = replacePrimary(decodeFolders(prefs[FoldersKey]), uri, displayName)
+            prefs[FoldersKey] = encodeFolders(result.folders)
+            prefs[MigratedKey] = true
+            releaseUris = result.releaseUris
+        }
+        for (releaseUri in releaseUris) {
+            uriPermissions.release(releaseUri)
+        }
+    }
+
     private suspend fun previewAdd(uri: String, displayName: String): AddKind {
         val prefs = dataStore.data.first()
         val current = if (prefs[MigratedKey] == true) {

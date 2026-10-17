@@ -28,6 +28,11 @@ data class RemoveResult(
     val releaseUris: List<String>,
 )
 
+data class ReplacePrimaryResult(
+    val folders: List<Folder>,
+    val releaseUris: List<String>,
+)
+
 fun displayNameForUri(uri: String): String {
     val encoded = uri.trimEnd('/').substringAfterLast('/')
     val decoded = java.net.URLDecoder.decode(encoded, Charsets.UTF_8)
@@ -100,4 +105,31 @@ fun migrateFromLegacy(folders: List<Folder>, legacyUri: String?, displayName: St
     return listOf(
         Folder(uri = legacyUri, displayName = displayName, order = 0, access = FolderAccess.Ok),
     )
+}
+
+fun replacePrimary(folders: List<Folder>, uri: String, displayName: String): ReplacePrimaryResult {
+    if (folders.isEmpty()) {
+        return ReplacePrimaryResult(
+            listOf(Folder(uri = uri, displayName = displayName, order = 0, access = FolderAccess.Ok)),
+            emptyList(),
+        )
+    }
+    val primary = folders.minBy { it.order }
+    if (primary.uri == uri) {
+        return ReplacePrimaryResult(
+            folders.map {
+                if (it.uri == uri && it.access != FolderAccess.Ok) it.copy(access = FolderAccess.Ok) else it
+            },
+            emptyList(),
+        )
+    }
+    val updated = folders.map {
+        if (it.uri == primary.uri) {
+            Folder(uri = uri, displayName = displayName, order = it.order, access = FolderAccess.Ok)
+        } else {
+            it
+        }
+    }
+    val releaseUris = if (updated.none { it.uri == primary.uri }) listOf(primary.uri) else emptyList()
+    return ReplacePrimaryResult(updated, releaseUris)
 }

@@ -135,6 +135,38 @@ class FolderWorkspaceTest {
     }
 
     @Test
+    fun replacePrimaryAddsWhenEmpty() {
+        val result = replacePrimary(emptyList(), "a", "A")
+        assertEquals(listOf(folder("a", "A", 0)), result.folders)
+        assertTrue(result.releaseUris.isEmpty())
+    }
+
+    @Test
+    fun replacePrimarySameUriRestoresLostKeepingNameAndOrder() {
+        val base = listOf(
+            folder("a", "Kept", 0, FolderAccess.Lost),
+            folder("b", "B", 1),
+        )
+        val result = replacePrimary(base, "a", "Ignored")
+        assertEquals(
+            listOf(folder("a", "Kept", 0, FolderAccess.Ok), folder("b", "B", 1)),
+            result.folders,
+        )
+        assertTrue(result.releaseUris.isEmpty())
+    }
+
+    @Test
+    fun replacePrimarySwapsFirstAndReleasesOld() {
+        val base = listOf(folder("old", "Old", 0), folder("other", "Other", 1))
+        val result = replacePrimary(base, "new", "New")
+        assertEquals(
+            listOf(folder("new", "New", 0), folder("other", "Other", 1)),
+            result.folders,
+        )
+        assertEquals(listOf("old"), result.releaseUris)
+    }
+
+    @Test
     fun codecRoundTrip() {
         val folders = listOf(
             folder("content://a", "Name|Weird", 0, FolderAccess.Lost),

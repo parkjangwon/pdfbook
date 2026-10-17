@@ -8,17 +8,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-private val FOLDER = stringPreferencesKey("folder")
 private const val BOOK_PREFIX = "book:"
 
 class BookStore(context: Context) {
     private val store = context.applicationContext.pdfbookDataStore
-
-    suspend fun folder(): String? = store.data.first()[FOLDER]
-
-    suspend fun setFolder(uri: String) {
-        store.edit { it[FOLDER] = uri }
-    }
 
     val states: Flow<Map<String, BookState>> = store.data.map(::decodeAll)
 

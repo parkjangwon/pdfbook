@@ -172,6 +172,21 @@ class FolderRepositoryTest {
     }
 
     @Test
+    fun replacePrimaryKeepsBookKeys() = runBlocking {
+        val data = store("replace-books.preferences_pb")
+        val bookKey = stringPreferencesKey("book:content://doc/old|1")
+        data.edit { it[bookKey] = "1,2,RTL,7" }
+
+        val repo = FolderRepository(data, permissions)
+        repo.replacePrimary("content://tree/old", "Old")
+        repo.replacePrimary("content://tree/new", "New")
+
+        assertEquals("content://tree/new", repo.folders.first().single().uri)
+        assertEquals("1,2,RTL,7", data.data.first()[bookKey])
+        assertEquals(listOf("content://tree/old"), permissions.released)
+    }
+
+    @Test
     fun removeThenReaddRestoresAccessWithoutWipingBooks() = runBlocking {
         val data = store("readd.preferences_pb")
         val bookKey = stringPreferencesKey("book:content://doc/x|1")
