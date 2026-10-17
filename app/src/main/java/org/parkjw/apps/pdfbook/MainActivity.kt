@@ -8,6 +8,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -18,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -50,13 +54,18 @@ class MainActivity : ComponentActivity() {
                 volumeKeyPaging = settings.volumeKeyPaging
             }
             PdfBookTheme(themeMode = settings.themeMode) {
-                App(
-                    volumeDelta = volumeDeltaFlow,
-                    settings = settings,
-                    settingsReady = settingsState.value != null,
-                    onSettingsChange = { transform -> scope.launch { settingsRepo.update(transform) } },
-                    onDocumentOpenChange = { open -> documentOpen = open },
-                )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    App(
+                        volumeDelta = volumeDeltaFlow,
+                        settings = settings,
+                        settingsReady = settingsState.value != null,
+                        onSettingsChange = { transform -> scope.launch { settingsRepo.update(transform) } },
+                        onDocumentOpenChange = { open -> documentOpen = open },
+                    )
+                }
             }
         }
     }
