@@ -113,6 +113,15 @@ class FolderWorkspaceTest {
     }
 
     @Test
+    fun reorderKeepsMissingAndIgnoresDuplicates() {
+        val base = listOf(folder("a", "A", 0), folder("b", "B", 1), folder("c", "C", 2))
+        assertEquals(
+            listOf(folder("c", "C", 0), folder("a", "A", 1), folder("b", "B", 2)),
+            reorder(base, listOf("c", "c", "a", "missing")),
+        )
+    }
+
+    @Test
     fun migrateFromLegacyCreatesFirstFolderOnce() {
         val migrated = migrateFromLegacy(emptyList(), "content://tree/old", "Old")
         assertEquals(listOf(folder("content://tree/old", "Old", 0)), migrated)
@@ -132,6 +141,18 @@ class FolderWorkspaceTest {
             displayNameForUri("content://com.android.externalstorage.documents/tree/primary%3AMy%20Docs"),
         )
         assertEquals("plain", displayNameForUri("content://authority/tree/plain"))
+    }
+
+    @Test
+    fun displayNameForUriPreservesPlusSign() {
+        assertEquals(
+            "C++",
+            displayNameForUri("content://com.android.externalstorage.documents/tree/primary%3AC%2B%2B"),
+        )
+        assertEquals(
+            "A+B",
+            displayNameForUri("content://authority/tree/A+B"),
+        )
     }
 
     @Test
@@ -167,6 +188,25 @@ class FolderWorkspaceTest {
     }
 
     @Test
+    fun replacePrimaryExistingNonPrimaryPromotesKeepingName() {
+        val base = listOf(
+            folder("a", "First", 0),
+            folder("b", "Kept", 1, FolderAccess.Lost),
+            folder("c", "C", 2),
+        )
+        val result = replacePrimary(base, "b", "Ignored")
+        assertEquals(
+            listOf(
+                folder("b", "Kept", 0, FolderAccess.Ok),
+                folder("a", "First", 1),
+                folder("c", "C", 2),
+            ),
+            result.folders,
+        )
+        assertTrue(result.releaseUris.isEmpty())
+    }
+
+    @Test
     fun codecRoundTrip() {
         val folders = listOf(
             folder("content://a", "Name|Weird", 0, FolderAccess.Lost),
@@ -175,5 +215,40 @@ class FolderWorkspaceTest {
         assertEquals(folders, decodeFolders(encodeFolders(folders)))
         assertTrue(decodeFolders(null).isEmpty())
         assertTrue(decodeFolders("").isEmpty())
+    }
+
+    @Test
+    fun codecRoundTripWithSeparatorsAndEscapes() {
+        val folders = listOf(
+            folder("content://a\nb", "Name\nPipe|Slash\\End\r", 0, FolderAccess.Lost),
+            folder("content://c\\d", "line\r\nbreak", 1),
+        )
+        assertEquals(folders, decodeFolders(encodeFolders(folders)))
+    }
+
+    @Test
+    fun primaryWorkspaceUriWaitsForLoadedFolders() {
+        assertEquals(null, primaryWorkspaceUri(loaded = false, folders = emptyList()))
+        assertEquals(null, primaryWorkspaceUri(loaded = true, folders = null))
+        assertEquals(null, primaryWorkspaceUri(loaded = true, folders = emptyList()))
+        assertEquals("a", primaryWorkspaceUri(loaded = true, folders = listOf(folder("a", "A", 0))))
+    }
+
+    @Test
+    fun readGrantedUrisKeepsOnlyReadPermission() {
+        assertEquals(
+            setOf("read", "both"),
+            readGrantedUris(listOf("read" to true, "write" to false, "both" to true)),
+        )
+    }
+
+    @Test
+    fun releasePersistableSafelySkipsMissingAndSwallowsSecurityException() {
+        val released = mutableListOf<String>()
+        releasePersistableSafely("missing", emptySet()) { released += it }
+        assertTrue(released.isEmpty())
+        releasePersistableSafely("held", setOf("held")) { throw SecurityException("gone") }
+        releasePersistableSafely("held", setOf("held")) { released += it }
+        assertEquals(listOf("held"), released)
     }
 }

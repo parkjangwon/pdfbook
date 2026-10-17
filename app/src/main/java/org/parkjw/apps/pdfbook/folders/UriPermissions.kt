@@ -21,12 +21,28 @@ class ContentResolverUriPermissions(
     }
 
     override fun release(uri: String) {
-        contentResolver.releasePersistableUriPermission(
-            Uri.parse(uri),
-            Intent.FLAG_GRANT_READ_URI_PERMISSION,
-        )
+        releasePersistableSafely(uri, persistedUris()) {
+            contentResolver.releasePersistableUriPermission(
+                Uri.parse(it),
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
     }
 
     override fun persistedUris(): Set<String> =
-        contentResolver.persistedUriPermissions.mapTo(mutableSetOf()) { it.uri.toString() }
+        readGrantedUris(
+            contentResolver.persistedUriPermissions.map { it.uri.toString() to it.isReadPermission },
+        )
+}
+
+fun readGrantedUris(entries: Iterable<Pair<String, Boolean>>): Set<String> =
+    entries.mapNotNullTo(mutableSetOf()) { (uri, isRead) -> uri.takeIf { isRead } }
+
+inline fun releasePersistableSafely(
+    uri: String,
+    persisted: Set<String>,
+    release: (String) -> Unit,
+) {
+    if (uri !in persisted) return
+    runCatching { release(uri) }
 }

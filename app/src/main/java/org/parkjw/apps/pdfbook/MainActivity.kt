@@ -28,8 +28,10 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.folders.ContentResolverUriPermissions
+import org.parkjw.apps.pdfbook.folders.Folder
 import org.parkjw.apps.pdfbook.folders.FolderRepository
 import org.parkjw.apps.pdfbook.folders.displayNameForUri
+import org.parkjw.apps.pdfbook.folders.primaryWorkspaceUri
 import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.SettingsRepository
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
@@ -109,6 +111,7 @@ private fun App(
     }
     val scope = rememberCoroutineScope()
     var loaded by remember { mutableStateOf(false) }
+    var folders by remember { mutableStateOf<List<Folder>?>(null) }
     var openUri by rememberSaveable { mutableStateOf<String?>(null) }
     var listing by remember { mutableStateOf<Listing?>(null) }
     var scanned by remember { mutableStateOf(false) }
@@ -116,8 +119,7 @@ private fun App(
     var startApplied by rememberSaveable { mutableStateOf(false) }
     val statesState = store.states.collectAsState(initial = null)
     val states = statesState.value ?: emptyMap()
-    val folders by folderRepo.folders.collectAsState(initial = emptyList())
-    val folder = if (loaded) folders.firstOrNull()?.uri else null
+    val folder = primaryWorkspaceUri(loaded, folders)
 
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -130,7 +132,10 @@ private fun App(
     LaunchedEffect(Unit) {
         folderRepo.migrateFromLegacyIfNeeded()
         folderRepo.refreshAccess()
-        loaded = true
+        folderRepo.folders.collect {
+            folders = it
+            loaded = true
+        }
     }
     LaunchedEffect(folder, loaded) {
         if (!loaded) return@LaunchedEffect

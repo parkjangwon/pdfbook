@@ -7,10 +7,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -25,18 +26,20 @@ class FolderRepositoryTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
+    private lateinit var job: Job
     private lateinit var scope: CoroutineScope
     private lateinit var permissions: FakeUriPermissions
 
     @Before
     fun setUp() {
-        scope = CoroutineScope(Job() + Dispatchers.Unconfined)
+        job = Job()
+        scope = CoroutineScope(job + Dispatchers.Unconfined)
         permissions = FakeUriPermissions()
     }
 
     @After
-    fun tearDown() {
-        scope.cancel()
+    fun tearDown() = runBlocking {
+        job.cancelAndJoin()
     }
 
     private fun repository(
@@ -79,17 +82,22 @@ class FolderRepositoryTest {
 
     @Test
     fun concurrentAddsBothPersist() = runBlocking {
-        val repo = repository("concurrent.preferences_pb")
-        coroutineScope {
-            val a = async { repo.add("content://tree/a", "A") }
-            val b = async { repo.add("content://tree/b", "B") }
-            assertEquals(AddKind.Created, a.await())
-            assertEquals(AddKind.Created, b.await())
+        repeat(20) { attempt ->
+            permissions = FakeUriPermissions()
+            val repo = repository("concurrent-$attempt.preferences_pb")
+            withContext(Dispatchers.Default) {
+                coroutineScope {
+                    val a = async { repo.add("content://tree/a", "A") }
+                    val b = async { repo.add("content://tree/b", "B") }
+                    assertEquals(AddKind.Created, a.await())
+                    assertEquals(AddKind.Created, b.await())
+                }
+            }
+            assertEquals(
+                setOf("content://tree/a", "content://tree/b"),
+                repo.folders.first().map { it.uri }.toSet(),
+            )
         }
-        assertEquals(
-            setOf("content://tree/a", "content://tree/b"),
-            repo.folders.first().map { it.uri }.toSet(),
-        )
     }
 
     @Test
@@ -257,6 +265,29 @@ class FolderRepositoryTest {
         }
         assertTrue(repo.folders.first().isEmpty())
     }
+
+    @Test
+    fun removeLostFolderDoesNotThrowWhenPermissionAlreadyGone() = runBlocking {
+        val repo = repository("lost-release.preferences_pb")
+        repo.add("content://tree/a", "A")
+        permissions.persisted = emptySet()
+        permissions.throwOnReleaseMissing = true
+        repo.refreshAccess()
+        repo.remove("content://tree/a")
+        assertTrue(repo.folders.first().isEmpty())
+        assertTrue(permissions.released.isEmpty())
+    }
+
+    @Test
+    fun replacePrimaryLostOldDoesNotThrowOnRelease() = runBlocking {
+        val repo = repository("replace-lost-release.preferences_pb")
+        repo.replacePrimary("content://tree/old", "Old")
+        permissions.persisted = setOf("content://tree/new")
+        permissions.throwOnReleaseMissing = true
+        repo.replacePrimary("content://tree/new", "New")
+        assertEquals("content://tree/new", repo.folders.first().single().uri)
+        assertTrue(permissions.released.isEmpty())
+    }
 }
 
 private class FakeUriPermissions : UriPermissions {
@@ -264,6 +295,7 @@ private class FakeUriPermissions : UriPermissions {
     val released = mutableListOf<String>()
     var persisted: Set<String> = emptySet()
     var throwOnTake: Set<String> = emptySet()
+    var throwOnReleaseMissing: Boolean = false
 
     override fun take(uri: String) {
         if (uri in throwOnTake) throw SecurityException("denied")
@@ -272,8 +304,11 @@ private class FakeUriPermissions : UriPermissions {
     }
 
     override fun release(uri: String) {
-        released += uri
-        persisted = persisted - uri
+        releasePersistableSafely(uri, persisted) {
+            if (throwOnReleaseMissing) throw SecurityException("not held")
+            released += it
+            persisted = persisted - it
+        }
     }
 
     override fun persistedUris(): Set<String> = persisted

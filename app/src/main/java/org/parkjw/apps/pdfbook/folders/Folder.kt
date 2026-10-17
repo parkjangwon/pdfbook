@@ -33,11 +33,36 @@ data class ReplacePrimaryResult(
     val releaseUris: List<String>,
 )
 
+fun primaryWorkspaceUri(loaded: Boolean, folders: List<Folder>?): String? =
+    if (!loaded || folders == null) null else folders.firstOrNull()?.uri
+
 fun displayNameForUri(uri: String): String {
     val encoded = uri.trimEnd('/').substringAfterLast('/')
-    val decoded = java.net.URLDecoder.decode(encoded, Charsets.UTF_8)
+    val decoded = percentDecode(encoded)
     val colon = decoded.lastIndexOf(':')
     return if (colon >= 0) decoded.substring(colon + 1) else decoded
+}
+
+fun percentDecode(value: String): String {
+    if ('%' !in value) return value
+    val bytes = ByteArray(value.length)
+    var length = 0
+    var index = 0
+    while (index < value.length) {
+        val char = value[index]
+        if (char == '%' && index + 2 < value.length) {
+            val high = value[index + 1].digitToIntOrNull(16)
+            val low = value[index + 2].digitToIntOrNull(16)
+            if (high != null && low != null) {
+                bytes[length++] = ((high shl 4) + low).toByte()
+                index += 3
+                continue
+            }
+        }
+        bytes[length++] = char.code.toByte()
+        index++
+    }
+    return String(bytes, 0, length, Charsets.UTF_8)
 }
 
 fun add(folders: List<Folder>, uri: String, displayName: String): AddResult {
@@ -94,9 +119,17 @@ fun applyPersistedPermissions(folders: List<Folder>, persistedUris: Set<String>)
 
 fun reorder(folders: List<Folder>, orderedUris: List<String>): List<Folder> {
     val byUri = folders.associateBy { it.uri }
-    return orderedUris.mapIndexedNotNull { index, uri ->
-        byUri[uri]?.copy(order = index)
+    val seen = linkedSetOf<String>()
+    val reordered = mutableListOf<Folder>()
+    for (uri in orderedUris) {
+        if (!seen.add(uri)) continue
+        val folder = byUri[uri] ?: continue
+        reordered += folder
     }
+    for (folder in folders.sortedBy { it.order }) {
+        if (seen.add(folder.uri)) reordered += folder
+    }
+    return reordered.mapIndexed { index, folder -> folder.copy(order = index) }
 }
 
 fun migrateFromLegacy(folders: List<Folder>, legacyUri: String?, displayName: String): List<Folder> {
@@ -122,6 +155,13 @@ fun replacePrimary(folders: List<Folder>, uri: String, displayName: String): Rep
             },
             emptyList(),
         )
+    }
+    val existing = folders.find { it.uri == uri }
+    if (existing != null) {
+        val rest = folders.filter { it.uri != uri }.sortedBy { it.order }
+        val promoted = existing.copy(order = 0, access = FolderAccess.Ok)
+        val updated = listOf(promoted) + rest.mapIndexed { index, folder -> folder.copy(order = index + 1) }
+        return ReplacePrimaryResult(updated, emptyList())
     }
     val updated = folders.map {
         if (it.uri == primary.uri) {
