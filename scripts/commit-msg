@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+msg="$(head -n1 "$1")"
+pattern='^(feat|fix|refactor|test|chore|ci|docs|perf|build|style|revert)(\([a-z0-9-]+\))?!?: .{1,72}$'
+
+if [[ ${#msg} -gt 72 ]] || ! [[ "$msg" =~ $pattern ]]; then
+  echo "commit message must match Conventional Commits and be <= 72 chars:" >&2
+  echo "  $pattern" >&2
+  echo "got: $msg" >&2
+  exit 1
+fi
