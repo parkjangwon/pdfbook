@@ -101,7 +101,7 @@ def subset_ttf(src: pathlib.Path, dst: pathlib.Path, text: str, family: str | No
             if "Pretendard" not in value:
                 continue
             replaced = value.replace("Pretendard", ps if record.nameID == 6 else family)
-            if record.platformID == 3:
+            if record.platformID in (0, 3):
                 record.string = replaced.encode("utf-16-be")
             else:
                 record.string = replaced.encode("latin-1", errors="replace")
