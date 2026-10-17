@@ -134,6 +134,13 @@ internal fun sampleShelfUi(): FolderShelfUi {
     return buildFolderShelfUi(sampleShelfFolders(), listings, sampleShelfStates(listings))
 }
 
+internal fun sampleLostOnlyShelfUi(): FolderShelfUi {
+    val folders = listOf(
+        Folder("content://tree/lost", "옛 폴더", 0, FolderAccess.Lost, lastOpenedAt = 1_000L),
+    )
+    return buildFolderShelfUi(folders, mapOf("content://tree/lost" to null), emptyMap())
+}
+
 @Composable
 internal fun ScreenshotTheme(
     dark: Boolean,

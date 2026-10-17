@@ -17,8 +17,11 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import android.graphics.Bitmap
+import org.parkjw.apps.pdfbook.FolderCardUi
 import org.parkjw.apps.pdfbook.FolderPickScreen
 import org.parkjw.apps.pdfbook.FolderShelfScreen
+import org.parkjw.apps.pdfbook.FolderShelfUi
 import org.parkjw.apps.pdfbook.LibraryScreen
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReaderScreen
@@ -82,6 +85,22 @@ class MainScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun firstRunLightFolded() = captureFolderEmpty(dark = false, file = "first-run-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun firstRunDarkFolded() = captureFolderEmpty(dark = true, file = "first-run-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun firstRunLightUnfolded() = captureFolderEmpty(dark = false, file = "first-run-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun firstRunDarkUnfolded() = captureFolderEmpty(dark = true, file = "first-run-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun shelfLightFolded() = captureShelf(dark = false, file = "shelf-light-folded.png")
 
     @Test
@@ -95,6 +114,54 @@ class MainScreenshotsTest {
     @Test
     @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
     fun shelfDarkUnfolded() = captureShelf(dark = true, file = "shelf-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun shelfLostLightFolded() = captureShelfLost(dark = false, file = "shelf-lost-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun shelfLostDarkFolded() = captureShelfLost(dark = true, file = "shelf-lost-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun shelfLostLightUnfolded() = captureShelfLost(dark = false, file = "shelf-lost-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun shelfLostDarkUnfolded() = captureShelfLost(dark = true, file = "shelf-lost-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun shelfMenuLightFolded() = captureShelfMenu(dark = false, file = "shelf-menu-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun shelfMenuDarkFolded() = captureShelfMenu(dark = true, file = "shelf-menu-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun shelfMenuLightUnfolded() = captureShelfMenu(dark = false, file = "shelf-menu-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun shelfMenuDarkUnfolded() = captureShelfMenu(dark = true, file = "shelf-menu-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun removeConfirmLightFolded() = captureRemoveConfirm(dark = false, file = "remove-confirm-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun removeConfirmDarkFolded() = captureRemoveConfirm(dark = true, file = "remove-confirm-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun removeConfirmLightUnfolded() = captureRemoveConfirm(dark = false, file = "remove-confirm-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun removeConfirmDarkUnfolded() = captureRemoveConfirm(dark = true, file = "remove-confirm-dark-unfolded.png")
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
@@ -198,16 +265,23 @@ class MainScreenshotsTest {
         }
     }
 
-    private fun captureShelf(dark: Boolean, file: String) {
-        val listings = sampleShelfListings()
-        val shelf = sampleShelfUi()
+    private fun captureShelfScreen(
+        dark: Boolean,
+        file: String,
+        shelf: FolderShelfUi,
+        covers: Map<String, Bitmap?>,
+        scrollToUri: String? = null,
+        showRenameFor: FolderCardUi? = null,
+        showMenuFor: String? = null,
+        showRemoveConfirmFor: String? = null,
+    ) {
         capture(file, dark) {
             FolderShelfScreen(
                 shelf = shelf,
-                covers = sampleShelfCovers(listings),
+                covers = covers,
                 snackbarMessage = null,
-                scrollToUri = shelf.cards.last().uri,
-                showRenameFor = null,
+                scrollToUri = scrollToUri,
+                showRenameFor = showRenameFor,
                 onSnackbarShown = {},
                 onScrollHandled = {},
                 onOpenFolder = {},
@@ -221,35 +295,66 @@ class MainScreenshotsTest {
                 onRemove = {},
                 onLostFolder = {},
                 modifier = Modifier.fillMaxSize(),
+                showMenuFor = showMenuFor,
+                showRemoveConfirmFor = showRemoveConfirmFor,
             )
         }
+    }
+
+    private fun captureShelf(dark: Boolean, file: String) {
+        val listings = sampleShelfListings()
+        val shelf = sampleShelfUi()
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = shelf,
+            covers = sampleShelfCovers(listings),
+        )
+    }
+
+    private fun captureShelfLost(dark: Boolean, file: String) {
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = sampleLostOnlyShelfUi(),
+            covers = emptyMap(),
+        )
+    }
+
+    private fun captureShelfMenu(dark: Boolean, file: String) {
+        val listings = sampleShelfListings()
+        val shelf = sampleShelfUi()
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = shelf,
+            covers = sampleShelfCovers(listings),
+            showMenuFor = shelf.cards.first().uri,
+        )
+    }
+
+    private fun captureRemoveConfirm(dark: Boolean, file: String) {
+        val listings = sampleShelfListings()
+        val shelf = sampleShelfUi()
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = shelf,
+            covers = sampleShelfCovers(listings),
+            showRemoveConfirmFor = shelf.cards.first().uri,
+        )
     }
 
     private fun captureRename(dark: Boolean, file: String) {
         val listings = sampleShelfListings()
         val shelf = sampleShelfUi()
-        capture(file, dark) {
-            FolderShelfScreen(
-                shelf = shelf,
-                covers = sampleShelfCovers(listings),
-                snackbarMessage = null,
-                scrollToUri = null,
-                showRenameFor = shelf.cards.first(),
-                onSnackbarShown = {},
-                onScrollHandled = {},
-                onOpenFolder = {},
-                onOpenResume = {},
-                onAddFolder = {},
-                onSettings = {},
-                onRenameRequest = {},
-                onRenameConfirm = { _, _ -> },
-                onRenameDismiss = {},
-                onRepick = {},
-                onRemove = {},
-                onLostFolder = {},
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = shelf,
+            covers = sampleShelfCovers(listings),
+            showRenameFor = shelf.cards.first(),
+        )
     }
 
     private fun captureSettings(dark: Boolean, file: String) {
