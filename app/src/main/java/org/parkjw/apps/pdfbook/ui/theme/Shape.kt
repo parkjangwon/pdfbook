@@ -4,7 +4,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
+val CoverCorner = RoundedCornerShape(8.dp)
+val ButtonCorner = RoundedCornerShape(8.dp)
+val CardCorner = RoundedCornerShape(12.dp)
+val SheetTopCorner = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+val PillCorner = RoundedCornerShape(percent = 50)
+
 val PdfBookShapes = Shapes(
-    medium = RoundedCornerShape(12.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    extraSmall = RoundedCornerShape(4.dp),
+    small = ButtonCorner,
+    medium = CardCorner,
+    large = SheetTopCorner,
+    extraLarge = PillCorner,
 )

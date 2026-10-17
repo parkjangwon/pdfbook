@@ -5,6 +5,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -21,6 +22,11 @@ object PdfBookSpacing {
     val screenHorizontalFolded = 16.dp
     val screenHorizontalUnfolded = 24.dp
 }
+
+val MaterialTheme.extendedColors: PdfBookColors
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalPdfBookColors.current
 
 @Composable
 fun PdfBookTheme(
