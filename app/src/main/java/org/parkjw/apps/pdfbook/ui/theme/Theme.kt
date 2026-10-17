@@ -1,18 +1,25 @@
 package org.parkjw.apps.pdfbook.ui.theme
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 
 private val DarkColorScheme = darkColorScheme(
     primary = DarkPrimary,
     onPrimary = DarkOnPrimary,
     primaryContainer = DarkPrimaryContainer,
+    onPrimaryContainer = DarkOnPrimaryContainer,
+    background = DarkBackground,
+    onBackground = DarkOnBackground,
     surface = DarkSurface,
     surfaceContainer = DarkSurfaceContainer,
     surfaceContainerHigh = DarkSurfaceContainerHigh,
@@ -26,6 +33,9 @@ private val LightColorScheme = lightColorScheme(
     primary = LightPrimary,
     onPrimary = LightOnPrimary,
     primaryContainer = LightPrimaryContainer,
+    onPrimaryContainer = LightOnPrimaryContainer,
+    background = LightBackground,
+    onBackground = LightOnBackground,
     surface = LightSurface,
     surfaceContainer = LightSurfaceContainer,
     surfaceContainerHigh = LightSurfaceContainerHigh,
@@ -55,6 +65,15 @@ fun PdfBookTheme(
         ThemeMode.System -> isSystemInDarkTheme()
         ThemeMode.Dark -> true
         ThemeMode.Light -> false
+    }
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !dark
+            controller.isAppearanceLightNavigationBars = !dark
+        }
     }
     MaterialTheme(
         colorScheme = if (dark) DarkColorScheme else LightColorScheme,
