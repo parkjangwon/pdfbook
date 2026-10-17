@@ -3,8 +3,8 @@ package org.parkjw.apps.pdfbook
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -32,8 +33,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -97,6 +101,14 @@ private fun ReaderScreenContent(
     val rtl = direction == ReadingDirection.RTL
     val scope = rememberCoroutineScope()
     var overlayVisible by remember { mutableStateOf(false) }
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    val zoomed = scale > 1f
+
+    LaunchedEffect(pagerState.settledPage) {
+        scale = 1f
+        offset = Offset.Zero
+    }
 
     LaunchedEffect(volumeDelta, pagerState) {
         volumeDelta?.collect { delta ->
@@ -136,7 +148,15 @@ private fun ReaderScreenContent(
             HorizontalPager(
                 state = pagerState,
                 reverseLayout = rtl,
-                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = !zoomed,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
+                    },
                 beyondViewportPageCount = 1,
             ) { pageIndex ->
                 val spread = currentSpreads.getOrNull(pageIndex) ?: return@HorizontalPager
@@ -170,41 +190,39 @@ private fun ReaderScreenContent(
             }
         }
 
-        Row(Modifier.fillMaxSize()) {
-            val leftDelta = if (rtl) 1 else -1
-            val rightDelta = if (rtl) -1 else 1
-            val noIndication = remember { MutableInteractionSource() }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        interactionSource = noIndication,
-                        indication = null,
-                        onClick = { goTo(leftDelta) },
-                    ),
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { overlayVisible = !overlayVisible },
-                    ),
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { goTo(rightDelta) },
-                    ),
-            )
-        }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .pointerInput(rtl, zoomed) {
+                    val leftDelta = if (rtl) 1 else -1
+                    val rightDelta = if (rtl) -1 else 1
+                    detectTapGestures(
+                        onDoubleTap = {
+                            if (scale > 1f) {
+                                scale = 1f
+                                offset = Offset.Zero
+                            } else {
+                                scale = 2f
+                            }
+                        },
+                        onTap = { pos ->
+                            val third = size.width / 3f
+                            when {
+                                pos.x < third -> if (!zoomed) goTo(leftDelta)
+                                pos.x > third * 2f -> if (!zoomed) goTo(rightDelta)
+                                else -> overlayVisible = !overlayVisible
+                            }
+                        },
+                    )
+                }
+                .pointerInput(zoomed) {
+                    if (!zoomed) return@pointerInput
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        offset += dragAmount
+                    }
+                },
+        )
 
         if (overlayVisible) {
             ReaderOverlayTop(
