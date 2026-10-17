@@ -1,4 +1,4 @@
-package dev.parkjw.pdfbook
+package org.parkjw.apps.pdfbook
 
 import android.app.Activity
 import androidx.compose.runtime.Composable

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.parkjw.pdfbook"
+    namespace = "org.parkjw.apps.pdfbook"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "dev.parkjw.pdfbook"
+        applicationId = "org.parkjw.apps.pdfbook"
         minSdk = 35
         targetSdk = 37
         versionCode = 1

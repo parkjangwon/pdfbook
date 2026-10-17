@@ -1,4 +1,4 @@
-package dev.parkjw.pdfbook
+package org.parkjw.apps.pdfbook
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
@@ -37,22 +40,43 @@ fun ReaderScreen(
     direction: ReadingDirection = ReadingDirection.RTL,
     volumeDelta: Flow<Int>? = null,
 ) {
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        ReaderScreenContent(
+            renderer = renderer,
+            pagerState = pagerState,
+            spreads = spreads,
+            modifier = modifier,
+            direction = direction,
+            volumeDelta = volumeDelta,
+        )
+    }
+}
+
+@Composable
+private fun ReaderScreenContent(
+    renderer: PageRenderer,
+    pagerState: PagerState,
+    spreads: List<List<Int>>,
+    modifier: Modifier,
+    direction: ReadingDirection,
+    volumeDelta: Flow<Int>?,
+) {
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(volumeDelta, pagerState) {
         volumeDelta?.collect { delta ->
-            val target = (pagerState.currentPage + delta).coerceIn(0, pagerState.pageCount - 1)
-            if (target != pagerState.currentPage) {
+            val target = pagerTargetIndex(pagerState.targetPage, delta, pagerState.pageCount)
+            if (target != pagerState.targetPage) {
                 pagerState.animateScrollToPage(target)
             }
         }
     }
 
     fun goTo(delta: Int) {
-        val target = (pagerState.currentPage + delta).coerceIn(0, pagerState.pageCount - 1)
-        if (target != pagerState.currentPage) {
+        val target = pagerTargetIndex(pagerState.targetPage, delta, pagerState.pageCount)
+        if (target != pagerState.targetPage) {
             scope.launch { pagerState.animateScrollToPage(target) }
         }
     }
@@ -62,40 +86,45 @@ fun ReaderScreen(
             .fillMaxSize()
             .background(Color.Black),
     ) {
-        HorizontalPager(
-            state = pagerState,
-            reverseLayout = rtl,
-            modifier = Modifier.fillMaxSize(),
-            beyondViewportPageCount = 1,
-        ) { pageIndex ->
-            val spread = currentSpreads[pageIndex]
-            val layout = spreadLayout(spread, direction)
-            BoxWithConstraints(Modifier.fillMaxSize()) {
-                val slotWidth = (constraints.maxWidth / layout.size.coerceAtLeast(1)).coerceAtLeast(1)
-                val slotHeight = constraints.maxHeight.coerceAtLeast(1)
-                LaunchedEffect(pageIndex, slotWidth, slotHeight, currentSpreads) {
-                    renderer.prefetch(currentSpreads, pageIndex, slotWidth, slotHeight)
-                }
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    layout.forEachIndexed { index, page ->
-                        val pageAlignment = when {
-                            layout.size == 1 -> Alignment.Center
-                            index == 0 -> Alignment.CenterEnd
-                            else -> Alignment.CenterStart
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val settledSpread = currentSpreads.getOrNull(pagerState.settledPage).orEmpty()
+            val slotWidth = (constraints.maxWidth / settledSpread.size.coerceAtLeast(1)).coerceAtLeast(1)
+            val slotHeight = constraints.maxHeight.coerceAtLeast(1)
+            LaunchedEffect(pagerState.settledPage, currentSpreads, slotWidth, slotHeight) {
+                renderer.prefetch(currentSpreads, pagerState.settledPage, slotWidth, slotHeight)
+            }
+            HorizontalPager(
+                state = pagerState,
+                reverseLayout = rtl,
+                modifier = Modifier.fillMaxSize(),
+                beyondViewportPageCount = 1,
+            ) { pageIndex ->
+                val spread = currentSpreads.getOrNull(pageIndex) ?: return@HorizontalPager
+                val layout = spreadLayout(spread, direction)
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val pageSlotWidth = (constraints.maxWidth / layout.size.coerceAtLeast(1)).coerceAtLeast(1)
+                    val pageSlotHeight = constraints.maxHeight.coerceAtLeast(1)
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        layout.forEachIndexed { index, page ->
+                            val pageAlignment = when {
+                                layout.size == 1 -> Alignment.Center
+                                index == 0 -> Alignment.CenterEnd
+                                else -> Alignment.CenterStart
+                            }
+                            PageBitmap(
+                                renderer = renderer,
+                                page = page,
+                                maxWidth = pageSlotWidth,
+                                maxHeight = pageSlotHeight,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                alignment = pageAlignment,
+                            )
                         }
-                        PageBitmap(
-                            renderer = renderer,
-                            page = page,
-                            maxWidth = slotWidth,
-                            maxHeight = slotHeight,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight(),
-                            alignment = pageAlignment,
-                        )
                     }
                 }
             }
@@ -143,15 +172,16 @@ private fun PageBitmap(
     modifier: Modifier = Modifier,
     alignment: Alignment = Alignment.Center,
 ) {
-    var bitmap by remember(page, maxWidth, maxHeight) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(page, maxWidth, maxHeight) {
+    var bitmap by remember(renderer, page, maxWidth, maxHeight) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(renderer, page, maxWidth, maxHeight) {
         bitmap = renderer.render(page, maxWidth, maxHeight)
     }
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val bmp = bitmap
         if (bmp != null && !bmp.isRecycled) {
+            val imageBitmap = remember(bmp) { bmp.asImageBitmap() }
             Image(
-                bitmap = bmp.asImageBitmap(),
+                bitmap = imageBitmap,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 alignment = alignment,

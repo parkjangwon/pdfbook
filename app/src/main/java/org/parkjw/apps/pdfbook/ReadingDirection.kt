@@ -1,4 +1,4 @@
-package dev.parkjw.pdfbook
+package org.parkjw.apps.pdfbook
 
 enum class ReadingDirection {
     RTL,

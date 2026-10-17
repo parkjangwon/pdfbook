@@ -1,6 +1,8 @@
-package dev.parkjw.pdfbook
+package org.parkjw.apps.pdfbook
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SpreadsTest {
@@ -27,5 +29,7 @@ class SpreadsTest {
     @Test
     fun empty() {
         assertEquals(emptyList<List<Int>>(), spreads(0, twoPage = true, coverAlone = true))
+        assertFalse(hasReadableSpreads(spreads(0, twoPage = true, coverAlone = true)))
+        assertTrue(hasReadableSpreads(spreads(1, twoPage = false, coverAlone = true)))
     }
 }

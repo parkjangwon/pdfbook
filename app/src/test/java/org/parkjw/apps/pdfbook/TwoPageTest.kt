@@ -1,4 +1,4 @@
-package dev.parkjw.pdfbook
+package org.parkjw.apps.pdfbook
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

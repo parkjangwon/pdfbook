@@ -1,4 +1,4 @@
-package dev.parkjw.pdfbook
+package org.parkjw.apps.pdfbook
 
 fun spreads(pageCount: Int, twoPage: Boolean, coverAlone: Boolean): List<List<Int>> {
     if (pageCount <= 0) return emptyList()
@@ -13,3 +13,8 @@ fun spreadIndexOf(spreads: List<List<Int>>, page: Int): Int {
     val index = spreads.indexOfFirst { page in it }
     return if (index >= 0) index else 0
 }
+
+fun keptPageFromSettle(spreads: List<List<Int>>, settledIndex: Int): Int? =
+    spreads.getOrNull(settledIndex)?.firstOrNull()
+
+fun hasReadableSpreads(spreads: List<List<Int>>): Boolean = spreads.isNotEmpty()
