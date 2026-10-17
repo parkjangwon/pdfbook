@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +41,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.parkjw.apps.pdfbook.ui.SafeTopBar
+import org.parkjw.apps.pdfbook.ui.safeDrawingGridContentPadding
+import org.parkjw.apps.pdfbook.ui.safeDrawingPadding
 
 @Composable
 fun FolderPickScreen(
@@ -53,7 +55,7 @@ fun FolderPickScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.fillMaxSize().padding(24.dp),
+        modifier = modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -80,9 +82,8 @@ fun LibraryScreen(
     val sorted = remember(listing, states, byName) { sortBooks(listing.books, states, byName) }
     val resume = if (byName) null else sorted.firstOrNull { (states[bookKey(it.uri, it.size)]?.openedAt ?: 0L) > 0L }
     Column(modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        SafeTopBar(
+            modifier = Modifier.padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(listing.folderName, style = MaterialTheme.typography.titleLarge)
@@ -101,7 +102,7 @@ fun LibraryScreen(
         BoxWithConstraints(Modifier.fillMaxSize()) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columnsFor(maxWidth.value.toInt())),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = safeDrawingGridContentPadding(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {

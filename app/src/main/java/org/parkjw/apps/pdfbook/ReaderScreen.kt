@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Icon
@@ -51,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
+import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 
 @Composable
 fun ReaderScreen(
@@ -304,7 +305,7 @@ private fun ReaderOverlayTop(
                 indication = null,
                 onClick = {},
             )
-            .statusBarsPadding()
+            .safeDrawingTopBarPadding()
             .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -373,6 +374,7 @@ private fun ReaderOverlayBottom(
                 indication = null,
                 onClick = {},
             )
+            .safeDrawingBottomBarPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
