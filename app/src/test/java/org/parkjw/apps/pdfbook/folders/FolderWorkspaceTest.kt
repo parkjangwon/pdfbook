@@ -122,6 +122,19 @@ class FolderWorkspaceTest {
     }
 
     @Test
+    fun displayNameForUriUsesDecodedSegmentAfterColon() {
+        assertEquals(
+            "Books",
+            displayNameForUri("content://com.android.externalstorage.documents/tree/primary%3ABooks"),
+        )
+        assertEquals(
+            "My Docs",
+            displayNameForUri("content://com.android.externalstorage.documents/tree/primary%3AMy%20Docs"),
+        )
+        assertEquals("plain", displayNameForUri("content://authority/tree/plain"))
+    }
+
+    @Test
     fun codecRoundTrip() {
         val folders = listOf(
             folder("content://a", "Name|Weird", 0, FolderAccess.Lost),

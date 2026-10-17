@@ -2,6 +2,7 @@ package org.parkjw.apps.pdfbook.folders
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -14,6 +15,7 @@ import org.parkjw.apps.pdfbook.pdfbookDataStore
 class FolderRepository(
     private val dataStore: DataStore<Preferences>,
     private val uriPermissions: UriPermissions,
+    private val displayNameFor: (String) -> String = ::displayNameForUri,
 ) {
     constructor(context: Context, uriPermissions: UriPermissions) : this(
         context.applicationContext.pdfbookDataStore,
@@ -24,63 +26,93 @@ class FolderRepository(
         decodeFolders(prefs[FoldersKey]).sortedBy { it.order }
     }
 
-    suspend fun migrateFromLegacyIfNeeded(displayNameFor: (String) -> String) {
-        dataStore.edit { prefs ->
-            if (prefs[MigratedKey] == true) return@edit
-            val current = decodeFolders(prefs[FoldersKey])
-            val legacyUri = prefs[LegacyFolderKey]
-            val migrated = migrateFromLegacy(
-                folders = current,
-                legacyUri = legacyUri,
-                displayName = legacyUri?.let(displayNameFor) ?: "",
-            )
-            prefs[FoldersKey] = encodeFolders(migrated)
-            prefs[MigratedKey] = true
-        }
+    suspend fun migrateFromLegacyIfNeeded() {
+        dataStore.edit { migrateInto(it) }
     }
 
     suspend fun add(uri: String, displayName: String): AddKind {
-        migrateFromLegacyIfNeeded { displayName }
-        val result = add(folders.first(), uri, displayName)
-        when (result.kind) {
-            AddKind.Created, AddKind.Restored -> {
-                uriPermissions.take(uri)
-                persist(result.folders)
+        val preview = previewAdd(uri, displayName)
+        if (preview == AddKind.Duplicate) return AddKind.Duplicate
+        uriPermissions.take(uri)
+        var kind = preview
+        dataStore.edit { prefs ->
+            migrateInto(prefs)
+            val result = add(decodeFolders(prefs[FoldersKey]), uri, displayName)
+            kind = result.kind
+            if (result.kind != AddKind.Duplicate) {
+                prefs[FoldersKey] = encodeFolders(result.folders)
             }
-            AddKind.Duplicate -> Unit
+            prefs[MigratedKey] = true
         }
-        return result.kind
+        return kind
     }
 
     suspend fun remove(uri: String) {
-        migrateFromLegacyIfNeeded { uri }
-        val result = remove(folders.first(), uri)
-        persist(result.folders)
-        for (releaseUri in result.releaseUris) {
+        var releaseUris = emptyList<String>()
+        dataStore.edit { prefs ->
+            migrateInto(prefs)
+            val result = remove(decodeFolders(prefs[FoldersKey]), uri)
+            prefs[FoldersKey] = encodeFolders(result.folders)
+            prefs[MigratedKey] = true
+            releaseUris = result.releaseUris
+        }
+        for (releaseUri in releaseUris) {
             uriPermissions.release(releaseUri)
         }
     }
 
     suspend fun rename(uri: String, displayName: String, defaultName: String) {
-        migrateFromLegacyIfNeeded { defaultName }
-        persist(rename(folders.first(), uri, displayName, defaultName))
+        dataStore.edit { prefs ->
+            migrateInto(prefs)
+            prefs[FoldersKey] = encodeFolders(
+                rename(decodeFolders(prefs[FoldersKey]), uri, displayName, defaultName),
+            )
+            prefs[MigratedKey] = true
+        }
     }
 
     suspend fun reorder(orderedUris: List<String>) {
-        migrateFromLegacyIfNeeded { it }
-        persist(reorder(folders.first(), orderedUris))
+        dataStore.edit { prefs ->
+            migrateInto(prefs)
+            prefs[FoldersKey] = encodeFolders(reorder(decodeFolders(prefs[FoldersKey]), orderedUris))
+            prefs[MigratedKey] = true
+        }
     }
 
     suspend fun refreshAccess() {
-        migrateFromLegacyIfNeeded { it }
-        persist(applyPersistedPermissions(folders.first(), uriPermissions.persistedUris()))
-    }
-
-    private suspend fun persist(folders: List<Folder>) {
         dataStore.edit { prefs ->
-            prefs[FoldersKey] = encodeFolders(folders)
+            migrateInto(prefs)
+            prefs[FoldersKey] = encodeFolders(
+                applyPersistedPermissions(decodeFolders(prefs[FoldersKey]), uriPermissions.persistedUris()),
+            )
             prefs[MigratedKey] = true
         }
+    }
+
+    private suspend fun previewAdd(uri: String, displayName: String): AddKind {
+        val prefs = dataStore.data.first()
+        val current = if (prefs[MigratedKey] == true) {
+            decodeFolders(prefs[FoldersKey])
+        } else {
+            migrateFromLegacy(
+                folders = decodeFolders(prefs[FoldersKey]),
+                legacyUri = prefs[LegacyFolderKey],
+                displayName = prefs[LegacyFolderKey]?.let(displayNameFor) ?: "",
+            )
+        }
+        return add(current, uri, displayName).kind
+    }
+
+    private fun migrateInto(prefs: MutablePreferences) {
+        if (prefs[MigratedKey] == true) return
+        val legacyUri = prefs[LegacyFolderKey]
+        val migrated = migrateFromLegacy(
+            folders = decodeFolders(prefs[FoldersKey]),
+            legacyUri = legacyUri,
+            displayName = legacyUri?.let(displayNameFor) ?: "",
+        )
+        prefs[FoldersKey] = encodeFolders(migrated)
+        prefs[MigratedKey] = true
     }
 
     companion object {

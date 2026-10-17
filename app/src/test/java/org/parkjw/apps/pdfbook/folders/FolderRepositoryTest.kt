@@ -5,8 +5,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -28,7 +30,7 @@ class FolderRepositoryTest {
 
     @Before
     fun setUp() {
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        scope = CoroutineScope(Job() + Dispatchers.Unconfined)
         permissions = FakeUriPermissions()
     }
 
@@ -37,27 +39,70 @@ class FolderRepositoryTest {
         scope.cancel()
     }
 
-    private fun repository(fileName: String = "pdfbook.preferences_pb"): FolderRepository {
+    private fun repository(
+        fileName: String = "pdfbook.preferences_pb",
+        displayNameFor: (String) -> String = ::displayNameForUri,
+    ): FolderRepository {
         val file = File(tmp.root, fileName)
         val store = PreferenceDataStoreFactory.create(
             scope = scope,
             produceFile = { file },
         )
-        return FolderRepository(store, permissions)
+        return FolderRepository(store, permissions, displayNameFor)
+    }
+
+    private fun store(fileName: String) =
+        PreferenceDataStoreFactory.create(
+            scope = scope,
+            produceFile = { File(tmp.root, fileName) },
+        )
+
+    @Test
+    fun addDoesNotUseNewNameForLegacyMigration() = runBlocking {
+        val data = store("legacy-name.preferences_pb")
+        data.edit {
+            it[FolderRepository.LegacyFolderKey] =
+                "content://com.android.externalstorage.documents/tree/primary%3AOldBooks"
+        }
+        val repo = FolderRepository(data, permissions)
+        assertEquals(AddKind.Created, repo.add("content://tree/new", "NewName"))
+
+        val folders = repo.folders.first()
+        assertEquals(2, folders.size)
+        assertEquals("OldBooks", folders[0].displayName)
+        assertEquals("NewName", folders[1].displayName)
+        assertEquals(
+            "content://com.android.externalstorage.documents/tree/primary%3AOldBooks",
+            folders[0].uri,
+        )
+    }
+
+    @Test
+    fun concurrentAddsBothPersist() = runBlocking {
+        val repo = repository("concurrent.preferences_pb")
+        coroutineScope {
+            val a = async { repo.add("content://tree/a", "A") }
+            val b = async { repo.add("content://tree/b", "B") }
+            assertEquals(AddKind.Created, a.await())
+            assertEquals(AddKind.Created, b.await())
+        }
+        assertEquals(
+            setOf("content://tree/a", "content://tree/b"),
+            repo.folders.first().map { it.uri }.toSet(),
+        )
     }
 
     @Test
     fun migrateFromLegacyFolderKeyIsIdempotentAndKeepsLegacy() = runBlocking {
-        val file = File(tmp.root, "migrate.preferences_pb")
-        val store = PreferenceDataStoreFactory.create(scope = scope, produceFile = { file })
-        store.edit { it[FolderRepository.LegacyFolderKey] = "content://tree/legacy" }
-        store.edit {
+        val data = store("migrate.preferences_pb")
+        data.edit { it[FolderRepository.LegacyFolderKey] = "content://tree/legacy" }
+        data.edit {
             it[stringPreferencesKey("book:content://tree/legacy|1")] = "3,10,RTL,100"
         }
 
-        val repo = FolderRepository(store, permissions)
-        repo.migrateFromLegacyIfNeeded { "Legacy Name" }
-        repo.migrateFromLegacyIfNeeded { "Should Not Replace" }
+        val repo = FolderRepository(data, permissions) { "Legacy Name" }
+        repo.migrateFromLegacyIfNeeded()
+        repo.migrateFromLegacyIfNeeded()
 
         val folders = repo.folders.first()
         assertEquals(1, folders.size)
@@ -65,36 +110,74 @@ class FolderRepositoryTest {
         assertEquals("Legacy Name", folders[0].displayName)
         assertEquals(0, folders[0].order)
 
-        val prefs = store.data.first()
+        val prefs = data.data.first()
         assertEquals("content://tree/legacy", prefs[FolderRepository.LegacyFolderKey])
         assertEquals(true, prefs[FolderRepository.MigratedKey])
         assertEquals("3,10,RTL,100", prefs[stringPreferencesKey("book:content://tree/legacy|1")])
     }
 
     @Test
-    fun removeDoesNotClearBookReadingState() = runBlocking {
-        val file = File(tmp.root, "books.preferences_pb")
-        val store = PreferenceDataStoreFactory.create(scope = scope, produceFile = { file })
-        val bookKey = stringPreferencesKey("book:content://doc/1|9")
-        store.edit { it[bookKey] = "2,5,LTR,42" }
+    fun migrateWithoutLegacyYieldsEmptyList() = runBlocking {
+        val data = store("no-legacy.preferences_pb")
+        val repo = FolderRepository(data, permissions)
+        repo.migrateFromLegacyIfNeeded()
+        assertTrue(repo.folders.first().isEmpty())
+        assertEquals(true, data.data.first()[FolderRepository.MigratedKey])
+    }
 
-        val repo = FolderRepository(store, permissions)
+    @Test
+    fun migrateThenRefreshMarksMissingLegacyPermissionLost() = runBlocking {
+        val data = store("lost-legacy.preferences_pb")
+        data.edit { it[FolderRepository.LegacyFolderKey] = "content://tree/legacy" }
+        permissions.persisted = emptySet()
+
+        val repo = FolderRepository(data, permissions) { "Legacy" }
+        repo.migrateFromLegacyIfNeeded()
+        repo.refreshAccess()
+
+        val folders = repo.folders.first()
+        assertEquals(1, folders.size)
+        assertEquals("content://tree/legacy", folders[0].uri)
+        assertEquals(FolderAccess.Lost, folders[0].access)
+    }
+
+    @Test
+    fun afterMigrationPrimaryUriMatchesLegacy() = runBlocking {
+        val legacy = "content://tree/legacy-primary"
+        val data = store("primary.preferences_pb")
+        data.edit { it[FolderRepository.LegacyFolderKey] = legacy }
+        permissions.persisted = setOf(legacy)
+
+        val repo = FolderRepository(data, permissions) { "Name" }
+        repo.migrateFromLegacyIfNeeded()
+        repo.refreshAccess()
+
+        assertEquals(legacy, repo.folders.first().firstOrNull()?.uri)
+        assertEquals(FolderAccess.Ok, repo.folders.first().first().access)
+    }
+
+    @Test
+    fun removeDoesNotClearBookReadingState() = runBlocking {
+        val data = store("books.preferences_pb")
+        val bookKey = stringPreferencesKey("book:content://doc/1|9")
+        data.edit { it[bookKey] = "2,5,LTR,42" }
+
+        val repo = FolderRepository(data, permissions)
         assertEquals(AddKind.Created, repo.add("content://tree/a", "A"))
         repo.remove("content://tree/a")
 
         assertTrue(repo.folders.first().isEmpty())
-        assertEquals("2,5,LTR,42", store.data.first()[bookKey])
+        assertEquals("2,5,LTR,42", data.data.first()[bookKey])
         assertEquals(listOf("content://tree/a"), permissions.released)
     }
 
     @Test
     fun removeThenReaddRestoresAccessWithoutWipingBooks() = runBlocking {
-        val file = File(tmp.root, "readd.preferences_pb")
-        val store = PreferenceDataStoreFactory.create(scope = scope, produceFile = { file })
+        val data = store("readd.preferences_pb")
         val bookKey = stringPreferencesKey("book:content://doc/x|1")
-        store.edit { it[bookKey] = "1,2,RTL,7" }
+        data.edit { it[bookKey] = "1,2,RTL,7" }
 
-        val repo = FolderRepository(store, permissions)
+        val repo = FolderRepository(data, permissions)
         repo.add("content://tree/a", "A")
         repo.rename("content://tree/a", "Custom", "A")
         repo.remove("content://tree/a")
@@ -102,7 +185,7 @@ class FolderRepositoryTest {
 
         val folders = repo.folders.first()
         assertEquals("A", folders.single().displayName)
-        assertEquals("1,2,RTL,7", store.data.first()[bookKey])
+        assertEquals("1,2,RTL,7", data.data.first()[bookKey])
     }
 
     @Test
@@ -147,14 +230,28 @@ class FolderRepositoryTest {
         assertTrue(repo.folders.first().all { it.access == FolderAccess.Lost })
         assertFalse(permissions.released.contains("content://tree/a"))
     }
+
+    @Test
+    fun takeSecurityExceptionDoesNotPersistAdd() = runBlocking {
+        val repo = repository("sec.preferences_pb")
+        permissions.throwOnTake = setOf("content://tree/bad")
+        try {
+            repo.add("content://tree/bad", "Bad")
+            assertTrue("expected SecurityException", false)
+        } catch (_: SecurityException) {
+        }
+        assertTrue(repo.folders.first().isEmpty())
+    }
 }
 
 private class FakeUriPermissions : UriPermissions {
     val taken = mutableListOf<String>()
     val released = mutableListOf<String>()
     var persisted: Set<String> = emptySet()
+    var throwOnTake: Set<String> = emptySet()
 
     override fun take(uri: String) {
+        if (uri in throwOnTake) throw SecurityException("denied")
         taken += uri
         persisted = persisted + uri
     }

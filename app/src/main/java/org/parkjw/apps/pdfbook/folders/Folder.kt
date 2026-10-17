@@ -28,6 +28,13 @@ data class RemoveResult(
     val releaseUris: List<String>,
 )
 
+fun displayNameForUri(uri: String): String {
+    val encoded = uri.trimEnd('/').substringAfterLast('/')
+    val decoded = java.net.URLDecoder.decode(encoded, Charsets.UTF_8)
+    val colon = decoded.lastIndexOf(':')
+    return if (colon >= 0) decoded.substring(colon + 1) else decoded
+}
+
 fun add(folders: List<Folder>, uri: String, displayName: String): AddResult {
     val index = folders.indexOfFirst { it.uri == uri }
     if (index >= 0) {
