@@ -111,6 +111,7 @@ fun LibraryScreen(
     onOpen: (BookInfo) -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    covers: Map<String, Bitmap?> = emptyMap(),
 ) {
     var byName by remember { mutableStateOf(false) }
     val sorted = remember(listing, states, byName) { sortBooks(listing.books, states, byName) }
@@ -147,11 +148,23 @@ fun LibraryScreen(
             ) {
                 if (resume != null) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        ResumeCard(resume, states[bookKey(resume.uri, resume.size)]!!, onOpen)
+                        ResumeCard(
+                            resume,
+                            states[bookKey(resume.uri, resume.size)]!!,
+                            onOpen,
+                            covers[bookKey(resume.uri, resume.size)],
+                            covers.containsKey(bookKey(resume.uri, resume.size)),
+                        )
                     }
                 }
                 items(sorted, key = { it.uri }) { book ->
-                    BookCell(book, states[bookKey(book.uri, book.size)], onOpen)
+                    BookCell(
+                        book,
+                        states[bookKey(book.uri, book.size)],
+                        onOpen,
+                        covers[bookKey(book.uri, book.size)],
+                        covers.containsKey(bookKey(book.uri, book.size)),
+                    )
                 }
             }
         }
@@ -159,7 +172,13 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun ResumeCard(book: BookInfo, state: BookState, onOpen: (BookInfo) -> Unit) {
+private fun ResumeCard(
+    book: BookInfo,
+    state: BookState,
+    onOpen: (BookInfo) -> Unit,
+    cover: Bitmap?,
+    coverProvided: Boolean,
+) {
     Surface(
         onClick = { onOpen(book) },
         shape = CardCorner,
@@ -171,7 +190,7 @@ private fun ResumeCard(book: BookInfo, state: BookState, onOpen: (BookInfo) -> U
             Modifier.padding(PdfBookSpacing.md),
             horizontalArrangement = Arrangement.spacedBy(PdfBookSpacing.md),
         ) {
-            Cover(book, Modifier.width(110.dp))
+            Cover(book, Modifier.width(110.dp), cover, coverProvided)
             Column(verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.xs, Alignment.CenterVertically)) {
                 Text(stringResource(R.string.continue_reading), style = MaterialTheme.typography.labelSmall)
                 Text(
@@ -187,12 +206,18 @@ private fun ResumeCard(book: BookInfo, state: BookState, onOpen: (BookInfo) -> U
 }
 
 @Composable
-private fun BookCell(book: BookInfo, state: BookState?, onOpen: (BookInfo) -> Unit) {
+private fun BookCell(
+    book: BookInfo,
+    state: BookState?,
+    onOpen: (BookInfo) -> Unit,
+    cover: Bitmap?,
+    coverProvided: Boolean,
+) {
     Column(
         Modifier.clickable { onOpen(book) },
         verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.xxs),
     ) {
-        Cover(book, Modifier.fillMaxWidth())
+        Cover(book, Modifier.fillMaxWidth(), cover, coverProvided)
         Text(
             titleOf(book.name),
             style = MaterialTheme.typography.titleMedium,
@@ -221,9 +246,25 @@ private fun ProgressInfo(state: BookState) {
 }
 
 @Composable
-private fun Cover(book: BookInfo, modifier: Modifier = Modifier) {
+private fun Cover(
+    book: BookInfo,
+    modifier: Modifier = Modifier,
+    cover: Bitmap? = null,
+    coverProvided: Boolean = false,
+) {
     val context = LocalContext.current
-    val cover by produceState<Bitmap?>(null, book) { value = loadCover(context, book) }
+    val loaded by produceState(cover, book, cover, coverProvided) {
+        value = if (coverProvided) cover else loadCover(context, book)
+    }
+    BookCover(titleOf(book.name), loaded, modifier)
+}
+
+@Composable
+fun BookCover(
+    title: String,
+    cover: Bitmap?,
+    modifier: Modifier = Modifier,
+) {
     Box(
         modifier
             .aspectRatio(2f / 3f)
@@ -234,7 +275,7 @@ private fun Cover(book: BookInfo, modifier: Modifier = Modifier) {
         cover?.let {
             Image(
                 bitmap = it.asImageBitmap(),
-                contentDescription = titleOf(book.name),
+                contentDescription = title,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )

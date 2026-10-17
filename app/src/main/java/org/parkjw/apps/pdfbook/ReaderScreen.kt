@@ -63,7 +63,7 @@ import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 
 @Composable
 fun ReaderScreen(
-    renderer: PageRenderer,
+    renderer: PageBitmaps,
     pagerState: PagerState,
     spreads: List<List<Int>>,
     title: String,
@@ -75,6 +75,7 @@ fun ReaderScreen(
     modifier: Modifier = Modifier,
     direction: ReadingDirection = ReadingDirection.RTL,
     volumeDelta: Flow<Int>? = null,
+    overlayVisible: Boolean = false,
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -90,13 +91,14 @@ fun ReaderScreen(
             modifier = modifier,
             direction = direction,
             volumeDelta = volumeDelta,
+            initialOverlayVisible = overlayVisible,
         )
     }
 }
 
 @Composable
 private fun ReaderScreenContent(
-    renderer: PageRenderer,
+    renderer: PageBitmaps,
     pagerState: PagerState,
     spreads: List<List<Int>>,
     title: String,
@@ -108,11 +110,12 @@ private fun ReaderScreenContent(
     modifier: Modifier,
     direction: ReadingDirection,
     volumeDelta: Flow<Int>?,
+    initialOverlayVisible: Boolean,
 ) {
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
     val scope = rememberCoroutineScope()
-    var overlayVisible by remember { mutableStateOf(false) }
+    var overlayVisible by remember { mutableStateOf(initialOverlayVisible) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val zoomed = scale > 1f
@@ -412,7 +415,7 @@ private fun ReaderOverlayBottom(
 
 @Composable
 private fun PageBitmap(
-    renderer: PageRenderer,
+    renderer: PageBitmaps,
     page: Int,
     maxWidth: Int,
     maxHeight: Int,
