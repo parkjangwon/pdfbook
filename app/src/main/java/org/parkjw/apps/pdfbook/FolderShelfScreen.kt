@@ -35,7 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,6 +66,7 @@ import org.parkjw.apps.pdfbook.ui.theme.PdfBookDropdownMenu
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookProgressBar
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookSnackbarHost
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.extendedColors
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
@@ -113,7 +113,7 @@ fun FolderShelfScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { PdfBookSnackbarHost(snackbarHostState) },
         floatingActionButton = {
             val ink = MaterialTheme.extendedColors
             ExtendedFloatingActionButton(
