@@ -1,7 +1,6 @@
 package org.parkjw.apps.pdfbook.settings
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -15,7 +14,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -46,7 +43,6 @@ import org.parkjw.apps.pdfbook.ui.theme.extendedColors
 fun SettingsScreen(
     settings: AppSettings,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
-    onChangeFolder: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -79,17 +75,11 @@ fun SettingsScreen(
                 ChoiceBlock(
                     title = stringResource(R.string.settings_start_screen),
                     options = listOf(
-                        StartScreen.Library to stringResource(R.string.settings_start_library),
+                        StartScreen.Folders to stringResource(R.string.settings_start_folders),
                         StartScreen.LastBook to stringResource(R.string.settings_start_last_book),
                     ),
                     selected = settings.startScreen,
                     onSelect = { value -> onSettingsChange { it.copy(startScreen = value) } },
-                )
-                GroupDivider()
-                ActionRow(
-                    title = stringResource(R.string.settings_change_folder),
-                    subtitle = stringResource(R.string.settings_change_folder_hint),
-                    onClick = onChangeFolder,
                 )
                 GroupDivider()
                 ThemeSegment(
@@ -330,43 +320,5 @@ private fun SwitchRow(
                 onValueChange = onCheckedChange,
                 role = Role.Switch,
             ),
-    )
-}
-
-@Composable
-private fun ActionRow(
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-) {
-    ListItem(
-        headlineContent = {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-        },
-        supportingContent = {
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_folder),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        trailingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_chevron_right),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
     )
 }
