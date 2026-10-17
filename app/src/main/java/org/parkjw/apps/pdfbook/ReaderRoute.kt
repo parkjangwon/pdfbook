@@ -21,7 +21,12 @@ import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.flow.Flow
 
 @Composable
-fun ReaderRoute(book: BookInfo, store: BookStore, volumeDelta: Flow<Int>) {
+fun ReaderRoute(
+    book: BookInfo,
+    store: BookStore,
+    volumeDelta: Flow<Int>,
+    onBack: () -> Unit,
+) {
     val key = bookKey(book.uri, book.size)
     var saved by remember(key) { mutableStateOf<BookState?>(null) }
     LaunchedEffect(key) { saved = store.state(key) }
@@ -63,6 +68,13 @@ fun ReaderRoute(book: BookInfo, store: BookStore, volumeDelta: Flow<Int>) {
             var keptPage by rememberSaveable(key) {
                 mutableIntStateOf(state.page.coerceIn(1, renderer.pageCount.coerceAtLeast(1)))
             }
+            var direction by rememberSaveable(
+                key,
+                stateSaver = ReadingDirectionSaver,
+            ) {
+                mutableStateOf(state.direction)
+            }
+            LaunchedEffect(state.direction) { direction = state.direction }
             if (!hasReadableSpreads(spreadList)) {
                 Box(Modifier.fillMaxSize())
             } else {
@@ -81,12 +93,13 @@ fun ReaderRoute(book: BookInfo, store: BookStore, volumeDelta: Flow<Int>) {
                         pagerState.scrollToPage(index)
                     }
                 }
-                LaunchedEffect(keptPage) {
+                LaunchedEffect(keptPage, direction) {
                     store.save(
                         key,
                         state.copy(
                             page = keptPage,
                             pageCount = renderer.pageCount,
+                            direction = direction,
                             openedAt = System.currentTimeMillis(),
                         ),
                     )
@@ -95,7 +108,13 @@ fun ReaderRoute(book: BookInfo, store: BookStore, volumeDelta: Flow<Int>) {
                     renderer = renderer,
                     pagerState = pagerState,
                     spreads = spreadList,
-                    direction = state.direction,
+                    title = titleOf(book.name),
+                    pageCount = renderer.pageCount,
+                    currentPage = keptPage,
+                    twoPage = twoPage,
+                    onBack = onBack,
+                    onDirectionChange = { direction = it },
+                    direction = direction,
                     volumeDelta = volumeDelta,
                 )
             }
