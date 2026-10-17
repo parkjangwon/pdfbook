@@ -3,6 +3,7 @@ package org.parkjw.apps.pdfbook
 const val MinZoomScale = 1f
 const val MaxZoomScale = 4f
 const val DoubleTapZoomScale = 2f
+const val PinchConsumeThreshold = 0.02f
 
 data class ZoomState(
     val scale: Float = MinZoomScale,
@@ -11,6 +12,22 @@ data class ZoomState(
 ) {
     val allowsPageTurn: Boolean
         get() = scale <= MinZoomScale
+}
+
+data class PinchLatchState(
+    val cumulativeZoom: Float = 1f,
+    val latched: Boolean = false,
+)
+
+fun PinchLatchState.advance(
+    zoomChange: Float,
+    threshold: Float = PinchConsumeThreshold,
+): PinchLatchState {
+    val next = cumulativeZoom * zoomChange
+    return PinchLatchState(
+        cumulativeZoom = next,
+        latched = latched || kotlin.math.abs(next - 1f) >= threshold,
+    )
 }
 
 fun clampZoomOffset(

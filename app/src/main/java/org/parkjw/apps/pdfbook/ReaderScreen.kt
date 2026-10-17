@@ -38,6 +38,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -190,8 +191,8 @@ private fun ReaderScreenContent(
                                 },
                             )
                         }
+                        .clipToBounds()
                         .graphicsLayer {
-                            clip = true
                             if (activePage) {
                                 scaleX = zoom.scale
                                 scaleY = zoom.scale
@@ -432,8 +433,6 @@ private fun PageBitmap(
     }
 }
 
-private const val PinchConsumeThreshold = 0.02f
-
 private suspend fun PointerInputScope.detectReaderZoomGestures(
     isZoomed: () -> Boolean,
     onGesture: (centroid: Offset, zoomChange: Float, pan: Offset) -> Unit,
@@ -443,6 +442,7 @@ private suspend fun PointerInputScope.detectReaderZoomGestures(
         awaitFirstDown(requireUnconsumed = false)
         var panPastSlop = false
         var panDistance = 0f
+        var pinch = PinchLatchState()
         do {
             val event = awaitPointerEvent()
             val pressed = event.changes.count { it.pressed }
@@ -451,13 +451,12 @@ private suspend fun PointerInputScope.detectReaderZoomGestures(
                     val zoomChange = event.calculateZoom()
                     val centroid = event.calculateCentroid()
                     val pan = event.calculatePan()
-                    val significantPinch =
-                        kotlin.math.abs(zoomChange - 1f) >= PinchConsumeThreshold
-                    if (significantPinch || isZoomed()) {
+                    pinch = pinch.advance(zoomChange)
+                    if (pinch.latched || isZoomed()) {
                         onGesture(centroid, zoomChange, pan)
-                        event.changes.forEach {
-                            if (it.positionChanged()) it.consume()
-                        }
+                    }
+                    event.changes.forEach {
+                        if (it.positionChanged()) it.consume()
                     }
                 }
                 pressed == 1 && isZoomed() -> {

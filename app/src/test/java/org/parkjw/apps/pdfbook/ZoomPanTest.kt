@@ -24,6 +24,30 @@ class ZoomPanTest {
     }
 
     @Test
+    fun pinchLatchIgnoresTinySingleFrameUntilCumulative() {
+        val first = PinchLatchState().advance(1.01f)
+        assertFalse(first.latched)
+        assertEquals(1.01f, first.cumulativeZoom, 0.0001f)
+        val second = first.advance(1.02f)
+        assertTrue(second.latched)
+        assertEquals(1.01f * 1.02f, second.cumulativeZoom, 0.0001f)
+    }
+
+    @Test
+    fun pinchLatchStaysTrueAfterThreshold() {
+        val latched = PinchLatchState().advance(1.05f)
+        assertTrue(latched.latched)
+        assertTrue(latched.advance(1.001f).latched)
+        assertTrue(latched.advance(0.999f).latched)
+    }
+
+    @Test
+    fun pinchLatchDetectsPinchIn() {
+        assertFalse(PinchLatchState().advance(0.99f).latched)
+        assertTrue(PinchLatchState().advance(0.97f).latched)
+    }
+
+    @Test
     fun pinchClampsBelowMinimum() {
         val zoomed = ZoomState(scale = 2f).applyPinch(0.1f, 100f, 200f, 200f, 400f)
         assertEquals(MinZoomScale, zoomed.scale, 0f)
