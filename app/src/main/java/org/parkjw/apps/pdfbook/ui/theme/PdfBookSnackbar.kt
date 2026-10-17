@@ -56,7 +56,7 @@ fun PdfBookSnackbar(
             }
         } else {
             Row(
-                modifier = containerModifier.padding(start = PdfBookSpacing.md),
+                modifier = containerModifier.padding(start = PdfBookSpacing.md, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -64,7 +64,7 @@ fun PdfBookSnackbar(
                     modifier = Modifier
                         .weight(1f)
                         .padding(vertical = 14.dp)
-                        .padding(end = if (withDismissAction) 0.dp else 8.dp),
+                        .padding(end = if (actionLabel == null) 8.dp else 0.dp),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (actionLabel != null) {
