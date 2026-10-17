@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.parkjw.apps.pdfbook.BookInfo
 import org.parkjw.apps.pdfbook.BookState
@@ -23,10 +24,11 @@ import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
 
-internal const val FOLDED_QUALIFIERS = "w360dp-h920dp-xxhdpi"
-internal const val FOLDED_NIGHT_QUALIFIERS = "w360dp-h920dp-night-xxhdpi"
-internal const val UNFOLDED_QUALIFIERS = "w656dp-h728dp-xxhdpi"
-internal const val UNFOLDED_NIGHT_QUALIFIERS = "w656dp-h728dp-night-xxhdpi"
+internal const val FOLDED_QUALIFIERS = "ko-w360dp-h920dp-xxhdpi"
+internal const val FOLDED_NIGHT_QUALIFIERS = "ko-w360dp-h920dp-night-xxhdpi"
+internal const val UNFOLDED_QUALIFIERS = "ko-w656dp-h728dp-xxhdpi"
+internal const val UNFOLDED_NIGHT_QUALIFIERS = "ko-w656dp-h728dp-night-xxhdpi"
+internal const val FOLDED_EN_QUALIFIERS = "en-w360dp-h920dp-xxhdpi"
 
 internal fun solidCover(color: Int, accent: Int): Bitmap {
     val bitmap = Bitmap.createBitmap(120, 180, Bitmap.Config.ARGB_8888)
@@ -76,23 +78,25 @@ internal fun sampleSettings(): AppSettings = AppSettings(
 @Composable
 internal fun ScreenshotTheme(
     dark: Boolean,
+    systemBarsColor: Color? = null,
     content: @Composable () -> Unit,
 ) {
     PdfBookTheme(themeMode = if (dark) ThemeMode.Dark else ThemeMode.Light) {
         Surface(modifier = Modifier.fillMaxSize()) {
+            val bars = systemBarsColor ?: MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
             Column(Modifier.fillMaxSize()) {
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .height(24.dp)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)),
+                        .background(bars),
                 )
                 Box(Modifier.weight(1f).fillMaxWidth(), content = { content() })
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .height(48.dp)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)),
+                        .background(bars),
                 )
             }
         }

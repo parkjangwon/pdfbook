@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -19,6 +20,7 @@ import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.spreads
+import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -38,6 +40,10 @@ class MainScreenshotsTest {
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
     fun libraryLightFolded() = captureLibrary(dark = false, file = "library-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_EN_QUALIFIERS)
+    fun libraryLightFoldedEn() = captureLibrary(dark = false, file = "library-light-folded-en.png")
 
     @Test
     @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
@@ -142,7 +148,7 @@ class MainScreenshotsTest {
     private fun captureReader(dark: Boolean, file: String) {
         val pageCount = 12
         val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
-        capture(file, dark) {
+        capture(file, dark, systemBarsColor = ReaderBackground) {
             val pagerState = rememberPagerState(pageCount = { pageSpreads.size })
             ReaderScreen(
                 renderer = SolidPageBitmaps(
@@ -168,10 +174,11 @@ class MainScreenshotsTest {
     private fun capture(
         file: String,
         dark: Boolean = file.contains("-dark-"),
+        systemBarsColor: Color? = null,
         content: @Composable () -> Unit,
     ) {
         captureRoboImage(file) {
-            ScreenshotTheme(dark, content)
+            ScreenshotTheme(dark, systemBarsColor, content)
         }
     }
 }
