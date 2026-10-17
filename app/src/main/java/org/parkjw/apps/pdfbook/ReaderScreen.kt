@@ -25,7 +25,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -40,7 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -54,6 +54,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookReaderSlider
+import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
+import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
+import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
+import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
+import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
@@ -61,7 +69,7 @@ import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 
 @Composable
 fun ReaderScreen(
-    renderer: PageRenderer,
+    renderer: PageBitmaps,
     pagerState: PagerState,
     spreads: List<List<Int>>,
     title: String,
@@ -73,6 +81,7 @@ fun ReaderScreen(
     modifier: Modifier = Modifier,
     direction: ReadingDirection = ReadingDirection.RTL,
     volumeDelta: Flow<Int>? = null,
+    overlayVisible: Boolean = false,
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -88,13 +97,14 @@ fun ReaderScreen(
             modifier = modifier,
             direction = direction,
             volumeDelta = volumeDelta,
+            initialOverlayVisible = overlayVisible,
         )
     }
 }
 
 @Composable
 private fun ReaderScreenContent(
-    renderer: PageRenderer,
+    renderer: PageBitmaps,
     pagerState: PagerState,
     spreads: List<List<Int>>,
     title: String,
@@ -106,11 +116,12 @@ private fun ReaderScreenContent(
     modifier: Modifier,
     direction: ReadingDirection,
     volumeDelta: Flow<Int>?,
+    initialOverlayVisible: Boolean,
 ) {
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
     val scope = rememberCoroutineScope()
-    var overlayVisible by remember { mutableStateOf(false) }
+    var overlayVisible by remember { mutableStateOf(initialOverlayVisible) }
     var zoom by remember { mutableStateOf(ZoomState()) }
     val zoomRef = rememberUpdatedState(zoom)
     val zoomed = !zoom.allowsPageTurn
@@ -150,7 +161,7 @@ private fun ReaderScreenContent(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(ReaderBackground),
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val viewportWidth = constraints.maxWidth.toFloat()
@@ -305,11 +316,10 @@ private fun ReaderOverlayTop(
     onDirectionChange: (ReadingDirection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val onSurface = Color(0xFFE6E6EA)
     Row(
         modifier
             .fillMaxWidth()
-            .background(Color(0xCC121316))
+            .background(ReaderOverlay)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -319,17 +329,20 @@ private fun ReaderOverlayTop(
             .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
+        IconButton(
+            onClick = onBack,
+            colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+        ) {
             Icon(
                 painter = painterResource(R.drawable.ic_arrow_back),
                 contentDescription = stringResource(R.string.reader_back),
-                tint = onSurface,
+                tint = ReaderOnOverlay,
             )
         }
         Text(
             text = title,
-            color = onSurface,
-            fontSize = 16.sp,
+            color = ReaderOnOverlay,
+            style = MaterialTheme.typography.titleMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -341,10 +354,13 @@ private fun ReaderOverlayTop(
             contentDescription = stringResource(
                 if (twoPage) R.string.reader_mode_double else R.string.reader_mode_single,
             ),
-            tint = onSurface,
+            tint = ReaderOnOverlay,
             modifier = Modifier.padding(horizontal = 12.dp),
         )
-        IconButton(onClick = { onDirectionChange(toggledDirection(direction)) }) {
+        IconButton(
+            onClick = { onDirectionChange(toggledDirection(direction)) },
+            colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+        ) {
             Icon(
                 painter = painterResource(
                     if (direction == ReadingDirection.RTL) {
@@ -360,7 +376,7 @@ private fun ReaderOverlayTop(
                         R.string.settings_direction_ltr
                     },
                 ),
-                tint = onSurface,
+                tint = ReaderOnOverlay,
             )
         }
     }
@@ -374,11 +390,10 @@ private fun ReaderOverlayBottom(
     onSeekPage: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val onSurface = Color(0xFFE6E6EA)
     Column(
         modifier
             .fillMaxWidth()
-            .background(Color(0xCC121316))
+            .background(ReaderOverlay)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -389,17 +404,27 @@ private fun ReaderOverlayBottom(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (pageCount > 1) {
-            Slider(
-                value = pageToSlider(currentPage, pageCount, direction),
-                onValueChange = { onSeekPage(sliderToPage(it, pageCount, direction)) },
-                valueRange = 0f..(pageCount - 1).toFloat(),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            val sliderDirection =
+                if (direction == ReadingDirection.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr
+            CompositionLocalProvider(LocalLayoutDirection provides sliderDirection) {
+                PdfBookReaderSlider(
+                    value = pageToSlider(currentPage, pageCount, ReadingDirection.LTR),
+                    onValueChange = { onSeekPage(sliderToPage(it, pageCount, ReadingDirection.LTR)) },
+                    valueRange = 0f..(pageCount - 1).toFloat(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = ReaderAccent,
+                        activeTrackColor = ReaderAccent,
+                        inactiveTrackColor = ReaderTrack,
+                        activeTickColor = ReaderAccent,
+                        inactiveTickColor = ReaderTrack,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         Text(
             text = stringResource(R.string.progress, currentPage, pageCount),
-            color = onSurface,
-            fontSize = 13.sp,
+            style = PdfBookNumeric.copy(fontSize = 13.sp, color = ReaderOnOverlay),
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
     }
@@ -407,7 +432,7 @@ private fun ReaderOverlayBottom(
 
 @Composable
 private fun PageBitmap(
-    renderer: PageRenderer,
+    renderer: PageBitmaps,
     page: Int,
     maxWidth: Int,
     maxHeight: Int,

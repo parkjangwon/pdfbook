@@ -18,10 +18,16 @@ import kotlinx.coroutines.withContext
 import java.io.Closeable
 import kotlin.math.min
 
+interface PageBitmaps {
+    val pageCount: Int
+    suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap?
+    fun prefetch(spreads: List<List<Int>>, spreadIndex: Int, maxWidth: Int, maxHeight: Int) {}
+}
+
 class PageRenderer private constructor(
     private val pfd: ParcelFileDescriptor,
     private val pdf: PdfRenderer,
-) : Closeable {
+) : PageBitmaps, Closeable {
     private val mutex = Mutex()
     private val renderDispatcher = Dispatchers.IO.limitedParallelism(1)
     private val scope = CoroutineScope(SupervisorJob() + renderDispatcher)
@@ -34,14 +40,14 @@ class PageRenderer private constructor(
         override fun sizeOf(key: CacheKey, value: Bitmap): Int = value.byteCount.coerceAtLeast(1)
     }
 
-    val pageCount: Int get() = pdf.pageCount
+    override val pageCount: Int get() = pdf.pageCount
 
-    suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
+    override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
         prefetchJob?.cancel()
         return renderLocked(page, maxWidth, maxHeight)
     }
 
-    fun prefetch(spreads: List<List<Int>>, spreadIndex: Int, maxWidth: Int, maxHeight: Int) {
+    override fun prefetch(spreads: List<List<Int>>, spreadIndex: Int, maxWidth: Int, maxHeight: Int) {
         if (closed || maxWidth <= 0 || maxHeight <= 0 || spreads.isEmpty()) return
         prefetchJob?.cancel()
         prefetchJob = scope.launch {
