@@ -28,7 +28,7 @@ class TokensContrastTest {
         assertContrast("LightPrimary", "LightBackground", 3.0)
         assertContrast("DarkPrimary", "DarkBackground", 3.0)
         assertContrast("LightPrimary", "LightSurfaceContainerHighest", 3.0)
-        assertContrast("DarkPrimary", "DarkSurfaceVariant", 3.0)
+        assertContrast("DarkPrimary", "DarkSurfaceContainerHighest", 3.0)
         assertContrast("ReaderOnOverlayVariant", "ReaderOverlay", 3.0)
         assertContrast("ReaderAccent", "ReaderTrack", 3.0)
         assertContrast("ReaderAccent", "ReaderBackground", 3.0)
@@ -131,14 +131,26 @@ class TokensContrastTest {
 
     private fun resolveTokenHex(tokens: String, name: String, depth: Int = 0): String {
         require(depth <= 8) { "alias loop $name" }
-        val match = Regex("""val\s+$name\s*=\s*(.+)""").find(tokens)
+        val match = Regex("""val\s+\b$name\b\s*=\s*(.+)""").find(tokens)
             ?: error("missing token $name")
-        val rhs = match.groupValues[1].trim()
+        val rhs = match.groupValues[1].replace(Regex("""//.*$"""), "").trim()
         val hex = Regex("""Color\(0x([0-9A-Fa-f]+)\)""").find(rhs)
         if (hex != null) return hex.groupValues[1].uppercase().padStart(8, 'F').takeLast(8)
         val alias = Regex("""^([A-Za-z_][A-Za-z0-9_]*)\s*$""").find(rhs)?.groupValues?.get(1)
             ?: error("unresolved $name = $rhs")
         return resolveTokenHex(tokens, alias, depth + 1)
+    }
+
+    @Test
+    fun resolveTokenHexIgnoresCommentsAndUsesWordBoundary() {
+        val tokens = """
+            val DarkSurface = Color(0xFF1B1A16)
+            val DarkSurfaceVariant = Color(0xFF36342D)
+            val Alias = DarkSurface // trailing note
+        """.trimIndent()
+        assertEquals("FF1B1A16", resolveTokenHex(tokens, "DarkSurface"))
+        assertEquals("FF36342D", resolveTokenHex(tokens, "DarkSurfaceVariant"))
+        assertEquals("FF1B1A16", resolveTokenHex(tokens, "Alias"))
     }
 
     private fun parseArgb(hex8: String): Int = hex8.toLong(16).toInt()

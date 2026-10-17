@@ -1,7 +1,12 @@
 package org.parkjw.apps.pdfbook.screenshot
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,6 +27,7 @@ import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.spreads
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookTextButtonColors
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -121,6 +127,33 @@ class MainScreenshotsTest {
     @Test
     @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
     fun settingsDarkUnfolded() = captureSettings(dark = true, file = "settings-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun dialogLightFolded() = capture("dialog-light-folded.png", dark = false) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("이름 바꾸기") },
+            text = {
+                OutlinedTextField(
+                    value = "서재",
+                    onValueChange = {},
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {}, colors = pdfBookTextButtonColors()) {
+                    Text("확인")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {}, colors = pdfBookTextButtonColors()) {
+                    Text("취소")
+                }
+            },
+        )
+    }
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)

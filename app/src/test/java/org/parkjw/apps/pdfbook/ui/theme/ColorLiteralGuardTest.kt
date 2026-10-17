@@ -2,6 +2,7 @@ package org.parkjw.apps.pdfbook.ui.theme
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -66,6 +67,18 @@ class ColorLiteralGuardTest {
         assertEquals(resolveTokenHex(tokens, "DarkPrimary"), colorHex(darkXml, "illustration_accent"))
     }
 
+    @Test
+    fun normalizeHexKeepsAlphaAndGuardsCatchMismatch() {
+        assertEquals("#80FFFFFF", normalizeHex("#80FFFFFF"))
+        assertEquals("#88FFFFFF", normalizeHex("#8FFF"))
+        assertEquals("#FFFFFFFF", normalizeHex("#FFFFFFFF"))
+        assertEquals("#FFFFFFFF", normalizeHex("#FFFFFF"))
+        assertNotEquals(normalizeHex("#80FFFFFF"), normalizeHex("#FFFFFFFF"))
+        val tokens = "val Ghost = Color(0x80FFFFFF)\n"
+        val xml = """<color name="window_background">#FFFFFFFF</color>"""
+        assertNotEquals(resolveTokenHex(tokens, "Ghost"), colorHex(xml, "window_background"))
+    }
+
     private fun isLauncherIcon(file: File): Boolean =
         file.name.startsWith("ic_launcher") ||
             file.parentFile?.name?.startsWith("mipmap") == true
@@ -79,9 +92,9 @@ class ColorLiteralGuardTest {
 
     private fun resolveTokenHex(tokens: String, name: String, depth: Int = 0): String {
         assertFalse("token alias loop: $name", depth > 8)
-        val match = Regex("""val\s+$name\s*=\s*(.+)""").find(tokens)
+        val match = Regex("""val\s+\b$name\b\s*=\s*(.+)""").find(tokens)
             ?: error("missing token $name")
-        val rhs = match.groupValues[1].trim()
+        val rhs = match.groupValues[1].replace(Regex("""//.*$"""), "").trim()
         val hex = Regex("""Color\(0x([0-9A-Fa-f]+)\)""").find(rhs)
         if (hex != null) {
             return normalizeHex("#${hex.groupValues[1]}")
@@ -91,16 +104,21 @@ class ColorLiteralGuardTest {
         return resolveTokenHex(tokens, alias, depth + 1)
     }
 
-    private fun normalizeHex(raw: String): String {
-        val h = raw.removePrefix("#")
-        val full = when (h.length) {
-            3 -> h.map { "$it$it" }.joinToString("")
-            4 -> h.drop(1).map { "$it$it" }.joinToString("")
-            6 -> h
-            8 -> h.takeLast(6)
-            else -> error("bad hex $raw")
+    companion object {
+        fun normalizeHex(raw: String): String {
+            val h = raw.removePrefix("#")
+            val argb = when (h.length) {
+                3 -> "FF" + h.map { "$it$it" }.joinToString("")
+                4 -> {
+                    val chars = h.map { "$it$it" }
+                    chars[0] + chars[1] + chars[2] + chars[3]
+                }
+                6 -> "FF$h"
+                8 -> h
+                else -> error("bad hex $raw")
+            }
+            return "#${argb.uppercase()}"
         }
-        return "#${full.uppercase()}"
     }
 
     private fun projectRoot(): File {
