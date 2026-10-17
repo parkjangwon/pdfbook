@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -71,6 +73,7 @@ fun LibraryScreen(
     listing: Listing,
     states: Map<String, BookState>,
     onOpen: (BookInfo) -> Unit,
+    onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var byName by remember { mutableStateOf(false) }
@@ -83,8 +86,16 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(listing.folderName, style = MaterialTheme.typography.titleLarge)
-            TextButton(onClick = { byName = !byName }) {
-                Text(stringResource(if (byName) R.string.sort_name else R.string.sort_recent))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { byName = !byName }) {
+                    Text(stringResource(if (byName) R.string.sort_name else R.string.sort_recent))
+                }
+                IconButton(onClick = onSettings) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_settings),
+                        contentDescription = stringResource(R.string.settings_title),
+                    )
+                }
             }
         }
         BoxWithConstraints(Modifier.fillMaxSize()) {
