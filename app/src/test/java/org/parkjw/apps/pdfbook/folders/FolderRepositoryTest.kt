@@ -291,19 +291,20 @@ class FolderRepositoryTest {
 }
 
 private class FakeUriPermissions : UriPermissions {
+    private val lock = Any()
     val taken = mutableListOf<String>()
     val released = mutableListOf<String>()
     var persisted: Set<String> = emptySet()
     var throwOnTake: Set<String> = emptySet()
     var throwOnReleaseMissing: Boolean = false
 
-    override fun take(uri: String) {
+    override fun take(uri: String) = synchronized(lock) {
         if (uri in throwOnTake) throw SecurityException("denied")
         taken += uri
         persisted = persisted + uri
     }
 
-    override fun release(uri: String) {
+    override fun release(uri: String) = synchronized(lock) {
         releasePersistableSafely(uri, persisted) {
             if (throwOnReleaseMissing) throw SecurityException("not held")
             released += it
@@ -311,5 +312,5 @@ private class FakeUriPermissions : UriPermissions {
         }
     }
 
-    override fun persistedUris(): Set<String> = persisted
+    override fun persistedUris(): Set<String> = synchronized(lock) { persisted }
 }
