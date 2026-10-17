@@ -134,6 +134,14 @@ internal fun sampleShelfUi(): FolderShelfUi {
     return buildFolderShelfUi(sampleShelfFolders(), listings, sampleShelfStates(listings))
 }
 
+internal fun sampleDuplicateShelfUi(): FolderShelfUi {
+    val listings = sampleShelfListings()
+    val folders = sampleShelfFolders().map { folder ->
+        if (folder.uri == "content://tree/done") folder.copy(lastOpenedAt = 10_000L) else folder
+    }
+    return buildFolderShelfUi(folders, listings, sampleShelfStates(listings))
+}
+
 internal fun sampleLostOnlyShelfUi(): FolderShelfUi {
     val folders = listOf(
         Folder("content://tree/lost", "옛 폴더", 0, FolderAccess.Lost, lastOpenedAt = 1_000L),

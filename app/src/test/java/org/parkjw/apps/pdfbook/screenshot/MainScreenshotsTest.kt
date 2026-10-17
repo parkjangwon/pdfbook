@@ -359,7 +359,7 @@ class MainScreenshotsTest {
 
     private fun captureShelfDuplicate(dark: Boolean, file: String) {
         val listings = sampleShelfListings()
-        val shelf = sampleShelfUi()
+        val shelf = sampleDuplicateShelfUi()
         capture(file, dark) {
             FolderShelfScreen(
                 shelf = shelf,

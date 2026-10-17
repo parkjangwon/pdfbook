@@ -1,8 +1,12 @@
 package org.parkjw.apps.pdfbook
 
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import org.parkjw.apps.pdfbook.folders.Folder
 import org.parkjw.apps.pdfbook.folders.FolderAccess
 import org.parkjw.apps.pdfbook.folders.displayNameForUri
+import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 
 data class FolderResumeSummary(
     val title: String,
@@ -40,8 +44,27 @@ fun folderShelfColumns(widthDp: Int): Int = if (widthDp < 600) 1 else 2
 fun folderShelfScrollIndex(cardIndex: Int, hasGlobalResume: Boolean): Int =
     cardIndex + if (hasGlobalResume) 1 else 0
 
+fun folderShelfIsLastRow(cardIndex: Int, cardCount: Int, columns: Int): Boolean {
+    if (cardCount <= 0 || columns <= 0 || cardIndex < 0) return false
+    val lastRowStart = ((cardCount - 1) / columns) * columns
+    return cardIndex >= lastRowStart
+}
+
 fun folderPathBookLine(pathTail: String, bookCountLabel: String): String =
     if (pathTail.isEmpty()) bookCountLabel else "$pathTail · $bookCountLabel"
+
+fun folderPathBookAnnotated(
+    pathTail: String,
+    bookCountLabel: String,
+    numericStyle: SpanStyle,
+): AnnotatedString =
+    buildAnnotatedString {
+        if (pathTail.isNotEmpty()) {
+            append(pathTail)
+            append(" · ")
+        }
+        append(withNumericSpans(bookCountLabel, numericStyle))
+    }
 
 fun sortFoldersByRecent(folders: List<Folder>): List<Folder> =
     folders.sortedWith(

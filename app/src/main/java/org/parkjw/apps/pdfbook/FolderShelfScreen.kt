@@ -108,19 +108,6 @@ fun FolderShelfScreen(
         snackbarHostState.showSnackbar(message)
         onSnackbarShown()
     }
-    LaunchedEffect(scrollToUri, shelf.cards) {
-        val uri = scrollToUri ?: return@LaunchedEffect
-        val index = shelf.cards.indexOfFirst { it.uri == uri }
-        if (!shouldClearScrollTarget(index)) return@LaunchedEffect
-        val listIndex = folderShelfScrollIndex(index, hasResume)
-        val lastIndex = folderShelfScrollIndex(shelf.cards.lastIndex, hasResume)
-        if (listIndex >= lastIndex) {
-            gridState.scrollToItem(listIndex, scrollOffset = Int.MAX_VALUE / 4)
-        } else {
-            gridState.animateScrollToItem(listIndex)
-        }
-        onScrollHandled()
-    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -177,9 +164,23 @@ fun FolderShelfScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            val columns = folderShelfColumns(maxWidth.value.toInt())
+            LaunchedEffect(scrollToUri, shelf.cards, hasResume, columns) {
+                val uri = scrollToUri ?: return@LaunchedEffect
+                val index = shelf.cards.indexOfFirst { it.uri == uri }
+                if (!shouldClearScrollTarget(index)) return@LaunchedEffect
+                val listIndex = folderShelfScrollIndex(index, hasResume)
+                if (folderShelfIsLastRow(index, shelf.cards.size, columns)) {
+                    gridState.scrollToItem(listIndex, scrollOffset = Int.MAX_VALUE / 4)
+                } else {
+                    gridState.animateScrollToItem(listIndex)
+                }
+                onScrollHandled()
+            }
             LazyVerticalGrid(
-                columns = GridCells.Fixed(folderShelfColumns(maxWidth.value.toInt())),
+                columns = GridCells.Fixed(columns),
                 state = gridState,
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = safeDrawingGridContentPadding(
                     extraBottom = PdfBookSpacing.folderAddFabHeight + PdfBookSpacing.md,
                 ),
@@ -372,8 +373,9 @@ private fun FolderCard(
                             card.bookCount,
                         )
                         Text(
-                            text = withNumericSpans(
-                                folderPathBookLine(card.pathTail, countText),
+                            text = folderPathBookAnnotated(
+                                card.pathTail,
+                                countText,
                                 SpanStyle(
                                     fontFamily = PdfBookNumeric.fontFamily,
                                     fontSize = 12.sp,

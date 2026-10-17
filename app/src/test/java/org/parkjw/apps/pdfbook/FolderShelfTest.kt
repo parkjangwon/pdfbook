@@ -1,7 +1,11 @@
 package org.parkjw.apps.pdfbook
 
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontFamily
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.parkjw.apps.pdfbook.folders.AddKind
 import org.parkjw.apps.pdfbook.folders.Folder
@@ -105,5 +109,24 @@ class FolderShelfTest {
         assertEquals("weekly · 책 4권", folderPathBookLine("weekly", "책 4권"))
         assertEquals("weekly · 4 books", folderPathBookLine("weekly", "4 books"))
         assertEquals("책 4권", folderPathBookLine("", "책 4권"))
+    }
+
+    @Test
+    fun folderPathBookAnnotatedSpansOnlyCountDigits() {
+        val style = SpanStyle(fontFamily = FontFamily.Monospace)
+        val annotated = folderPathBookAnnotated("2026_04", "책 3권", style)
+        assertEquals("2026_04 · 책 3권", annotated.text)
+        assertEquals(1, annotated.spanStyles.size)
+        assertEquals(12, annotated.spanStyles[0].start)
+        assertEquals(13, annotated.spanStyles[0].end)
+    }
+
+    @Test
+    fun folderShelfIsLastRowUsesColumns() {
+        assertTrue(folderShelfIsLastRow(2, 3, 2))
+        assertTrue(folderShelfIsLastRow(1, 2, 2))
+        assertFalse(folderShelfIsLastRow(0, 3, 2))
+        assertTrue(folderShelfIsLastRow(2, 3, 1))
+        assertFalse(folderShelfIsLastRow(1, 3, 1))
     }
 }
