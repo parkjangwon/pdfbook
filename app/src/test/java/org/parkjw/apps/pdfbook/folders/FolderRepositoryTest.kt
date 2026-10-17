@@ -20,6 +20,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.parkjw.apps.pdfbook.sortFoldersByRecent
 import java.io.File
 
 class FolderRepositoryTest {
@@ -241,6 +242,21 @@ class FolderRepositoryTest {
         assertEquals(AddKind.Duplicate, repo.add("content://tree/a", "Other"))
         assertEquals(1, repo.folders.first().size)
         assertTrue(permissions.taken.isEmpty())
+    }
+
+    @Test
+    fun duplicateAddMovesFolderToShelfTop() = runBlocking {
+        val repo = repository("dup-top.preferences_pb")
+        assertEquals(AddKind.Created, repo.add("content://tree/a", "A"))
+        assertEquals(AddKind.Created, repo.add("content://tree/b", "B"))
+        repo.markOpened("content://tree/a", 100L)
+        repo.markOpened("content://tree/b", 200L)
+        permissions.taken.clear()
+        assertEquals(AddKind.Duplicate, repo.add("content://tree/a", "Other"))
+        assertTrue(permissions.taken.isEmpty())
+        val folders = repo.folders.first()
+        assertEquals(2, folders.size)
+        assertEquals("content://tree/a", sortFoldersByRecent(folders).first().uri)
     }
 
     @Test

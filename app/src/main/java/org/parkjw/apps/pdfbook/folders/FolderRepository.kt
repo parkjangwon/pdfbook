@@ -32,7 +32,10 @@ class FolderRepository(
 
     suspend fun add(uri: String, displayName: String): AddKind {
         val preview = previewAdd(uri, displayName)
-        if (preview == AddKind.Duplicate) return AddKind.Duplicate
+        if (preview == AddKind.Duplicate) {
+            markOpened(uri)
+            return AddKind.Duplicate
+        }
         uriPermissions.take(uri)
         var kind = preview
         dataStore.edit { prefs ->

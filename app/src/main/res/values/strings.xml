@@ -21,7 +21,7 @@
     <string name="folder_remove">목록에서 삭제</string>
     <string name="folder_remove_confirm_title">이 폴더를 목록에서 지울까요?</string>
     <string name="folder_remove_confirm_body">폴더 안의 파일은 지워지지 않아요.</string>
-    <string name="folder_duplicate">이미 등록된 폴더예요</string>
+    <string name="folder_duplicate">이미 목록에 있는 폴더라 맨 위로 올렸어요</string>
     <plurals name="folder_books_count">
         <item quantity="other">책 %d권</item>
     </plurals>

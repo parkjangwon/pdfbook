@@ -3,8 +3,11 @@ package org.parkjw.apps.pdfbook
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.parkjw.apps.pdfbook.folders.AddKind
 import org.parkjw.apps.pdfbook.folders.Folder
 import org.parkjw.apps.pdfbook.folders.FolderAccess
+import org.parkjw.apps.pdfbook.folders.add
+import org.parkjw.apps.pdfbook.folders.markOpened
 
 class FolderShelfTest {
     private fun folder(
@@ -23,6 +26,18 @@ class FolderShelfTest {
             folder("c", order = 2, lastOpenedAt = 9L),
         )
         assertEquals(listOf("b", "c", "a"), sortFoldersByRecent(folders).map { it.uri })
+    }
+
+    @Test
+    fun duplicateMarkOpenedBecomesFirstShelfCard() {
+        val base = listOf(
+            folder("a", order = 0, lastOpenedAt = 1L),
+            folder("b", order = 1, lastOpenedAt = 9L),
+        )
+        val duplicate = add(base, "a", "Other")
+        assertEquals(AddKind.Duplicate, duplicate.kind)
+        val bumped = markOpened(duplicate.folders, "a", 99L)
+        assertEquals("a", sortFoldersByRecent(bumped).first().uri)
     }
 
     @Test
