@@ -68,6 +68,38 @@ class DesignGuardTest {
     }
 
     @Test
+    fun textButtonsSpecifyInkColors() {
+        val root = projectRoot()
+        val javaRoot = File(root, "app/src/main/java")
+        val offenders = javaRoot.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .flatMap { file ->
+                findTextButtonsWithoutColors(file.readText()).map { "${file.relativeTo(root)}: $it" }
+            }
+            .toList()
+        assertEquals("TextButton without colors/wrapper:\n${offenders.joinToString("\n")}", emptyList<String>(), offenders)
+    }
+
+    @Test
+    fun m3ShapesDoNotUsePill() {
+        val shape = File(projectRoot(), "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/Shape.kt").readText()
+        assertTrue("DialogCorner missing", Regex("""val\s+DialogCorner\s*=""").containsMatchIn(shape))
+        assertTrue(
+            "extraLarge must be DialogCorner",
+            Regex("""extraLarge\s*=\s*DialogCorner""").containsMatchIn(shape),
+        )
+        assertFalse(
+            "pill must not map to M3 Shapes slots",
+            Regex("""(?:extraSmall|small|medium|large|extraLarge)\s*=\s*(?:PillCorner|PdfBookShapeTokens\.pill|CircleShape)""")
+                .containsMatchIn(shape),
+        )
+        assertTrue(
+            "PdfBookShapeTokens.pill required",
+            Regex("""object\s+PdfBookShapeTokens[\s\S]*?\bpill\b""").containsMatchIn(shape),
+        )
+    }
+
+    @Test
     fun guardsCatchViolationSnippets() {
         assertTrue(
             findBadButtonElevations("ButtonDefaults.buttonElevation(defaultElevation = 4.dp)").isNotEmpty(),
@@ -102,6 +134,17 @@ class DesignGuardTest {
         assertFalse(
             findBadCardElevations("CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)").isNotEmpty(),
         )
+        assertTrue(findTextButtonsWithoutColors("TextButton(onClick = {}) { Text(\"x\") }").isNotEmpty())
+        assertFalse(
+            findTextButtonsWithoutColors(
+                "TextButton(onClick = {}, colors = pdfBookTextButtonColors()) { Text(\"x\") }",
+            ).isNotEmpty(),
+        )
+        assertFalse(
+            findTextButtonsWithoutColors(
+                "TextButton(onClick = {}, colors = ButtonDefaults.textButtonColors(contentColor = c)) {}",
+            ).isNotEmpty(),
+        )
     }
 
     private fun projectRoot(): File {
@@ -134,5 +177,34 @@ class DesignGuardTest {
                 val args = match.groupValues[1]
                 if (args.isBlank() || nonZeroDpAssign.containsMatchIn(args)) match.value else null
             }.toList()
+
+        private val textButtonCall =
+            Regex("""(?<![A-Za-z0-9_])TextButton\s*\(""")
+
+        fun findTextButtonsWithoutColors(source: String): List<String> {
+            val hits = mutableListOf<String>()
+            textButtonCall.findAll(source).forEach { match ->
+                val args = balancedArgs(source, match.range.last) ?: return@forEach
+                if (!Regex("""\bcolors\s*=""").containsMatchIn(args)) {
+                    hits += "TextButton($args)"
+                }
+            }
+            return hits
+        }
+
+        private fun balancedArgs(source: String, openParenIndex: Int): String? {
+            if (openParenIndex !in source.indices || source[openParenIndex] != '(') return null
+            var depth = 0
+            for (i in openParenIndex until source.length) {
+                when (source[i]) {
+                    '(' -> depth++
+                    ')' -> {
+                        depth--
+                        if (depth == 0) return source.substring(openParenIndex + 1, i)
+                    }
+                }
+            }
+            return null
+        }
     }
 }

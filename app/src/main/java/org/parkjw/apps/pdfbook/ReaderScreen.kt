@@ -61,6 +61,7 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
 import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -329,7 +330,10 @@ private fun ReaderOverlayTop(
             .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
+        IconButton(
+            onClick = onBack,
+            colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+        ) {
             Icon(
                 painter = painterResource(R.drawable.ic_arrow_back),
                 contentDescription = stringResource(R.string.reader_back),
@@ -354,7 +358,10 @@ private fun ReaderOverlayTop(
             tint = ReaderOnOverlay,
             modifier = Modifier.padding(horizontal = 12.dp),
         )
-        IconButton(onClick = { onDirectionChange(toggledDirection(direction)) }) {
+        IconButton(
+            onClick = { onDirectionChange(toggledDirection(direction)) },
+            colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+        ) {
             Icon(
                 painter = painterResource(
                     if (direction == ReadingDirection.RTL) {

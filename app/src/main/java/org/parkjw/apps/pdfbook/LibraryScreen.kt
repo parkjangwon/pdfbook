@@ -58,6 +58,8 @@ import org.parkjw.apps.pdfbook.ui.theme.CoverCorner
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.extendedColors
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookTextButtonColors
 import kotlin.math.roundToInt
 
 @Composable
@@ -125,13 +127,14 @@ fun LibraryScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(
                     onClick = { byName = !byName },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                    ),
+                    colors = pdfBookTextButtonColors(),
                 ) {
                     Text(stringResource(if (byName) R.string.sort_name else R.string.sort_recent))
                 }
-                IconButton(onClick = onSettings) {
+                IconButton(
+                    onClick = onSettings,
+                    colors = pdfBookIconButtonColors(),
+                ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_settings),
                         contentDescription = stringResource(R.string.settings_title),
