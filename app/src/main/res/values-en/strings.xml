@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">PDFBook</string>
+    <string name="open_failed">Can\'t open this file</string>
+    <string name="es_pick_folder_title">Choose your manga folder</string>
+    <string name="es_pick_folder_body">PDFBook uses one folder of PDFs as your library.</string>
+    <string name="es_pick_folder_action">Choose folder</string>
+    <string name="es_empty_folder_title">No PDFs in this folder</string>
+    <string name="es_empty_folder_body">Add PDFs to it, or choose another folder.</string>
+    <string name="es_empty_folder_action">Choose another folder</string>
+    <string name="es_permission_lost_title">Can\'t open the folder</string>
+    <string name="es_permission_lost_body">It was moved or access was removed. Choose it again.</string>
+    <string name="es_permission_lost_action">Choose folder again</string>
+    <string name="sort_recent">Recent</string>
+    <string name="sort_name">Name</string>
+    <string name="continue_reading">Continue reading</string>
+    <string name="progress">%1$d / %2$d</string>
+</resources>
