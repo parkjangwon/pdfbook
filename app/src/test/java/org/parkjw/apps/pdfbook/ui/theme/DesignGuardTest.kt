@@ -168,6 +168,30 @@ class DesignGuardTest {
     }
 
     @Test
+    fun sharedSnackbarFillsWidthWithMaxCap() {
+        val source = File(
+            projectRoot(),
+            "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/PdfBookSnackbar.kt",
+        ).readText()
+        assertTrue(
+            "PdfBookSnackbar must use widthIn(max = 600.dp)",
+            usesSnackbarMaxWidth(source),
+        )
+        assertTrue(
+            "PdfBookSnackbar must use fillMaxWidth()",
+            usesSnackbarFillMaxWidth(source),
+        )
+        assertFalse(
+            "self-check: missing widthIn max must fail",
+            usesSnackbarMaxWidth("Modifier.fillMaxWidth()"),
+        )
+        assertFalse(
+            "self-check: missing fillMaxWidth must fail",
+            usesSnackbarFillMaxWidth("Modifier.widthIn(max = 600.dp)"),
+        )
+    }
+
+    @Test
     fun m3ShapesDoNotUsePill() {
         val shape = File(projectRoot(), "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/Shape.kt").readText()
         assertTrue("DialogCorner missing", Regex("""val\s+DialogCorner\s*=""").containsMatchIn(shape))
@@ -292,6 +316,10 @@ class DesignGuardTest {
             Regex("""(?<![A-Za-z0-9_])Snackbar\s*\(""")
         private val zeroShadowElevation =
             Regex("""shadowElevation\s*=\s*0(?:\.0)?\.dp\b""")
+        private val snackbarMaxWidth =
+            Regex("""widthIn\s*\(\s*max\s*=\s*600(?:\.0)?\.dp\s*\)""")
+        private val snackbarFillMaxWidth =
+            Regex("""fillMaxWidth\s*\(\s*\)""")
 
         fun findTextButtonsWithoutColors(source: String): List<String> {
             val hits = mutableListOf<String>()
@@ -326,6 +354,12 @@ class DesignGuardTest {
 
         fun usesZeroShadowElevation(source: String): Boolean =
             zeroShadowElevation.containsMatchIn(source)
+
+        fun usesSnackbarMaxWidth(source: String): Boolean =
+            snackbarMaxWidth.containsMatchIn(source)
+
+        fun usesSnackbarFillMaxWidth(source: String): Boolean =
+            snackbarFillMaxWidth.containsMatchIn(source)
 
         private fun balancedArgs(source: String, openParenIndex: Int): String? {
             if (openParenIndex !in source.indices || source[openParenIndex] != '(') return null
