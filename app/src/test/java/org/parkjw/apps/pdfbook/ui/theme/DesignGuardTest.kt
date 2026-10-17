@@ -206,6 +206,38 @@ class DesignGuardTest {
     }
 
     @Test
+    fun sharedSnackbarActionUsesInkNotOrange() {
+        val source = File(
+            projectRoot(),
+            "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/PdfBookSnackbar.kt",
+        ).readText()
+        assertTrue(
+            "PdfBookSnackbar action ink must use inverseOnSurface",
+            usesSnackbarActionInk(source),
+        )
+        assertFalse(
+            "PdfBookSnackbar must not use SnackbarDefaults.actionColor",
+            usesSnackbarDefaultsActionColor(source),
+        )
+        assertFalse(
+            "PdfBookSnackbar must not use inversePrimary for action ink",
+            usesSnackbarInversePrimary(source),
+        )
+        assertFalse(
+            "self-check: missing inverseOnSurface must fail",
+            usesSnackbarActionInk("contentColor = SnackbarDefaults.actionColor"),
+        )
+        assertTrue(
+            "self-check: SnackbarDefaults.actionColor must be detected",
+            usesSnackbarDefaultsActionColor("contentColor = SnackbarDefaults.actionColor"),
+        )
+        assertTrue(
+            "self-check: inversePrimary must be detected",
+            usesSnackbarInversePrimary("contentColor = MaterialTheme.colorScheme.inversePrimary"),
+        )
+    }
+
+    @Test
     fun m3ShapesDoNotUsePill() {
         val shape = File(projectRoot(), "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/Shape.kt").readText()
         assertTrue("DialogCorner missing", Regex("""val\s+DialogCorner\s*=""").containsMatchIn(shape))
@@ -341,6 +373,12 @@ class DesignGuardTest {
             Regex("""widthIn\s*\(\s*max\s*=\s*600(?:\.0)?\.dp\s*\)""")
         private val snackbarFillMaxWidth =
             Regex("""fillMaxWidth\s*\(\s*\)""")
+        private val snackbarActionInk =
+            Regex("""(?:colorScheme\.)?inverseOnSurface\b""")
+        private val snackbarDefaultsActionColor =
+            Regex("""SnackbarDefaults\.actionColor\b""")
+        private val snackbarInversePrimary =
+            Regex("""\binversePrimary\b""")
 
         fun findTextButtonsWithoutColors(source: String): List<String> {
             val hits = mutableListOf<String>()
@@ -387,6 +425,15 @@ class DesignGuardTest {
 
         fun usesSnackbarFillMaxWidth(source: String): Boolean =
             snackbarFillMaxWidth.containsMatchIn(source)
+
+        fun usesSnackbarActionInk(source: String): Boolean =
+            snackbarActionInk.containsMatchIn(source)
+
+        fun usesSnackbarDefaultsActionColor(source: String): Boolean =
+            snackbarDefaultsActionColor.containsMatchIn(source)
+
+        fun usesSnackbarInversePrimary(source: String): Boolean =
+            snackbarInversePrimary.containsMatchIn(source)
 
         private fun balancedArgs(source: String, openParenIndex: Int): String? {
             if (openParenIndex !in source.indices || source[openParenIndex] != '(') return null
