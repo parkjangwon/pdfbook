@@ -7,24 +7,26 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -96,9 +98,10 @@ fun FolderShelfScreen(
     showRemoveConfirmFor: String? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
     var menuUri by remember { mutableStateOf(showMenuFor) }
     var confirmRemoveUri by remember { mutableStateOf(showRemoveConfirmFor) }
+    val hasResume = shelf.globalResume != null
 
     LaunchedEffect(snackbarMessage) {
         val message = snackbarMessage ?: return@LaunchedEffect
@@ -109,13 +112,12 @@ fun FolderShelfScreen(
         val uri = scrollToUri ?: return@LaunchedEffect
         val index = shelf.cards.indexOfFirst { it.uri == uri }
         if (!shouldClearScrollTarget(index)) return@LaunchedEffect
-        val offset = if (shelf.globalResume != null) 1 else 0
-        val listIndex = index + offset
-        val lastIndex = offset + shelf.cards.lastIndex
+        val listIndex = folderShelfScrollIndex(index, hasResume)
+        val lastIndex = folderShelfScrollIndex(shelf.cards.lastIndex, hasResume)
         if (listIndex >= lastIndex) {
-            listState.scrollToItem(listIndex, scrollOffset = Int.MAX_VALUE / 4)
+            gridState.scrollToItem(listIndex, scrollOffset = Int.MAX_VALUE / 4)
         } else {
-            listState.animateScrollToItem(listIndex)
+            gridState.animateScrollToItem(listIndex)
         }
         onScrollHandled()
     }
@@ -170,50 +172,55 @@ fun FolderShelfScreen(
             }
         },
     ) { padding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
+        BoxWithConstraints(
+            Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = safeDrawingGridContentPadding(
-                extraBottom = 56.dp + PdfBookSpacing.md,
-            ),
-            verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.md),
         ) {
-            shelf.globalResume?.let { resume ->
-                item(key = "resume") {
-                    GlobalResumeCard(
-                        resume = resume,
-                        cover = covers[bookKey(resume.book.uri, resume.book.size)],
-                        onClick = { onOpenResume(resume) },
-                    )
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(folderShelfColumns(maxWidth.value.toInt())),
+                state = gridState,
+                contentPadding = safeDrawingGridContentPadding(
+                    extraBottom = PdfBookSpacing.folderAddFabHeight + PdfBookSpacing.md,
+                ),
+                horizontalArrangement = Arrangement.spacedBy(PdfBookSpacing.sm),
+                verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.md),
+            ) {
+                shelf.globalResume?.let { resume ->
+                    item(key = "resume", span = { GridItemSpan(maxLineSpan) }) {
+                        GlobalResumeCard(
+                            resume = resume,
+                            cover = covers[bookKey(resume.book.uri, resume.book.size)],
+                            onClick = { onOpenResume(resume) },
+                        )
+                    }
                 }
-            }
-            itemsIndexed(shelf.cards, key = { _, card -> card.uri }) { _, card ->
-                Box {
-                    FolderCard(
-                        card = card,
-                        covers = covers,
-                        menuExpanded = menuUri == card.uri,
-                        onMenuExpand = { menuUri = card.uri },
-                        onMenuDismiss = { menuUri = null },
-                        onOpen = {
-                            if (card.access == FolderAccess.Lost) onLostFolder(card.uri)
-                            else onOpenFolder(card.uri)
-                        },
-                        onRename = {
-                            menuUri = null
-                            onRenameRequest(card)
-                        },
-                        onRepick = {
-                            menuUri = null
-                            onRepick(card.uri)
-                        },
-                        onRemove = {
-                            menuUri = null
-                            confirmRemoveUri = card.uri
-                        },
-                    )
+                itemsIndexed(shelf.cards, key = { _, card -> card.uri }) { _, card ->
+                    Box {
+                        FolderCard(
+                            card = card,
+                            covers = covers,
+                            menuExpanded = menuUri == card.uri,
+                            onMenuExpand = { menuUri = card.uri },
+                            onMenuDismiss = { menuUri = null },
+                            onOpen = {
+                                if (card.access == FolderAccess.Lost) onLostFolder(card.uri)
+                                else onOpenFolder(card.uri)
+                            },
+                            onRename = {
+                                menuUri = null
+                                onRenameRequest(card)
+                            },
+                            onRepick = {
+                                menuUri = null
+                                onRepick(card.uri)
+                            },
+                            onRemove = {
+                                menuUri = null
+                                confirmRemoveUri = card.uri
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -336,14 +343,14 @@ private fun FolderCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
-                        text = card.pathTail,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
                     if (lost) {
+                        Text(
+                            text = card.pathTail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         Surface(
                             shape = PdfBookShapeTokens.pill,
                             color = MaterialTheme.colorScheme.errorContainer,
@@ -366,7 +373,7 @@ private fun FolderCard(
                         )
                         Text(
                             text = withNumericSpans(
-                                countText,
+                                folderPathBookLine(card.pathTail, countText),
                                 SpanStyle(
                                     fontFamily = PdfBookNumeric.fontFamily,
                                     fontSize = 12.sp,
@@ -375,6 +382,8 @@ private fun FolderCard(
                             ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }

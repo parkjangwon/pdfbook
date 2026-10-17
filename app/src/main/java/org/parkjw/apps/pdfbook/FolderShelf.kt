@@ -35,6 +35,14 @@ data class FolderShelfUi(
 
 fun pathTailForUri(uri: String): String = displayNameForUri(uri)
 
+fun folderShelfColumns(widthDp: Int): Int = if (widthDp < 600) 1 else 2
+
+fun folderShelfScrollIndex(cardIndex: Int, hasGlobalResume: Boolean): Int =
+    cardIndex + if (hasGlobalResume) 1 else 0
+
+fun folderPathBookLine(pathTail: String, bookCountLabel: String): String =
+    if (pathTail.isEmpty()) bookCountLabel else "$pathTail · $bookCountLabel"
+
 fun sortFoldersByRecent(folders: List<Folder>): List<Folder> =
     folders.sortedWith(
         compareByDescending<Folder> { it.lastOpenedAt }.thenBy { it.order },

@@ -84,4 +84,26 @@ class FolderShelfTest {
         )
         assertNull(ui.globalResume)
     }
+
+    @Test
+    fun folderShelfColumnsFollowWidth() {
+        assertEquals(1, folderShelfColumns(360))
+        assertEquals(1, folderShelfColumns(599))
+        assertEquals(2, folderShelfColumns(600))
+        assertEquals(2, folderShelfColumns(656))
+    }
+
+    @Test
+    fun folderShelfScrollIndexAccountsForResume() {
+        assertEquals(0, folderShelfScrollIndex(0, hasGlobalResume = false))
+        assertEquals(1, folderShelfScrollIndex(0, hasGlobalResume = true))
+        assertEquals(3, folderShelfScrollIndex(2, hasGlobalResume = true))
+    }
+
+    @Test
+    fun folderPathBookLineJoinsPathAndCount() {
+        assertEquals("weekly · 책 4권", folderPathBookLine("weekly", "책 4권"))
+        assertEquals("weekly · 4 books", folderPathBookLine("weekly", "4 books"))
+        assertEquals("책 4권", folderPathBookLine("", "책 4권"))
+    }
 }
