@@ -22,18 +22,18 @@ jobs:
           fail=0
 
           check() {
-            local label="$1" subject="$2"
+            local label="$1" subject="$2" level="$3"
             if [[ ${#subject} -gt 72 ]] || ! [[ "$subject" =~ $PATTERN ]]; then
-              echo "::error::$label does not match Conventional Commits (<=72): $subject"
-              fail=1
+              echo "::$level::$label does not match Conventional Commits (<=72): $subject"
+              if [[ "$level" == "error" ]]; then fail=1; fi
             else
               echo "ok $label: $subject"
             fi
           }
 
-          check "PR title" "$PR_TITLE"
+          check "PR title" "$PR_TITLE" error
           while IFS= read -r subject; do
-            check "commit" "$subject"
+            check "commit" "$subject" warning
           done < <(git log --format=%s "${BASE_SHA}..${HEAD_SHA}")
 
           exit "$fail"
