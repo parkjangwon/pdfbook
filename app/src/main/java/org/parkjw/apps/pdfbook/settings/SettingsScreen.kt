@@ -3,6 +3,7 @@ package org.parkjw.apps.pdfbook.settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -185,7 +186,7 @@ private fun SettingsSection(title: String) {
 }
 
 @Composable
-private fun SettingsGroup(content: @Composable () -> Unit) {
+private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape = CardCorner,
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -193,8 +194,9 @@ private fun SettingsGroup(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = PdfBookSpacing.screenHorizontalFolded),
-        content = content,
-    )
+    ) {
+        Column(modifier = Modifier.fillMaxWidth(), content = content)
+    }
 }
 
 @Composable

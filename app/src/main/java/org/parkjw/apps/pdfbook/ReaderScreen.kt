@@ -388,19 +388,23 @@ private fun ReaderOverlayBottom(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (pageCount > 1) {
-            Slider(
-                value = pageToSlider(currentPage, pageCount, direction),
-                onValueChange = { onSeekPage(sliderToPage(it, pageCount, direction)) },
-                valueRange = 0f..(pageCount - 1).toFloat(),
-                colors = SliderDefaults.colors(
-                    thumbColor = ReaderAccent,
-                    activeTrackColor = ReaderAccent,
-                    inactiveTrackColor = ReaderTrack,
-                    activeTickColor = ReaderAccent,
-                    inactiveTickColor = ReaderTrack,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            val sliderDirection =
+                if (direction == ReadingDirection.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr
+            CompositionLocalProvider(LocalLayoutDirection provides sliderDirection) {
+                Slider(
+                    value = pageToSlider(currentPage, pageCount, ReadingDirection.LTR),
+                    onValueChange = { onSeekPage(sliderToPage(it, pageCount, ReadingDirection.LTR)) },
+                    valueRange = 0f..(pageCount - 1).toFloat(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = ReaderAccent,
+                        activeTrackColor = ReaderAccent,
+                        inactiveTrackColor = ReaderTrack,
+                        activeTickColor = ReaderAccent,
+                        inactiveTickColor = ReaderTrack,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         Text(
             text = withNumericSpans(

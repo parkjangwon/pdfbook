@@ -38,7 +38,7 @@ class ColorLiteralGuardTest {
         val offenders = resRoot.walkTopDown()
             .filter { it.isFile && it.extension == "xml" }
             .filterNot { it.name == "colors.xml" }
-            .filterNot { pathHas(it, root, "drawable") || pathHas(it, root, "mipmap") }
+            .filterNot { isLauncherIcon(it) }
             .flatMap { file ->
                 file.readLines().mapIndexedNotNull { index, line ->
                     if (hex.containsMatchIn(line)) {
@@ -56,21 +56,24 @@ class ColorLiteralGuardTest {
     fun windowBackgroundMatchesTokenBackgrounds() {
         val root = projectRoot()
         val tokens = File(root, "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/Tokens.kt").readText()
-        val lightBg = resolveTokenHex(tokens, "LightBackground")
-        val darkBg = resolveTokenHex(tokens, "DarkBackground")
         val lightXml = File(root, "app/src/main/res/values/colors.xml").readText()
         val darkXml = File(root, "app/src/main/res/values-night/colors.xml").readText()
-        assertEquals(lightBg, windowBackgroundHex(lightXml))
-        assertEquals(darkBg, windowBackgroundHex(darkXml))
+        assertEquals(resolveTokenHex(tokens, "LightBackground"), colorHex(lightXml, "window_background"))
+        assertEquals(resolveTokenHex(tokens, "DarkBackground"), colorHex(darkXml, "window_background"))
+        assertEquals(resolveTokenHex(tokens, "LightOnSurfaceVariant"), colorHex(lightXml, "illustration_line"))
+        assertEquals(resolveTokenHex(tokens, "DarkOnSurfaceVariant"), colorHex(darkXml, "illustration_line"))
+        assertEquals(resolveTokenHex(tokens, "LightPrimary"), colorHex(lightXml, "illustration_accent"))
+        assertEquals(resolveTokenHex(tokens, "DarkPrimary"), colorHex(darkXml, "illustration_accent"))
     }
 
-    private fun pathHas(file: File, root: File, segment: String): Boolean =
-        file.relativeTo(root).path.split(File.separatorChar).any { it.startsWith(segment) }
+    private fun isLauncherIcon(file: File): Boolean =
+        file.name.startsWith("ic_launcher") ||
+            file.parentFile?.name?.startsWith("mipmap") == true
 
-    private fun windowBackgroundHex(xml: String): String {
-        val match = Regex("""<color\s+name="window_background">\s*(#[0-9A-Fa-f]+)\s*</color>""")
+    private fun colorHex(xml: String, name: String): String {
+        val match = Regex("""<color\s+name="$name">\s*(#[0-9A-Fa-f]+)\s*</color>""")
             .find(xml)
-            ?: error("window_background missing")
+            ?: error("$name missing")
         return normalizeHex(match.groupValues[1])
     }
 

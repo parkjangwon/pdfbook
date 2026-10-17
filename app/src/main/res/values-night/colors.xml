@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="window_background">#1B1A16</color>
+    <color name="illustration_line">#B6B2A7</color>
+    <color name="illustration_accent">#FF8A50</color>
 </resources>
