@@ -10,7 +10,8 @@ class FolderWorkspaceTest {
         name: String = uri,
         order: Int = 0,
         access: FolderAccess = FolderAccess.Ok,
-    ) = Folder(uri, name, order, access)
+        lastOpenedAt: Long = 0L,
+    ) = Folder(uri, name, order, access, lastOpenedAt)
 
     @Test
     fun addAppendsWithNextOrder() {
@@ -231,12 +232,72 @@ class FolderWorkspaceTest {
     @Test
     fun codecRoundTrip() {
         val folders = listOf(
-            folder("content://a", "Name|Weird", 0, FolderAccess.Lost),
+            folder("content://a", "Name|Weird", 0, FolderAccess.Lost, lastOpenedAt = 42L),
             folder("content://b", "B", 1),
         )
         assertEquals(folders, decodeFolders(encodeFolders(folders)))
         assertTrue(decodeFolders(null).isEmpty())
         assertTrue(decodeFolders("").isEmpty())
+    }
+
+    @Test
+    fun codecDecodesLegacyFourFieldsAsZeroLastOpenedAt() {
+        val legacy = listOf("content://a", "A", "0", "Lost").joinToString("\u0001")
+        assertEquals(
+            listOf(folder("content://a", "A", 0, FolderAccess.Lost, lastOpenedAt = 0L)),
+            decodeFolders(legacy),
+        )
+    }
+
+    @Test
+    fun markOpenedUpdatesOnlyTarget() {
+        val base = listOf(folder("a", "A", 0), folder("b", "B", 1, lastOpenedAt = 5L))
+        assertEquals(
+            listOf(folder("a", "A", 0, lastOpenedAt = 99L), folder("b", "B", 1, lastOpenedAt = 5L)),
+            markOpened(base, "a", 99L),
+        )
+    }
+
+    @Test
+    fun repickSameUriRestoresAccessKeepingNameOrderAndOpenedAt() {
+        val base = listOf(
+            folder("a", "Keep", 0, FolderAccess.Lost, lastOpenedAt = 7L),
+            folder("b", "B", 1),
+        )
+        val result = repick(base, "a", "a")
+        assertEquals(
+            listOf(folder("a", "Keep", 0, FolderAccess.Ok, lastOpenedAt = 7L), folder("b", "B", 1)),
+            result.folders,
+        )
+        assertTrue(result.releaseUris.isEmpty())
+    }
+
+    @Test
+    fun repickDifferentUriReplacesCardKeepingNameAndOrder() {
+        val base = listOf(
+            folder("old", "Custom", 0, FolderAccess.Lost, lastOpenedAt = 3L),
+            folder("b", "B", 1),
+        )
+        val result = repick(base, "old", "new")
+        assertEquals(
+            listOf(
+                folder("new", "Custom", 0, FolderAccess.Ok, lastOpenedAt = 3L),
+                folder("b", "B", 1),
+            ),
+            result.folders,
+        )
+        assertEquals(listOf("old"), result.releaseUris)
+    }
+
+    @Test
+    fun repickToAlreadyRegisteredRemovesTargetAndRestoresExisting() {
+        val base = listOf(
+            folder("a", "A", 0, FolderAccess.Lost),
+            folder("b", "B", 1, FolderAccess.Lost),
+        )
+        val result = repick(base, "a", "b")
+        assertEquals(listOf(folder("b", "B", 0, FolderAccess.Ok)), result.folders)
+        assertEquals(listOf("a"), result.releaseUris)
     }
 
     @Test

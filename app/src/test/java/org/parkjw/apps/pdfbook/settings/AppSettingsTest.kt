@@ -9,7 +9,7 @@ class AppSettingsTest {
     @Test
     fun defaultsMatchScope() {
         val s = AppSettings()
-        assertEquals(StartScreen.Library, s.startScreen)
+        assertEquals(StartScreen.Folders, s.startScreen)
         assertEquals(ThemeMode.System, s.themeMode)
         assertTrue(s.volumeKeyPaging)
         assertEquals(ReadingDirection.RTL, s.defaultReadingDirection)

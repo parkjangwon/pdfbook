@@ -51,4 +51,12 @@ class SettingsRepositoryTest {
         prefs[SettingsRepository.ThemeModeKey] = "NotATheme"
         assertEquals(ThemeMode.System, prefs.toAppSettings().themeMode)
     }
+
+    @Test
+    fun legacyLibraryStartScreenMigratesToFolders() {
+        assertEquals(StartScreen.Folders, startScreenOrDefault("Library", StartScreen.LastBook))
+        assertEquals(StartScreen.Folders, startScreenOrDefault("Folders", StartScreen.LastBook))
+        assertEquals(StartScreen.LastBook, startScreenOrDefault("LastBook", StartScreen.Folders))
+        assertEquals(StartScreen.Folders, startScreenOrDefault("Nope", StartScreen.Folders))
+    }
 }

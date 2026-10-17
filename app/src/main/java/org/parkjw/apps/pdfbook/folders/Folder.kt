@@ -10,6 +10,7 @@ data class Folder(
     val displayName: String,
     val order: Int,
     val access: FolderAccess = FolderAccess.Ok,
+    val lastOpenedAt: Long = 0L,
 )
 
 enum class AddKind {
@@ -29,6 +30,11 @@ data class RemoveResult(
 )
 
 data class ReplacePrimaryResult(
+    val folders: List<Folder>,
+    val releaseUris: List<String>,
+)
+
+data class RepickResult(
     val folders: List<Folder>,
     val releaseUris: List<String>,
 )
@@ -89,9 +95,52 @@ fun add(folders: List<Folder>, uri: String, displayName: String): AddResult {
     }
     val order = folders.maxOfOrNull { it.order }?.plus(1) ?: 0
     return AddResult(
-        folders + Folder(uri = uri, displayName = displayName, order = order, access = FolderAccess.Ok),
+        folders + Folder(
+            uri = uri,
+            displayName = displayName,
+            order = order,
+            access = FolderAccess.Ok,
+            lastOpenedAt = 0L,
+        ),
         AddKind.Created,
     )
+}
+
+fun markOpened(folders: List<Folder>, uri: String, at: Long): List<Folder> =
+    folders.map { folder ->
+        if (folder.uri == uri) folder.copy(lastOpenedAt = at) else folder
+    }
+
+fun repick(folders: List<Folder>, targetUri: String, newUri: String): RepickResult {
+    val targetIndex = folders.indexOfFirst { it.uri == targetUri }
+    if (targetIndex < 0) return RepickResult(folders, emptyList())
+    val target = folders[targetIndex]
+    if (targetUri == newUri) {
+        return RepickResult(
+            folders.map {
+                if (it.uri == targetUri) it.copy(access = FolderAccess.Ok) else it
+            },
+            emptyList(),
+        )
+    }
+    if (folders.any { it.uri == newUri }) {
+        val removed = remove(folders, targetUri)
+        return RepickResult(
+            removed.folders.map {
+                if (it.uri == newUri) it.copy(access = FolderAccess.Ok) else it
+            },
+            removed.releaseUris,
+        )
+    }
+    val updated = folders.map {
+        if (it.uri == targetUri) {
+            target.copy(uri = newUri, access = FolderAccess.Ok)
+        } else {
+            it
+        }
+    }
+    val releaseUris = if (updated.none { it.uri == targetUri }) listOf(targetUri) else emptyList()
+    return RepickResult(updated, releaseUris)
 }
 
 fun remove(folders: List<Folder>, uri: String): RemoveResult {

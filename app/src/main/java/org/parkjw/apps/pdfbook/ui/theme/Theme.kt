@@ -21,6 +21,7 @@ object PdfBookSpacing {
     val xl = 32.dp
     val screenHorizontalFolded = 16.dp
     val screenHorizontalUnfolded = 24.dp
+    val folderAddFabHeight = 72.dp
 }
 
 val MaterialTheme.extendedColors: PdfBookColors

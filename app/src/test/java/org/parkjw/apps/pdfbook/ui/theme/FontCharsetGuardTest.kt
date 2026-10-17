@@ -9,6 +9,12 @@ import javax.xml.parsers.DocumentBuilderFactory
 
 class FontCharsetGuardTest {
     @Test
+    fun middleDotIsInPretendardSubsetCharset() {
+        val charset = File(projectRoot(), "fonts/pretendard_subset_chars.txt").readText(Charsets.UTF_8).toSet()
+        assertTrue('·' in charset)
+    }
+
+    @Test
     fun stringsXmlCharsAreInPretendardSubsetCharset() {
         val root = projectRoot()
         val charset = File(root, "fonts/pretendard_subset_chars.txt").readText(Charsets.UTF_8).toSet()
@@ -19,11 +25,13 @@ class FontCharsetGuardTest {
             .filter { it.isFile && it.name == "strings.xml" }
             .forEach { file ->
                 val doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file)
-                val nodes = doc.getElementsByTagName("string")
-                for (i in 0 until nodes.length) {
-                    val text = formatArg.replace(nodes.item(i).textContent ?: continue, "")
-                    for (ch in text) {
-                        if (ch !in charset) missing.add(ch)
+                for (tag in listOf("string", "item")) {
+                    val nodes = doc.getElementsByTagName(tag)
+                    for (i in 0 until nodes.length) {
+                        val text = formatArg.replace(nodes.item(i).textContent ?: continue, "")
+                        for (ch in text) {
+                            if (ch !in charset) missing.add(ch)
+                        }
                     }
                 }
             }

@@ -3,7 +3,7 @@ package org.parkjw.apps.pdfbook.settings
 import org.parkjw.apps.pdfbook.ReadingDirection
 
 enum class StartScreen {
-    Library,
+    Folders,
     LastBook,
 }
 
@@ -31,7 +31,7 @@ enum class PageTurnAnimation {
 }
 
 data class AppSettings(
-    val startScreen: StartScreen = StartScreen.Library,
+    val startScreen: StartScreen = StartScreen.Folders,
     val themeMode: ThemeMode = ThemeMode.System,
     val volumeKeyPaging: Boolean = true,
     val defaultReadingDirection: ReadingDirection = ReadingDirection.RTL,

@@ -20,6 +20,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.parkjw.apps.pdfbook.sortFoldersByRecent
 import java.io.File
 
 class FolderRepositoryTest {
@@ -244,6 +245,21 @@ class FolderRepositoryTest {
     }
 
     @Test
+    fun duplicateAddMovesFolderToShelfTop() = runBlocking {
+        val repo = repository("dup-top.preferences_pb")
+        assertEquals(AddKind.Created, repo.add("content://tree/a", "A"))
+        assertEquals(AddKind.Created, repo.add("content://tree/b", "B"))
+        repo.markOpened("content://tree/a", 100L)
+        repo.markOpened("content://tree/b", 200L)
+        permissions.taken.clear()
+        assertEquals(AddKind.Duplicate, repo.add("content://tree/a", "Other"))
+        assertTrue(permissions.taken.isEmpty())
+        val folders = repo.folders.first()
+        assertEquals(2, folders.size)
+        assertEquals("content://tree/a", sortFoldersByRecent(folders).first().uri)
+    }
+
+    @Test
     fun refreshAccessMarksMissingPermissionsLost() = runBlocking {
         val repo = repository("refresh.preferences_pb")
         repo.add("content://tree/a", "A")
@@ -291,19 +307,20 @@ class FolderRepositoryTest {
 }
 
 private class FakeUriPermissions : UriPermissions {
+    private val lock = Any()
     val taken = mutableListOf<String>()
     val released = mutableListOf<String>()
     var persisted: Set<String> = emptySet()
     var throwOnTake: Set<String> = emptySet()
     var throwOnReleaseMissing: Boolean = false
 
-    override fun take(uri: String) {
+    override fun take(uri: String) = synchronized(lock) {
         if (uri in throwOnTake) throw SecurityException("denied")
         taken += uri
         persisted = persisted + uri
     }
 
-    override fun release(uri: String) {
+    override fun release(uri: String) = synchronized(lock) {
         releasePersistableSafely(uri, persisted) {
             if (throwOnReleaseMissing) throw SecurityException("not held")
             released += it
@@ -311,5 +328,5 @@ private class FakeUriPermissions : UriPermissions {
         }
     }
 
-    override fun persistedUris(): Set<String> = persisted
+    override fun persistedUris(): Set<String> = synchronized(lock) { persisted }
 }

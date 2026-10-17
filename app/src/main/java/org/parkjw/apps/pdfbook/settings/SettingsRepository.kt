@@ -50,7 +50,7 @@ class SettingsRepository(
 internal fun Preferences.toAppSettings(): AppSettings {
     val defaults = AppSettings()
     return AppSettings(
-        startScreen = enumOrDefault(this[SettingsRepository.StartScreenKey], defaults.startScreen),
+        startScreen = startScreenOrDefault(this[SettingsRepository.StartScreenKey], defaults.startScreen),
         themeMode = enumOrDefault(this[SettingsRepository.ThemeModeKey], defaults.themeMode),
         volumeKeyPaging = this[SettingsRepository.VolumeKeyPagingKey] ?: defaults.volumeKeyPaging,
         defaultReadingDirection = enumOrDefault(
@@ -89,3 +89,11 @@ private inline fun <reified T : Enum<T>> enumOrDefault(raw: String?, default: T)
     if (raw == null) return default
     return runCatching { enumValueOf<T>(raw) }.getOrDefault(default)
 }
+
+internal fun startScreenOrDefault(raw: String?, default: StartScreen): StartScreen =
+    when (raw) {
+        null -> default
+        "Library", StartScreen.Folders.name -> StartScreen.Folders
+        StartScreen.LastBook.name -> StartScreen.LastBook
+        else -> default
+    }

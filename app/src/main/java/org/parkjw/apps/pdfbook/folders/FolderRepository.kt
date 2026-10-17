@@ -32,7 +32,10 @@ class FolderRepository(
 
     suspend fun add(uri: String, displayName: String): AddKind {
         val preview = previewAdd(uri, displayName)
-        if (preview == AddKind.Duplicate) return AddKind.Duplicate
+        if (preview == AddKind.Duplicate) {
+            markOpened(uri)
+            return AddKind.Duplicate
+        }
         uriPermissions.take(uri)
         var kind = preview
         dataStore.edit { prefs ->
@@ -101,6 +104,29 @@ class FolderRepository(
         }
         for (releaseUri in releaseUris) {
             uriPermissions.release(releaseUri)
+        }
+    }
+
+    suspend fun repick(targetUri: String, newUri: String) {
+        uriPermissions.take(newUri)
+        var releaseUris = emptyList<String>()
+        dataStore.edit { prefs ->
+            migrateInto(prefs)
+            val result = repick(decodeFolders(prefs[FoldersKey]), targetUri, newUri)
+            prefs[FoldersKey] = encodeFolders(result.folders)
+            prefs[MigratedKey] = true
+            releaseUris = result.releaseUris
+        }
+        for (releaseUri in releaseUris) {
+            uriPermissions.release(releaseUri)
+        }
+    }
+
+    suspend fun markOpened(uri: String, at: Long = System.currentTimeMillis()) {
+        dataStore.edit { prefs ->
+            migrateInto(prefs)
+            prefs[FoldersKey] = encodeFolders(markOpened(decodeFolders(prefs[FoldersKey]), uri, at))
+            prefs[MigratedKey] = true
         }
     }
 
