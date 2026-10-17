@@ -35,6 +35,25 @@ class TokensContrastTest {
     }
 
     @Test
+    fun documentedContrastPairsMatchCalculatedRatios() {
+        assertRatioNear("LightOnBackground", "LightBackground", 14.3)
+        assertRatioNear("DarkOnBackground", "DarkBackground", 14.6)
+        assertRatioNear("LightOnSurface", "LightSurfaceContainer", 15.4)
+        assertRatioNear("DarkOnSurface", "DarkSurfaceContainer", 13.4)
+        assertRatioNear("LightOnSurfaceVariant", "LightBackground", 6.6)
+        assertRatioNear("DarkOnSurfaceVariant", "DarkBackground", 8.2)
+        assertRatioNear("LightPrimary", "LightBackground", 3.28)
+        assertRatioNear("DarkPrimary", "DarkBackground", 7.47)
+        assertRatioNear("LightPrimary", "LightSurfaceContainerHighest", 3.02)
+        assertRatioNear("DarkPrimary", "DarkSurfaceContainerHighest", 5.34)
+        assertRatioNear("LightOnInkButton", "LightInkButton", 14.3)
+        assertRatioNear("DarkOnInkButton", "DarkInkButton", 14.6)
+        assertRatioNear("ReaderOnOverlay", "ReaderOverlay", 15.5)
+        assertRatioNear("ReaderOnOverlayVariant", "ReaderOverlay", 7.6)
+        assertRatioNear("ReaderAccent", "ReaderTrack", 4.9)
+    }
+
+    @Test
     fun colorSchemeSlotsAreExplicitAndNotDefaultPurple() {
         val tokens = tokensText()
         val required = listOf(
@@ -78,6 +97,14 @@ class TokensContrastTest {
         val bg = parseArgb(resolveTokenHex(tokens, bgName))
         val ratio = contrastRatio(fg, bg)
         assertTrue("$fgName on $bgName = $ratio < $minRatio", ratio + 1e-6 >= minRatio)
+    }
+
+    private fun assertRatioNear(fgName: String, bgName: String, expected: Double) {
+        val tokens = tokensText()
+        val fg = parseArgb(resolveTokenHex(tokens, fgName))
+        val bg = parseArgb(resolveTokenHex(tokens, bgName))
+        val ratio = contrastRatio(fg, bg)
+        assertEquals("$fgName on $bgName", expected, ratio, 0.06)
     }
 
     private fun schemeBlock(tokens: String, name: String): String {
