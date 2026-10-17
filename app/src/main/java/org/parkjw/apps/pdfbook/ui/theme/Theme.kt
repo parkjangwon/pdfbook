@@ -3,7 +3,6 @@ package org.parkjw.apps.pdfbook.ui.theme
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -77,7 +76,6 @@ fun PdfBookTheme(
     }
     MaterialTheme(
         colorScheme = if (dark) DarkColorScheme else LightColorScheme,
-        motionScheme = MotionScheme.standard(),
         typography = PdfBookTypography,
         shapes = PdfBookShapes,
         content = content,
