@@ -68,7 +68,12 @@ fun ReaderRoute(
             var keptPage by rememberSaveable(key) {
                 mutableIntStateOf(state.page.coerceIn(1, renderer.pageCount.coerceAtLeast(1)))
             }
-            var direction by remember(key) { mutableStateOf(state.direction) }
+            var direction by rememberSaveable(
+                key,
+                stateSaver = ReadingDirectionSaver,
+            ) {
+                mutableStateOf(state.direction)
+            }
             LaunchedEffect(state.direction) { direction = state.direction }
             if (!hasReadableSpreads(spreadList)) {
                 Box(Modifier.fillMaxSize())

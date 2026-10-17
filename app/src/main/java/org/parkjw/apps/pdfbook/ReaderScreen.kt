@@ -3,8 +3,11 @@ package org.parkjw.apps.pdfbook
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -133,12 +136,23 @@ private fun ReaderScreenContent(
         }
     }
 
+    fun toggleZoom() {
+        if (scale > 1f) {
+            scale = 1f
+            offset = Offset.Zero
+        } else {
+            scale = 2f
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black),
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
+            val viewportWidth = constraints.maxWidth.toFloat()
+            val viewportHeight = constraints.maxHeight.toFloat()
             val settledSpread = currentSpreads.getOrNull(pagerState.settledPage).orEmpty()
             val slotWidth = (constraints.maxWidth / settledSpread.size.coerceAtLeast(1)).coerceAtLeast(1)
             val slotHeight = constraints.maxHeight.coerceAtLeast(1)
@@ -186,43 +200,70 @@ private fun ReaderScreenContent(
                             )
                         }
                     }
+                    if (zoomed) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    detectTapGestures(onDoubleTap = { toggleZoom() })
+                                }
+                                .pointerInput(scale, viewportWidth, viewportHeight) {
+                                    detectDragGestures { change, dragAmount ->
+                                        change.consume()
+                                        val next = offset + dragAmount
+                                        val clamped = clampZoomOffset(
+                                            next.x,
+                                            next.y,
+                                            scale,
+                                            viewportWidth,
+                                            viewportHeight,
+                                        )
+                                        offset = Offset(clamped.first, clamped.second)
+                                    }
+                                },
+                        )
+                    } else {
+                        val leftDelta = if (rtl) 1 else -1
+                        val rightDelta = if (rtl) -1 else 1
+                        Row(Modifier.fillMaxSize()) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .combinedClickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { goTo(leftDelta) },
+                                        onDoubleClick = { toggleZoom() },
+                                    ),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .combinedClickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { overlayVisible = !overlayVisible },
+                                        onDoubleClick = { toggleZoom() },
+                                    ),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .combinedClickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { goTo(rightDelta) },
+                                        onDoubleClick = { toggleZoom() },
+                                    ),
+                            )
+                        }
+                    }
                 }
             }
         }
-
-        Box(
-            Modifier
-                .fillMaxSize()
-                .pointerInput(rtl, zoomed) {
-                    val leftDelta = if (rtl) 1 else -1
-                    val rightDelta = if (rtl) -1 else 1
-                    detectTapGestures(
-                        onDoubleTap = {
-                            if (scale > 1f) {
-                                scale = 1f
-                                offset = Offset.Zero
-                            } else {
-                                scale = 2f
-                            }
-                        },
-                        onTap = { pos ->
-                            val third = size.width / 3f
-                            when {
-                                pos.x < third -> if (!zoomed) goTo(leftDelta)
-                                pos.x > third * 2f -> if (!zoomed) goTo(rightDelta)
-                                else -> overlayVisible = !overlayVisible
-                            }
-                        },
-                    )
-                }
-                .pointerInput(zoomed) {
-                    if (!zoomed) return@pointerInput
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        offset += dragAmount
-                    }
-                },
-        )
 
         if (overlayVisible) {
             ReaderOverlayTop(
@@ -258,6 +299,11 @@ private fun ReaderOverlayTop(
         modifier
             .fillMaxWidth()
             .background(Color(0xCC121316))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            )
             .statusBarsPadding()
             .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -322,6 +368,11 @@ private fun ReaderOverlayBottom(
         modifier
             .fillMaxWidth()
             .background(Color(0xCC121316))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {

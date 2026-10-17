@@ -1,9 +1,16 @@
 package org.parkjw.apps.pdfbook
 
+import androidx.compose.runtime.saveable.Saver
+
 enum class ReadingDirection {
     RTL,
     LTR,
 }
+
+val ReadingDirectionSaver = Saver<ReadingDirection, String>(
+    save = { it.name },
+    restore = { ReadingDirection.valueOf(it) },
+)
 
 fun toggledDirection(direction: ReadingDirection): ReadingDirection =
     when (direction) {
