@@ -1,4 +1,34 @@
 <resources>
     <string name="app_name">PDFBook</string>
     <string name="open_failed">열 수 없는 파일</string>
+    <string name="settings_title">설정</string>
+    <string name="settings_section_general">일반</string>
+    <string name="settings_section_reading">읽기</string>
+    <string name="settings_start_screen">시작 화면</string>
+    <string name="settings_start_library">서재</string>
+    <string name="settings_start_last_book">마지막 읽던 책</string>
+    <string name="settings_change_folder">만화 폴더 바꾸기</string>
+    <string name="settings_change_folder_hint">서재로 쓸 폴더를 다시 고릅니다</string>
+    <string name="settings_theme">테마</string>
+    <string name="settings_theme_system">시스템</string>
+    <string name="settings_theme_dark">다크</string>
+    <string name="settings_theme_light">라이트</string>
+    <string name="settings_language">언어</string>
+    <string name="settings_language_system">시스템</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_default_direction">기본 넘김 방향</string>
+    <string name="settings_direction_rtl">오른쪽 → 왼쪽</string>
+    <string name="settings_direction_ltr">왼쪽 → 오른쪽</string>
+    <string name="settings_two_page">두쪽 보기</string>
+    <string name="settings_two_page_auto">자동</string>
+    <string name="settings_two_page_single">항상 한쪽</string>
+    <string name="settings_two_page_double">항상 두쪽</string>
+    <string name="settings_cover_alone">표지 단독 표시</string>
+    <string name="settings_page_turn_animation">넘김 애니메이션</string>
+    <string name="settings_animation_slide">슬라이드</string>
+    <string name="settings_animation_none">없음</string>
+    <string name="settings_volume_key_paging">볼륨 키로 넘기기</string>
+    <string name="settings_keep_screen_on">화면 켜짐 유지</string>
+    <string name="settings_tap_zone_guide">탭 영역 안내 표시</string>
 </resources>

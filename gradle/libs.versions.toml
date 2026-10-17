@@ -2,17 +2,20 @@
 agp = "9.4.1"
 kotlin = "2.4.21"
 composeBom = "2026.09.00"
+material3 = "1.5.0-beta01"
 activityCompose = "1.13.0"
 window = "1.5.1"
+datastore = "1.2.1"
 junit = "4.13.2"
 
 [libraries]
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 window = { group = "androidx.window", name = "window", version.ref = "window" }
+datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]
