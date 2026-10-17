@@ -5,7 +5,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,7 +43,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -104,17 +109,17 @@ private fun ReaderScreenContent(
     val rtl = direction == ReadingDirection.RTL
     val scope = rememberCoroutineScope()
     var overlayVisible by remember { mutableStateOf(false) }
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    val zoomed = scale > 1f
+    var zoom by remember { mutableStateOf(ZoomState()) }
+    val zoomRef = rememberUpdatedState(zoom)
+    val zoomed = !zoom.allowsPageTurn
 
     LaunchedEffect(pagerState.settledPage) {
-        scale = 1f
-        offset = Offset.Zero
+        zoom = ZoomState()
     }
 
     LaunchedEffect(volumeDelta, pagerState) {
         volumeDelta?.collect { delta ->
+            if (!zoomRef.value.allowsPageTurn) return@collect
             val target = pagerTargetIndex(pagerState.targetPage, delta, pagerState.pageCount)
             if (target != pagerState.targetPage) {
                 pagerState.animateScrollToPage(target)
@@ -137,12 +142,7 @@ private fun ReaderScreenContent(
     }
 
     fun toggleZoom() {
-        if (scale > 1f) {
-            scale = 1f
-            offset = Offset.Zero
-        } else {
-            scale = 2f
-        }
+        zoom = zoom.toggleDoubleTap()
     }
 
     Box(
@@ -166,16 +166,41 @@ private fun ReaderScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offset.x
-                        translationY = offset.y
+                        scaleX = zoom.scale
+                        scaleY = zoom.scale
+                        translationX = zoom.offsetX
+                        translationY = zoom.offsetY
                     },
                 beyondViewportPageCount = 1,
             ) { pageIndex ->
                 val spread = currentSpreads.getOrNull(pageIndex) ?: return@HorizontalPager
                 val layout = spreadLayout(spread, direction)
-                BoxWithConstraints(Modifier.fillMaxSize()) {
+                BoxWithConstraints(
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(viewportWidth, viewportHeight) {
+                            detectReaderZoomGestures(
+                                isZoomed = { !zoomRef.value.allowsPageTurn },
+                                onPinch = { centroid, zoomChange ->
+                                    zoom = zoomRef.value.applyPinch(
+                                        zoomChange,
+                                        centroid.x,
+                                        centroid.y,
+                                        viewportWidth,
+                                        viewportHeight,
+                                    )
+                                },
+                                onPan = { pan ->
+                                    zoom = zoomRef.value.applyPan(
+                                        pan.x,
+                                        pan.y,
+                                        viewportWidth,
+                                        viewportHeight,
+                                    )
+                                },
+                            )
+                        },
+                ) {
                     val pageSlotWidth = (constraints.maxWidth / layout.size.coerceAtLeast(1)).coerceAtLeast(1)
                     val pageSlotHeight = constraints.maxHeight.coerceAtLeast(1)
                     Row(
@@ -206,20 +231,6 @@ private fun ReaderScreenContent(
                                 .fillMaxSize()
                                 .pointerInput(Unit) {
                                     detectTapGestures(onDoubleTap = { toggleZoom() })
-                                }
-                                .pointerInput(scale, viewportWidth, viewportHeight) {
-                                    detectDragGestures { change, dragAmount ->
-                                        change.consume()
-                                        val next = offset + dragAmount
-                                        val clamped = clampZoomOffset(
-                                            next.x,
-                                            next.y,
-                                            scale,
-                                            viewportWidth,
-                                            viewportHeight,
-                                        )
-                                        offset = Offset(clamped.first, clamped.second)
-                                    }
                                 },
                         )
                     } else {
@@ -418,5 +429,44 @@ private fun PageBitmap(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+    }
+}
+
+private suspend fun PointerInputScope.detectReaderZoomGestures(
+    isZoomed: () -> Boolean,
+    onPinch: (centroid: Offset, zoom: Float) -> Unit,
+    onPan: (pan: Offset) -> Unit,
+) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        do {
+            val event = awaitPointerEvent()
+            val pressed = event.changes.count { it.pressed }
+            when {
+                pressed >= 2 -> {
+                    val zoomChange = event.calculateZoom()
+                    val centroid = event.calculateCentroid()
+                    if (zoomChange != 1f) {
+                        onPinch(centroid, zoomChange)
+                    }
+                    val pan = event.calculatePan()
+                    if (isZoomed() && pan != Offset.Zero) {
+                        onPan(pan)
+                    }
+                    event.changes.forEach {
+                        if (it.positionChanged()) it.consume()
+                    }
+                }
+                pressed == 1 && isZoomed() -> {
+                    val pan = event.calculatePan()
+                    if (pan != Offset.Zero) {
+                        onPan(pan)
+                        event.changes.forEach {
+                            if (it.positionChanged()) it.consume()
+                        }
+                    }
+                }
+            }
+        } while (event.changes.any { it.pressed })
     }
 }
