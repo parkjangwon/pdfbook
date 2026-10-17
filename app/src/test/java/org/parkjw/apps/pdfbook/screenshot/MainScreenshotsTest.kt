@@ -117,6 +117,38 @@ class MainScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun shelfBottomLightFolded() = captureShelfBottom(dark = false, file = "shelf-bottom-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun shelfBottomDarkFolded() = captureShelfBottom(dark = true, file = "shelf-bottom-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun shelfBottomLightUnfolded() = captureShelfBottom(dark = false, file = "shelf-bottom-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun shelfBottomDarkUnfolded() = captureShelfBottom(dark = true, file = "shelf-bottom-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun shelfDuplicateLightFolded() = captureShelfDuplicate(dark = false, file = "shelf-duplicate-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun shelfDuplicateDarkFolded() = captureShelfDuplicate(dark = true, file = "shelf-duplicate-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun shelfDuplicateLightUnfolded() = captureShelfDuplicate(dark = false, file = "shelf-duplicate-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun shelfDuplicateDarkUnfolded() = captureShelfDuplicate(dark = true, file = "shelf-duplicate-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun shelfLostLightFolded() = captureShelfLost(dark = false, file = "shelf-lost-light-folded.png")
 
     @Test
@@ -270,6 +302,7 @@ class MainScreenshotsTest {
         file: String,
         shelf: FolderShelfUi,
         covers: Map<String, Bitmap?>,
+        snackbarMessage: String? = null,
         scrollToUri: String? = null,
         showRenameFor: FolderCardUi? = null,
         showMenuFor: String? = null,
@@ -279,7 +312,7 @@ class MainScreenshotsTest {
             FolderShelfScreen(
                 shelf = shelf,
                 covers = covers,
-                snackbarMessage = null,
+                snackbarMessage = snackbarMessage,
                 scrollToUri = scrollToUri,
                 showRenameFor = showRenameFor,
                 onSnackbarShown = {},
@@ -310,6 +343,45 @@ class MainScreenshotsTest {
             shelf = shelf,
             covers = sampleShelfCovers(listings),
         )
+    }
+
+    private fun captureShelfBottom(dark: Boolean, file: String) {
+        val listings = sampleShelfListings()
+        val shelf = sampleShelfUi()
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = shelf,
+            covers = sampleShelfCovers(listings),
+            scrollToUri = shelf.cards.last().uri,
+        )
+    }
+
+    private fun captureShelfDuplicate(dark: Boolean, file: String) {
+        val listings = sampleShelfListings()
+        val shelf = sampleShelfUi()
+        capture(file, dark) {
+            FolderShelfScreen(
+                shelf = shelf,
+                covers = sampleShelfCovers(listings),
+                snackbarMessage = stringResource(R.string.folder_duplicate),
+                scrollToUri = null,
+                showRenameFor = null,
+                onSnackbarShown = {},
+                onScrollHandled = {},
+                onOpenFolder = {},
+                onOpenResume = {},
+                onAddFolder = {},
+                onSettings = {},
+                onRenameRequest = {},
+                onRenameConfirm = { _, _ -> },
+                onRenameDismiss = {},
+                onRepick = {},
+                onRemove = {},
+                onLostFolder = {},
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 
     private fun captureShelfLost(dark: Boolean, file: String) {
