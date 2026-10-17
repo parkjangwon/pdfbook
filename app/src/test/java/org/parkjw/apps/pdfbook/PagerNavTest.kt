@@ -50,4 +50,22 @@ class PagerNavTest {
         assertEquals(ReadingDirection.LTR, toggledDirection(ReadingDirection.RTL))
         assertEquals(ReadingDirection.RTL, toggledDirection(ReadingDirection.LTR))
     }
+
+    @Test
+    fun newBookUsesDefaultDirection() {
+        assertEquals(ReadingDirection.LTR, resolveReadingDirection(null, ReadingDirection.LTR))
+        assertEquals(ReadingDirection.RTL, resolveReadingDirection(null, ReadingDirection.RTL))
+    }
+
+    @Test
+    fun existingBookKeepsSavedDirection() {
+        assertEquals(
+            ReadingDirection.RTL,
+            resolveReadingDirection(ReadingDirection.RTL, ReadingDirection.LTR),
+        )
+        assertEquals(
+            ReadingDirection.LTR,
+            resolveReadingDirection(ReadingDirection.LTR, ReadingDirection.RTL),
+        )
+    }
 }

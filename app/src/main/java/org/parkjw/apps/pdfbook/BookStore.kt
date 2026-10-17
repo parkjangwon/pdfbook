@@ -25,8 +25,8 @@ class BookStore(context: Context) {
 
     val states: Flow<Map<String, BookState>> = store.data.map(::decodeAll)
 
-    suspend fun state(key: String): BookState =
-        decodeAll(store.data.first())[key] ?: BookState()
+    suspend fun state(key: String): BookState? =
+        decodeAll(store.data.first())[key]
 
     suspend fun save(key: String, state: BookState) {
         store.edit { it[stringPreferencesKey(BOOK_PREFIX + key)] = encodeState(state) }
