@@ -1,13 +1,18 @@
 package org.parkjw.apps.pdfbook.screenshot
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarData
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -29,6 +34,7 @@ import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.spreads
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookSnackbar
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookTextButtonColors
 import org.robolectric.annotation.Config
@@ -256,6 +262,14 @@ class MainScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun snackbarActionLight() = captureSnackbarAction(dark = false, file = "snackbar-action-light.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun snackbarActionDark() = captureSnackbarAction(dark = true, file = "snackbar-action-dark.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun readerLightFolded() = captureReader(dark = false, file = "reader-light-folded.png")
 
     @Test
@@ -464,6 +478,29 @@ class MainScreenshotsTest {
                 overlayVisible = true,
                 modifier = Modifier.fillMaxSize(),
             )
+        }
+    }
+
+    private fun captureSnackbarAction(dark: Boolean, file: String) {
+        val data = object : SnackbarData {
+            override val visuals = object : SnackbarVisuals {
+                override val message = "이미 목록에 있는 폴더라 맨 위로 올렸어요"
+                override val actionLabel = "실행 취소"
+                override val withDismissAction = false
+                override val duration = SnackbarDuration.Indefinite
+            }
+
+            override fun performAction() = Unit
+
+            override fun dismiss() = Unit
+        }
+        capture(file, dark) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                PdfBookSnackbar(snackbarData = data)
+            }
         }
     }
 

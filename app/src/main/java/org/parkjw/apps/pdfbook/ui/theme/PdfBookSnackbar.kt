@@ -10,7 +10,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarData
-import androidx.compose.material3.SnackbarDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -31,11 +30,12 @@ fun PdfBookSnackbar(
 ) {
     val actionLabel = snackbarData.visuals.actionLabel
     val withDismissAction = snackbarData.visuals.withDismissAction
+    val ink = MaterialTheme.colorScheme.inverseOnSurface
     Surface(
         modifier = modifier.padding(PdfBookSpacing.sm),
         shape = MaterialTheme.shapes.extraSmall,
         color = MaterialTheme.colorScheme.inverseSurface,
-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        contentColor = ink,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
     ) {
@@ -70,9 +70,7 @@ fun PdfBookSnackbar(
                 if (actionLabel != null) {
                     TextButton(
                         onClick = { snackbarData.performAction() },
-                        colors = pdfBookTextButtonColors(
-                            contentColor = SnackbarDefaults.actionColor,
-                        ),
+                        colors = pdfBookTextButtonColors(contentColor = ink),
                     ) {
                         Text(actionLabel)
                     }
@@ -80,9 +78,7 @@ fun PdfBookSnackbar(
                 if (withDismissAction) {
                     IconButton(
                         onClick = { snackbarData.dismiss() },
-                        colors = pdfBookIconButtonColors(
-                            contentColor = SnackbarDefaults.dismissActionContentColor,
-                        ),
+                        colors = pdfBookIconButtonColors(contentColor = ink),
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_close),
