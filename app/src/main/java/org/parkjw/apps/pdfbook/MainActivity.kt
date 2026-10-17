@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
                     volumeDelta = volumeDeltaFlow,
                     settings = settings,
                     settingsReady = settingsState.value != null,
-                    onSettingsChange = { next -> scope.launch { settingsRepo.update { next } } },
+                    onSettingsChange = { transform -> scope.launch { settingsRepo.update(transform) } },
                     onDocumentOpenChange = { open -> documentOpen = open },
                 )
             }
@@ -88,7 +88,7 @@ private fun App(
     volumeDelta: SharedFlow<Int>,
     settings: AppSettings,
     settingsReady: Boolean,
-    onSettingsChange: (AppSettings) -> Unit,
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     onDocumentOpenChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current

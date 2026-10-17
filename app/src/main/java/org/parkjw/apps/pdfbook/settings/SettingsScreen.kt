@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -31,7 +33,7 @@ import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
-    onSettingsChange: (AppSettings) -> Unit,
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     onChangeFolder: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -43,10 +45,12 @@ fun SettingsScreen(
                 text = stringResource(R.string.settings_title),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(
-                    horizontal = PdfBookSpacing.screenHorizontalFolded,
-                    vertical = PdfBookSpacing.md,
-                ),
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(
+                        horizontal = PdfBookSpacing.screenHorizontalFolded,
+                        vertical = PdfBookSpacing.md,
+                    ),
             )
         },
     ) { padding ->
@@ -65,7 +69,7 @@ fun SettingsScreen(
                     StartScreen.LastBook to stringResource(R.string.settings_start_last_book),
                 ),
                 selected = settings.startScreen,
-                onSelect = { onSettingsChange(settings.copy(startScreen = it)) },
+                onSelect = { value -> onSettingsChange { it.copy(startScreen = value) } },
             )
             ActionRow(
                 title = stringResource(R.string.settings_change_folder),
@@ -80,7 +84,7 @@ fun SettingsScreen(
                     ThemeMode.Light to stringResource(R.string.settings_theme_light),
                 ),
                 selected = settings.themeMode,
-                onSelect = { onSettingsChange(settings.copy(themeMode = it)) },
+                onSelect = { value -> onSettingsChange { it.copy(themeMode = value) } },
             )
             ChoiceRow(
                 title = stringResource(R.string.settings_language),
@@ -90,7 +94,7 @@ fun SettingsScreen(
                     AppLanguage.English to stringResource(R.string.settings_language_english),
                 ),
                 selected = settings.language,
-                onSelect = { onSettingsChange(settings.copy(language = it)) },
+                onSelect = { value -> onSettingsChange { it.copy(language = value) } },
             )
 
             SettingsSection(stringResource(R.string.settings_section_reading))
@@ -101,7 +105,7 @@ fun SettingsScreen(
                     ReadingDirection.LTR to stringResource(R.string.settings_direction_ltr),
                 ),
                 selected = settings.defaultReadingDirection,
-                onSelect = { onSettingsChange(settings.copy(defaultReadingDirection = it)) },
+                onSelect = { value -> onSettingsChange { it.copy(defaultReadingDirection = value) } },
             )
             ChoiceRow(
                 title = stringResource(R.string.settings_two_page),
@@ -111,12 +115,12 @@ fun SettingsScreen(
                     TwoPageMode.AlwaysDouble to stringResource(R.string.settings_two_page_double),
                 ),
                 selected = settings.twoPageMode,
-                onSelect = { onSettingsChange(settings.copy(twoPageMode = it)) },
+                onSelect = { value -> onSettingsChange { it.copy(twoPageMode = value) } },
             )
             SwitchRow(
                 title = stringResource(R.string.settings_cover_alone),
                 checked = settings.coverAlone,
-                onCheckedChange = { onSettingsChange(settings.copy(coverAlone = it)) },
+                onCheckedChange = { checked -> onSettingsChange { it.copy(coverAlone = checked) } },
             )
             ChoiceRow(
                 title = stringResource(R.string.settings_page_turn_animation),
@@ -125,22 +129,22 @@ fun SettingsScreen(
                     PageTurnAnimation.None to stringResource(R.string.settings_animation_none),
                 ),
                 selected = settings.pageTurnAnimation,
-                onSelect = { onSettingsChange(settings.copy(pageTurnAnimation = it)) },
+                onSelect = { value -> onSettingsChange { it.copy(pageTurnAnimation = value) } },
             )
             SwitchRow(
                 title = stringResource(R.string.settings_volume_key_paging),
                 checked = settings.volumeKeyPaging,
-                onCheckedChange = { onSettingsChange(settings.copy(volumeKeyPaging = it)) },
+                onCheckedChange = { checked -> onSettingsChange { it.copy(volumeKeyPaging = checked) } },
             )
             SwitchRow(
                 title = stringResource(R.string.settings_keep_screen_on),
                 checked = settings.keepScreenOn,
-                onCheckedChange = { onSettingsChange(settings.copy(keepScreenOn = it)) },
+                onCheckedChange = { checked -> onSettingsChange { it.copy(keepScreenOn = checked) } },
             )
             SwitchRow(
                 title = stringResource(R.string.settings_tap_zone_guide),
                 checked = settings.showTapZoneGuide,
-                onCheckedChange = { onSettingsChange(settings.copy(showTapZoneGuide = it)) },
+                onCheckedChange = { checked -> onSettingsChange { it.copy(showTapZoneGuide = checked) } },
             )
         }
     }
@@ -223,11 +227,16 @@ private fun SwitchRow(
             Text(title, style = MaterialTheme.typography.bodyMedium)
         },
         trailingContent = {
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+            Switch(checked = checked, onCheckedChange = null)
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier
             .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                onValueChange = onCheckedChange,
+                role = Role.Switch,
+            )
             .padding(horizontal = PdfBookSpacing.xs),
     )
     HorizontalDivider(
