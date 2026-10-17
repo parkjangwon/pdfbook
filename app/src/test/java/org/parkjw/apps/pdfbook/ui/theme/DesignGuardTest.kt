@@ -81,6 +81,37 @@ class DesignGuardTest {
     }
 
     @Test
+    fun radioButtonsUseSharedColors() {
+        val root = projectRoot()
+        val javaRoot = File(root, "app/src/main/java")
+        val offenders = javaRoot.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .flatMap { file ->
+                findRadioButtonsWithoutSharedColors(file.readText()).map { "${file.relativeTo(root)}: $it" }
+            }
+            .toList()
+        assertEquals("RadioButton without shared colors:\n${offenders.joinToString("\n")}", emptyList<String>(), offenders)
+    }
+
+    @Test
+    fun progressAndSliderOnlyViaSharedWrappers() {
+        val root = projectRoot()
+        val javaRoot = File(root, "app/src/main/java")
+        val allowed = setOf("ProgressBar.kt")
+        val offenders = javaRoot.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.name !in allowed }
+            .flatMap { file ->
+                findDirectProgressOrSliderCalls(file.readText()).map { "${file.relativeTo(root)}: $it" }
+            }
+            .toList()
+        assertEquals(
+            "LinearProgressIndicator/Slider outside ProgressBar.kt:\n${offenders.joinToString("\n")}",
+            emptyList<String>(),
+            offenders,
+        )
+    }
+
+    @Test
     fun m3ShapesDoNotUsePill() {
         val shape = File(projectRoot(), "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/Shape.kt").readText()
         assertTrue("DialogCorner missing", Regex("""val\s+DialogCorner\s*=""").containsMatchIn(shape))
@@ -145,6 +176,16 @@ class DesignGuardTest {
                 "TextButton(onClick = {}, colors = ButtonDefaults.textButtonColors(contentColor = c)) {}",
             ).isNotEmpty(),
         )
+        assertTrue(findRadioButtonsWithoutSharedColors("RadioButton(selected = true, onClick = null)").isNotEmpty())
+        assertFalse(
+            findRadioButtonsWithoutSharedColors(
+                "RadioButton(selected = true, onClick = null, colors = pdfBookRadioButtonColors())",
+            ).isNotEmpty(),
+        )
+        assertTrue(findDirectProgressOrSliderCalls("LinearProgressIndicator(progress = { 0.5f })").isNotEmpty())
+        assertTrue(findDirectProgressOrSliderCalls("Slider(value = 0f, onValueChange = {})").isNotEmpty())
+        assertFalse(findDirectProgressOrSliderCalls("PdfBookProgressBar(progress = 0.5f)").isNotEmpty())
+        assertFalse(findDirectProgressOrSliderCalls("PdfBookReaderSlider(value = 0f, onValueChange = {})").isNotEmpty())
     }
 
     private fun projectRoot(): File {
@@ -180,6 +221,10 @@ class DesignGuardTest {
 
         private val textButtonCall =
             Regex("""(?<![A-Za-z0-9_])TextButton\s*\(""")
+        private val radioButtonCall =
+            Regex("""(?<![A-Za-z0-9_])RadioButton\s*\(""")
+        private val directProgressOrSliderCall =
+            Regex("""(?<![A-Za-z0-9_])(?:LinearProgressIndicator|Slider)\s*\(""")
 
         fun findTextButtonsWithoutColors(source: String): List<String> {
             val hits = mutableListOf<String>()
@@ -191,6 +236,20 @@ class DesignGuardTest {
             }
             return hits
         }
+
+        fun findRadioButtonsWithoutSharedColors(source: String): List<String> {
+            val hits = mutableListOf<String>()
+            radioButtonCall.findAll(source).forEach { match ->
+                val args = balancedArgs(source, match.range.last) ?: return@forEach
+                if (!Regex("""\bcolors\s*=\s*pdfBookRadioButtonColors\s*\(""").containsMatchIn(args)) {
+                    hits += "RadioButton($args)"
+                }
+            }
+            return hits
+        }
+
+        fun findDirectProgressOrSliderCalls(source: String): List<String> =
+            directProgressOrSliderCall.findAll(source).map { it.value.trim() }.toList()
 
         private fun balancedArgs(source: String, openParenIndex: Int): String? {
             if (openParenIndex !in source.indices || source[openParenIndex] != '(') return null

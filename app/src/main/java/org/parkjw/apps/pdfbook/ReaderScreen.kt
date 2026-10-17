@@ -26,7 +26,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,13 +55,13 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookReaderSlider
 import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
-import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
@@ -408,7 +407,7 @@ private fun ReaderOverlayBottom(
             val sliderDirection =
                 if (direction == ReadingDirection.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr
             CompositionLocalProvider(LocalLayoutDirection provides sliderDirection) {
-                Slider(
+                PdfBookReaderSlider(
                     value = pageToSlider(currentPage, pageCount, ReadingDirection.LTR),
                     onValueChange = { onSeekPage(sliderToPage(it, pageCount, ReadingDirection.LTR)) },
                     valueRange = 0f..(pageCount - 1).toFloat(),
@@ -424,11 +423,8 @@ private fun ReaderOverlayBottom(
             }
         }
         Text(
-            text = withNumericSpans(
-                stringResource(R.string.progress, currentPage, pageCount),
-                PdfBookNumeric.copy(fontSize = 13.sp, color = ReaderOnOverlay).toSpanStyle(),
-            ),
-            style = MaterialTheme.typography.bodySmall.copy(color = ReaderOnOverlay),
+            text = stringResource(R.string.progress, currentPage, pageCount),
+            style = PdfBookNumeric.copy(fontSize = 13.sp, color = ReaderOnOverlay),
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
     }

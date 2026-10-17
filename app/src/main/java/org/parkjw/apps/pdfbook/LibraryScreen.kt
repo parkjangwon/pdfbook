@@ -25,7 +25,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,6 +55,7 @@ import org.parkjw.apps.pdfbook.ui.theme.ButtonCorner
 import org.parkjw.apps.pdfbook.ui.theme.CardCorner
 import org.parkjw.apps.pdfbook.ui.theme.CoverCorner
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookProgressBar
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.extendedColors
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
@@ -240,11 +240,9 @@ private fun ProgressInfo(state: BookState) {
         style = PdfBookNumeric.copy(fontSize = 11.sp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    LinearProgressIndicator(
-        progress = { progressOf(state.page, state.pageCount) },
+    PdfBookProgressBar(
+        progress = progressOf(state.page, state.pageCount),
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primary,
-        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
     )
 }
 

@@ -41,6 +41,7 @@ import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.theme.CardCorner
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.extendedColors
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookRadioButtonColors
 
 @Composable
 fun SettingsScreen(
@@ -285,6 +286,7 @@ private fun <T> ChoiceBlock(
                     RadioButton(
                         selected = selected == value,
                         onClick = null,
+                        colors = pdfBookRadioButtonColors(),
                     )
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
