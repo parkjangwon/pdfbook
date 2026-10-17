@@ -59,6 +59,23 @@ fun ZoomState.applyPan(
         .clampToViewport(viewportWidth, viewportHeight)
 }
 
+fun ZoomState.applyGesture(
+    zoomChange: Float,
+    centroidX: Float,
+    centroidY: Float,
+    panX: Float,
+    panY: Float,
+    viewportWidth: Float,
+    viewportHeight: Float,
+): ZoomState {
+    val afterZoom = if (zoomChange == 1f) {
+        this
+    } else {
+        applyPinch(zoomChange, centroidX, centroidY, viewportWidth, viewportHeight)
+    }
+    return afterZoom.applyPan(panX, panY, viewportWidth, viewportHeight)
+}
+
 fun ZoomState.toggleDoubleTap(
     targetScale: Float = DoubleTapZoomScale,
 ): ZoomState {

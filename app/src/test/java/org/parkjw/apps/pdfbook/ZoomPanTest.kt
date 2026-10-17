@@ -59,6 +59,27 @@ class ZoomPanTest {
     }
 
     @Test
+    fun applyGestureMatchesPinchThenPan() {
+        val base = ZoomState(scale = 2f, offsetX = 20f, offsetY = -10f)
+        val expected = base
+            .applyPinch(1.5f, 100f, 200f, 200f, 400f)
+            .applyPan(5f, -5f, 200f, 400f)
+        val combined = base.applyGesture(1.5f, 100f, 200f, 5f, -5f, 200f, 400f)
+        assertEquals(expected, combined)
+    }
+
+    @Test
+    fun applyGestureKeepsPinchWhenPanFollows() {
+        val base = ZoomState()
+        val combined = base.applyGesture(2f, 150f, 200f, 10f, 0f, 200f, 400f)
+        val lostUpdate = base.applyPan(10f, 0f, 200f, 400f)
+        assertEquals(2f, combined.scale, 0f)
+        assertEquals(-40f, combined.offsetX, 0.01f)
+        assertEquals(MinZoomScale, lostUpdate.scale, 0f)
+        assertEquals(0f, lostUpdate.offsetX, 0f)
+    }
+
+    @Test
     fun allowsPageTurnOnlyAtMinimumScale() {
         assertTrue(ZoomState().allowsPageTurn)
         assertFalse(ZoomState(scale = 1.01f).allowsPageTurn)

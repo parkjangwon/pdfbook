@@ -164,35 +164,24 @@ private fun ReaderScreenContent(
                 state = pagerState,
                 reverseLayout = rtl,
                 userScrollEnabled = !zoomed,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = zoom.scale
-                        scaleY = zoom.scale
-                        translationX = zoom.offsetX
-                        translationY = zoom.offsetY
-                    },
+                modifier = Modifier.fillMaxSize(),
                 beyondViewportPageCount = 1,
             ) { pageIndex ->
                 val spread = currentSpreads.getOrNull(pageIndex) ?: return@HorizontalPager
                 val layout = spreadLayout(spread, direction)
+                val activePage = pageIndex == pagerState.settledPage
                 BoxWithConstraints(
                     Modifier
                         .fillMaxSize()
-                        .pointerInput(viewportWidth, viewportHeight) {
+                        .pointerInput(viewportWidth, viewportHeight, activePage) {
+                            if (!activePage) return@pointerInput
                             detectReaderZoomGestures(
-                                isZoomed = { !zoomRef.value.allowsPageTurn },
-                                onPinch = { centroid, zoomChange ->
-                                    zoom = zoomRef.value.applyPinch(
+                                isZoomed = { !zoom.allowsPageTurn },
+                                onGesture = { centroid, zoomChange, pan ->
+                                    zoom = zoom.applyGesture(
                                         zoomChange,
                                         centroid.x,
                                         centroid.y,
-                                        viewportWidth,
-                                        viewportHeight,
-                                    )
-                                },
-                                onPan = { pan ->
-                                    zoom = zoomRef.value.applyPan(
                                         pan.x,
                                         pan.y,
                                         viewportWidth,
@@ -200,6 +189,15 @@ private fun ReaderScreenContent(
                                     )
                                 },
                             )
+                        }
+                        .graphicsLayer {
+                            clip = true
+                            if (activePage) {
+                                scaleX = zoom.scale
+                                scaleY = zoom.scale
+                                translationX = zoom.offsetX
+                                translationY = zoom.offsetY
+                            }
                         },
                 ) {
                     val pageSlotWidth = (constraints.maxWidth / layout.size.coerceAtLeast(1)).coerceAtLeast(1)
@@ -434,13 +432,17 @@ private fun PageBitmap(
     }
 }
 
+private const val PinchConsumeThreshold = 0.02f
+
 private suspend fun PointerInputScope.detectReaderZoomGestures(
     isZoomed: () -> Boolean,
-    onPinch: (centroid: Offset, zoom: Float) -> Unit,
-    onPan: (pan: Offset) -> Unit,
+    onGesture: (centroid: Offset, zoomChange: Float, pan: Offset) -> Unit,
 ) {
+    val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false)
+        var panPastSlop = false
+        var panDistance = 0f
         do {
             val event = awaitPointerEvent()
             val pressed = event.changes.count { it.pressed }
@@ -448,21 +450,24 @@ private suspend fun PointerInputScope.detectReaderZoomGestures(
                 pressed >= 2 -> {
                     val zoomChange = event.calculateZoom()
                     val centroid = event.calculateCentroid()
-                    if (zoomChange != 1f) {
-                        onPinch(centroid, zoomChange)
-                    }
                     val pan = event.calculatePan()
-                    if (isZoomed() && pan != Offset.Zero) {
-                        onPan(pan)
-                    }
-                    event.changes.forEach {
-                        if (it.positionChanged()) it.consume()
+                    val significantPinch =
+                        kotlin.math.abs(zoomChange - 1f) >= PinchConsumeThreshold
+                    if (significantPinch || isZoomed()) {
+                        onGesture(centroid, zoomChange, pan)
+                        event.changes.forEach {
+                            if (it.positionChanged()) it.consume()
+                        }
                     }
                 }
                 pressed == 1 && isZoomed() -> {
                     val pan = event.calculatePan()
-                    if (pan != Offset.Zero) {
-                        onPan(pan)
+                    panDistance += pan.getDistance()
+                    if (!panPastSlop && panDistance >= touchSlop) {
+                        panPastSlop = true
+                    }
+                    if (panPastSlop && pan != Offset.Zero) {
+                        onGesture(Offset.Zero, 1f, pan)
                         event.changes.forEach {
                             if (it.positionChanged()) it.consume()
                         }
