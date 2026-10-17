@@ -44,4 +44,7 @@
     <string name="settings_volume_key_paging">볼륨 키로 넘기기</string>
     <string name="settings_keep_screen_on">화면 켜짐 유지</string>
     <string name="settings_tap_zone_guide">탭 영역 안내 표시</string>
+    <string name="reader_back">뒤로</string>
+    <string name="reader_mode_single">한쪽</string>
+    <string name="reader_mode_double">두쪽</string>
 </resources>
