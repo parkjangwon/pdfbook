@@ -17,6 +17,22 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
+      - name: Require signing secrets
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          missing=
+          [ -n "$SIGNING_KEYSTORE_BASE64" ] || missing="$missing SIGNING_KEYSTORE_BASE64"
+          [ -n "$SIGNING_STORE_PASSWORD" ] || missing="$missing SIGNING_STORE_PASSWORD"
+          [ -n "$SIGNING_KEY_ALIAS" ] || missing="$missing SIGNING_KEY_ALIAS"
+          [ -n "$SIGNING_KEY_PASSWORD" ] || missing="$missing SIGNING_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "Missing required signing secrets:$missing" >&2
+            exit 1
+          fi
       - name: Decode keystore
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
@@ -27,7 +43,7 @@ jobs:
           PDFBOOK_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           PDFBOOK_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           PDFBOOK_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-          PDFBOOK_VERSION_CODE: ${{ vars.PDFBOOK_VERSION_CODE }}
+          PDFBOOK_VERSION_CODE: ${{ github.run_number }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           ./gradlew assembleRelease -PversionName="$VERSION" --console=plain
