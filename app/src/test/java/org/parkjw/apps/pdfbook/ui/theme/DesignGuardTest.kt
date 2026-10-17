@@ -15,8 +15,8 @@ class DesignGuardTest {
         val lineBanned = listOf(
             Regex("""\bshadow\s*\("""),
             Regex("""Brush\."""),
-            Regex("""shadowElevation\s*=\s*(?!0(\.dp|\.0\.dp)\b)"""),
-            Regex("""tonalElevation\s*=\s*(?!0(\.dp|\.0\.dp)\b)"""),
+            Regex("""shadowElevation\s*=\s*+(?!0(?:\.0)?\.dp\b)"""),
+            Regex("""tonalElevation\s*=\s*+(?!0(?:\.0)?\.dp\b)"""),
         )
         val offenders = javaRoot.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
@@ -112,6 +112,24 @@ class DesignGuardTest {
     }
 
     @Test
+    fun dropdownMenuOnlyViaSharedWrapper() {
+        val root = projectRoot()
+        val javaRoot = File(root, "app/src/main/java")
+        val allowed = setOf("PdfBookDropdownMenu.kt")
+        val offenders = javaRoot.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.name !in allowed }
+            .flatMap { file ->
+                findDirectDropdownMenuCalls(file.readText()).map { "${file.relativeTo(root)}: $it" }
+            }
+            .toList()
+        assertEquals(
+            "DropdownMenu outside PdfBookDropdownMenu.kt:\n${offenders.joinToString("\n")}",
+            emptyList<String>(),
+            offenders,
+        )
+    }
+
+    @Test
     fun m3ShapesDoNotUsePill() {
         val shape = File(projectRoot(), "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/Shape.kt").readText()
         assertTrue("DialogCorner missing", Regex("""val\s+DialogCorner\s*=""").containsMatchIn(shape))
@@ -186,6 +204,8 @@ class DesignGuardTest {
         assertTrue(findDirectProgressOrSliderCalls("Slider(value = 0f, onValueChange = {})").isNotEmpty())
         assertFalse(findDirectProgressOrSliderCalls("PdfBookProgressBar(progress = 0.5f)").isNotEmpty())
         assertFalse(findDirectProgressOrSliderCalls("PdfBookReaderSlider(value = 0f, onValueChange = {})").isNotEmpty())
+        assertTrue(findDirectDropdownMenuCalls("DropdownMenu(expanded = true, onDismissRequest = {}) {}").isNotEmpty())
+        assertFalse(findDirectDropdownMenuCalls("PdfBookDropdownMenu(expanded = true, onDismissRequest = {}) {}").isNotEmpty())
     }
 
     private fun projectRoot(): File {
@@ -225,6 +245,8 @@ class DesignGuardTest {
             Regex("""(?<![A-Za-z0-9_])RadioButton\s*\(""")
         private val directProgressOrSliderCall =
             Regex("""(?<![A-Za-z0-9_])(?:LinearProgressIndicator|Slider)\s*\(""")
+        private val directDropdownMenuCall =
+            Regex("""(?<![A-Za-z0-9_])DropdownMenu\s*\(""")
 
         fun findTextButtonsWithoutColors(source: String): List<String> {
             val hits = mutableListOf<String>()
@@ -250,6 +272,9 @@ class DesignGuardTest {
 
         fun findDirectProgressOrSliderCalls(source: String): List<String> =
             directProgressOrSliderCall.findAll(source).map { it.value.trim() }.toList()
+
+        fun findDirectDropdownMenuCalls(source: String): List<String> =
+            directDropdownMenuCall.findAll(source).map { it.value.trim() }.toList()
 
         private fun balancedArgs(source: String, openParenIndex: Int): String? {
             if (openParenIndex !in source.indices || source[openParenIndex] != '(') return null

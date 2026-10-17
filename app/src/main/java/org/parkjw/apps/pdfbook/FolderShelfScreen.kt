@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -62,6 +61,7 @@ import org.parkjw.apps.pdfbook.ui.safeDrawingGridContentPadding
 import org.parkjw.apps.pdfbook.ui.theme.ButtonCorner
 import org.parkjw.apps.pdfbook.ui.theme.CardCorner
 import org.parkjw.apps.pdfbook.ui.theme.CoverCorner
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookDropdownMenu
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookProgressBar
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
@@ -385,7 +385,7 @@ private fun FolderCard(
                             contentDescription = null,
                         )
                     }
-                    DropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
+                    PdfBookDropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.folder_rename)) },
                             onClick = onRename,
