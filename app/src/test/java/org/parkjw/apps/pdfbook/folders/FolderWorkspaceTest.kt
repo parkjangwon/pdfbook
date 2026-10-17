@@ -156,6 +156,28 @@ class FolderWorkspaceTest {
     }
 
     @Test
+    fun displayNameForUriDecodesMixedPercentAndUnicode() {
+        assertEquals(
+            "내 책",
+            displayNameForUri(
+                "content://com.android.externalstorage.documents/tree/primary%3A내%20책",
+            ),
+        )
+        assertEquals("내 책", percentDecode("내%20책"))
+    }
+
+    @Test
+    fun percentDecodeKeepsSurrogatePairEmojiWithPercent() {
+        assertEquals("📁 Docs", percentDecode("📁%20Docs"))
+        assertEquals(
+            "📁 Docs",
+            displayNameForUri(
+                "content://com.android.externalstorage.documents/tree/primary%3A📁%20Docs",
+            ),
+        )
+    }
+
+    @Test
     fun replacePrimaryAddsWhenEmpty() {
         val result = replacePrimary(emptyList(), "a", "A")
         assertEquals(listOf(folder("a", "A", 0)), result.folders)

@@ -45,7 +45,7 @@ fun displayNameForUri(uri: String): String {
 
 fun percentDecode(value: String): String {
     if ('%' !in value) return value
-    val bytes = ByteArray(value.length)
+    val bytes = ByteArray(value.length * 3)
     var length = 0
     var index = 0
     while (index < value.length) {
@@ -59,8 +59,19 @@ fun percentDecode(value: String): String {
                 continue
             }
         }
-        bytes[length++] = char.code.toByte()
-        index++
+        val end =
+            if (char.isHighSurrogate() &&
+                index + 1 < value.length &&
+                value[index + 1].isLowSurrogate()
+            ) {
+                index + 2
+            } else {
+                index + 1
+            }
+        val utf8 = value.substring(index, end).toByteArray(Charsets.UTF_8)
+        utf8.copyInto(bytes, length)
+        length += utf8.size
+        index = end
     }
     return String(bytes, 0, length, Charsets.UTF_8)
 }
