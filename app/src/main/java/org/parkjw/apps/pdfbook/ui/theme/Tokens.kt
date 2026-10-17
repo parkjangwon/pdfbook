@@ -3,6 +3,8 @@ package org.parkjw.apps.pdfbook.ui.theme
 import androidx.compose.ui.graphics.Color
 
 val ReaderBackground = Color(0xFF000000)
+val ReaderOverlay = Color(0xCC121316)
+val ReaderOnOverlay = Color(0xFFE6E6EA)
 
 val DarkSurface = Color(0xFF121316)
 val DarkSurfaceContainer = Color(0xFF1A1B1F)
