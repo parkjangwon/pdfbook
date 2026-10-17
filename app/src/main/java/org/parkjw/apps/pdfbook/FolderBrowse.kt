@@ -1,5 +1,8 @@
 package org.parkjw.apps.pdfbook
 
+import org.parkjw.apps.pdfbook.folders.Folder
+import org.parkjw.apps.pdfbook.folders.FolderAccess
+
 enum class FolderContentPhase {
     None,
     Loading,
@@ -7,6 +10,16 @@ enum class FolderContentPhase {
     Empty,
     Ready,
 }
+
+enum class FolderBackAction {
+    None,
+    CloseSettings,
+    CloseReader,
+    CloseLibrary,
+    CloseLost,
+}
+
+data class LastBookTarget(val folderUri: String, val bookUri: String)
 
 fun folderContentPhase(
     selectedFolderUri: String?,
@@ -34,3 +47,42 @@ fun canApplyStartScreen(
 }
 
 fun shouldClearScrollTarget(cardIndex: Int): Boolean = cardIndex >= 0
+
+fun listingWithFolderName(listing: Listing?, displayName: String?): Listing? = when {
+    listing == null -> null
+    displayName == null -> listing
+    else -> listing.copy(folderName = displayName)
+}
+
+fun findLastBookTarget(
+    folders: List<Folder>,
+    listings: Map<String, Listing?>,
+    states: Map<String, BookState>,
+): LastBookTarget? {
+    var best: LastBookTarget? = null
+    var bestAt = 0L
+    for (folder in folders) {
+        if (folder.access != FolderAccess.Ok) continue
+        for (book in listings[folder.uri]?.books.orEmpty()) {
+            val openedAt = states[bookKey(book.uri, book.size)]?.openedAt ?: 0L
+            if (openedAt > bestAt) {
+                bestAt = openedAt
+                best = LastBookTarget(folder.uri, book.uri)
+            }
+        }
+    }
+    return best
+}
+
+fun folderBackAction(
+    showSettings: Boolean,
+    readerOpen: Boolean,
+    folderSelected: Boolean,
+    showLost: Boolean,
+): FolderBackAction = when {
+    showSettings -> FolderBackAction.CloseSettings
+    readerOpen -> FolderBackAction.CloseReader
+    folderSelected && !showLost -> FolderBackAction.CloseLibrary
+    showLost -> FolderBackAction.CloseLost
+    else -> FolderBackAction.None
+}

@@ -219,12 +219,7 @@ private fun App(
         }
         scanned = false
         val scannedListing = listPdfs(context, Uri.parse(uri))
-        val name = selectedFolder?.displayName
-        listing = when {
-            scannedListing == null -> null
-            name == null -> scannedListing
-            else -> scannedListing.copy(folderName = name)
-        }
+        listing = listingWithFolderName(scannedListing, selectedFolder?.displayName)
         scanned = true
     }
 
@@ -244,25 +239,11 @@ private fun App(
             startApplied = true
             return@LaunchedEffect
         }
-        var bestFolder: String? = null
-        var bestBook: String? = null
-        var bestAt = 0L
-        for (folder in folderList) {
-            if (folder.access != FolderAccess.Ok) continue
-            val books = shelfListings[folder.uri]?.books.orEmpty()
-            for (book in books) {
-                val openedAt = states[bookKey(book.uri, book.size)]?.openedAt ?: 0L
-                if (openedAt > bestAt) {
-                    bestAt = openedAt
-                    bestFolder = folder.uri
-                    bestBook = book.uri
-                }
-            }
-        }
-        if (bestFolder != null && bestBook != null) {
-            folderRepo.markOpened(bestFolder)
-            openUri = bestBook
-            selectedFolderUri = bestFolder
+        val target = findLastBookTarget(folderList, shelfListings, states)
+        if (target != null) {
+            folderRepo.markOpened(target.folderUri)
+            openUri = target.bookUri
+            selectedFolderUri = target.folderUri
             scanned = false
             folderScanToken++
         } else {
@@ -276,14 +257,20 @@ private fun App(
         onDocumentOpenChange(book != null)
         onDispose { onDocumentOpenChange(false) }
     }
-    BackHandler(enabled = showSettings) { showSettings = false }
-    BackHandler(enabled = book != null && !showSettings) { openUri = null }
-    BackHandler(enabled = selectedFolderUri != null && book == null && !showSettings && showLostForUri == null) {
+    val backAction = folderBackAction(
+        showSettings = showSettings,
+        readerOpen = book != null,
+        folderSelected = selectedFolderUri != null && book == null,
+        showLost = showLostForUri != null,
+    )
+    BackHandler(enabled = backAction == FolderBackAction.CloseSettings) { showSettings = false }
+    BackHandler(enabled = backAction == FolderBackAction.CloseReader) { openUri = null }
+    BackHandler(enabled = backAction == FolderBackAction.CloseLibrary) {
         selectedFolderUri = null
         listing = null
         openUri = null
     }
-    BackHandler(enabled = showLostForUri != null) { showLostForUri = null }
+    BackHandler(enabled = backAction == FolderBackAction.CloseLost) { showLostForUri = null }
 
     LaunchedEffect(selectedFolderUri, selectedFolder?.access) {
         val uri = selectedFolderUri ?: return@LaunchedEffect

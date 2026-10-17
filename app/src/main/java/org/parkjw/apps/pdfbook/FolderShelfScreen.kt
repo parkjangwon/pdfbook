@@ -30,7 +30,6 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -64,9 +63,13 @@ import org.parkjw.apps.pdfbook.ui.theme.ButtonCorner
 import org.parkjw.apps.pdfbook.ui.theme.CardCorner
 import org.parkjw.apps.pdfbook.ui.theme.CoverCorner
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookProgressBar
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
-import org.parkjw.apps.pdfbook.ui.theme.PillCorner
 import org.parkjw.apps.pdfbook.ui.theme.extendedColors
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookOutlinedButtonColors
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookTextButtonColors
 import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 
 @Composable
@@ -89,11 +92,13 @@ fun FolderShelfScreen(
     onRemove: (String) -> Unit,
     onLostFolder: (String) -> Unit,
     modifier: Modifier = Modifier,
+    showMenuFor: String? = null,
+    showRemoveConfirmFor: String? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
-    var menuUri by remember { mutableStateOf<String?>(null) }
-    var confirmRemoveUri by remember { mutableStateOf<String?>(null) }
+    var menuUri by remember { mutableStateOf(showMenuFor) }
+    var confirmRemoveUri by remember { mutableStateOf(showRemoveConfirmFor) }
 
     LaunchedEffect(snackbarMessage) {
         val message = snackbarMessage ?: return@LaunchedEffect
@@ -156,7 +161,7 @@ fun FolderShelfScreen(
                     text = stringResource(R.string.folders_title),
                     style = MaterialTheme.typography.headlineSmall,
                 )
-                IconButton(onClick = onSettings) {
+                IconButton(onClick = onSettings, colors = pdfBookIconButtonColors()) {
                     Icon(
                         painter = painterResource(R.drawable.ic_settings),
                         contentDescription = stringResource(R.string.settings_title),
@@ -232,7 +237,7 @@ fun FolderShelfScreen(
                         confirmRemoveUri = null
                         onRemove(uri)
                     },
-                    colors = ButtonDefaults.textButtonColors(
+                    colors = pdfBookTextButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
                 ) {
@@ -242,9 +247,7 @@ fun FolderShelfScreen(
             dismissButton = {
                 TextButton(
                     onClick = { confirmRemoveUri = null },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                    ),
+                    colors = pdfBookTextButtonColors(),
                 ) {
                     Text(stringResource(android.R.string.cancel))
                 }
@@ -342,7 +345,7 @@ private fun FolderCard(
                     )
                     if (lost) {
                         Surface(
-                            shape = PillCorner,
+                            shape = PdfBookShapeTokens.pill,
                             color = MaterialTheme.colorScheme.errorContainer,
                         ) {
                             Text(
@@ -376,7 +379,7 @@ private fun FolderCard(
                     }
                 }
                 Box {
-                    IconButton(onClick = onMenuExpand) {
+                    IconButton(onClick = onMenuExpand, colors = pdfBookIconButtonColors()) {
                         Icon(
                             painter = painterResource(R.drawable.ic_more),
                             contentDescription = null,
@@ -412,9 +415,7 @@ private fun FolderCard(
                     onClick = onRepick,
                     shape = ButtonCorner,
                     border = BorderStroke(1.dp, ink.hairlineStrong),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                    ),
+                    colors = pdfBookOutlinedButtonColors(),
                     modifier = Modifier.height(40.dp),
                 ) {
                     Text(stringResource(R.string.folder_repick))
@@ -478,11 +479,9 @@ private fun ResumeProgress(percent: Int, progress: Float) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    LinearProgressIndicator(
-        progress = { progress },
+    PdfBookProgressBar(
+        progress = progress,
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primary,
-        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
     )
 }
 
@@ -527,9 +526,7 @@ fun RenameFolderDialog(
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
+                colors = pdfBookTextButtonColors(),
             ) {
                 Text(stringResource(android.R.string.cancel))
             }

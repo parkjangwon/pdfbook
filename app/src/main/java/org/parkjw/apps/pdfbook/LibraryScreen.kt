@@ -129,7 +129,7 @@ fun LibraryScreen(
                 modifier = Modifier.weight(1f),
             ) {
                 if (onBack != null) {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, colors = pdfBookIconButtonColors()) {
                         Icon(
                             painter = painterResource(R.drawable.ic_arrow_back),
                             contentDescription = stringResource(R.string.reader_back),
