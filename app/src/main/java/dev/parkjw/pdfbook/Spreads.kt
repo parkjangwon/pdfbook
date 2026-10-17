@@ -8,3 +8,8 @@ fun spreads(pageCount: Int, twoPage: Boolean, coverAlone: Boolean): List<List<In
     val rest = if (coverAlone) pages.drop(1) else pages
     return head + rest.chunked(2)
 }
+
+fun spreadIndexOf(spreads: List<List<Int>>, page: Int): Int {
+    val index = spreads.indexOfFirst { page in it }
+    return if (index >= 0) index else 0
+}
