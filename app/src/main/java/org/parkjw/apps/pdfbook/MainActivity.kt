@@ -1,6 +1,5 @@
 package org.parkjw.apps.pdfbook
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.KeyEvent
@@ -28,6 +27,11 @@ import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
+import org.parkjw.apps.pdfbook.folders.ContentResolverUriPermissions
+import org.parkjw.apps.pdfbook.folders.Folder
+import org.parkjw.apps.pdfbook.folders.FolderRepository
+import org.parkjw.apps.pdfbook.folders.displayNameForUri
+import org.parkjw.apps.pdfbook.folders.primaryWorkspaceUri
 import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.SettingsRepository
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
@@ -102,9 +106,12 @@ private fun App(
 ) {
     val context = LocalContext.current
     val store = remember { BookStore(context) }
+    val folderRepo = remember {
+        FolderRepository(context, ContentResolverUriPermissions(context.contentResolver))
+    }
     val scope = rememberCoroutineScope()
     var loaded by remember { mutableStateOf(false) }
-    var folder by remember { mutableStateOf<String?>(null) }
+    var folders by remember { mutableStateOf<List<Folder>?>(null) }
     var openUri by rememberSaveable { mutableStateOf<String?>(null) }
     var listing by remember { mutableStateOf<Listing?>(null) }
     var scanned by remember { mutableStateOf(false) }
@@ -112,21 +119,26 @@ private fun App(
     var startApplied by rememberSaveable { mutableStateOf(false) }
     val statesState = store.states.collectAsState(initial = null)
     val states = statesState.value ?: emptyMap()
+    val folder = primaryWorkspaceUri(loaded, folders)
 
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val uriString = uri.toString()
         scope.launch {
-            store.setFolder(uri.toString())
-            folder = uri.toString()
+            folderRepo.replacePrimary(uriString, displayNameForUri(uriString))
         }
     }
 
     LaunchedEffect(Unit) {
-        folder = store.folder()
-        loaded = true
+        folderRepo.migrateFromLegacyIfNeeded()
+        folderRepo.refreshAccess()
+        folderRepo.folders.collect {
+            folders = it
+            loaded = true
+        }
     }
-    LaunchedEffect(folder) {
+    LaunchedEffect(folder, loaded) {
+        if (!loaded) return@LaunchedEffect
         scanned = false
         listing = folder?.let { listPdfs(context, Uri.parse(it)) }
         scanned = true

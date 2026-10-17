@@ -4,24 +4,14 @@ import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-private val Context.dataStore by preferencesDataStore("pdfbook")
-
-private val FOLDER = stringPreferencesKey("folder")
 private const val BOOK_PREFIX = "book:"
 
 class BookStore(context: Context) {
-    private val store = context.applicationContext.dataStore
-
-    suspend fun folder(): String? = store.data.first()[FOLDER]
-
-    suspend fun setFolder(uri: String) {
-        store.edit { it[FOLDER] = uri }
-    }
+    private val store = context.applicationContext.pdfbookDataStore
 
     val states: Flow<Map<String, BookState>> = store.data.map(::decodeAll)
 
