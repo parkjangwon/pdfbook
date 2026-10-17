@@ -32,23 +32,49 @@ class FolderStringsTest {
             assertTrue("missing $key in values-en", key in en)
             assertTrue("missing $key in values", key in defaults)
         }
+        assertTrue("folder_books_count must be plurals in values-en", "folder_books_count" in en.plurals)
+        assertTrue("folder_books_count must be plurals in values-ko", "folder_books_count" in ko.plurals)
+        assertTrue("folder_books_count must be plurals in values", "folder_books_count" in defaults.plurals)
+        assertTrue("en folder_books_count needs one", "one" in en.quantities.getValue("folder_books_count"))
+        assertTrue("en folder_books_count needs other", "other" in en.quantities.getValue("folder_books_count"))
     }
 
-    private fun loadNames(dir: File): Set<String> {
+    private data class ResNames(
+        val all: Set<String>,
+        val plurals: Set<String>,
+        val quantities: Map<String, Set<String>>,
+    ) {
+        operator fun contains(key: String): Boolean = key in all
+    }
+
+    private fun loadNames(dir: File): ResNames {
         if (!dir.isDirectory) fail("missing ${dir.path}")
         val names = linkedSetOf<String>()
+        val plurals = linkedSetOf<String>()
+        val quantities = linkedMapOf<String, MutableSet<String>>()
         val factory = DocumentBuilderFactory.newInstance()
         for (file in dir.listFiles { f -> f.isFile && f.extension == "xml" }.orEmpty()) {
             val doc = factory.newDocumentBuilder().parse(file)
-            for (tag in listOf("string", "plurals")) {
-                val nodes = doc.getElementsByTagName(tag)
-                for (i in 0 until nodes.length) {
-                    val name = nodes.item(i).attributes?.getNamedItem("name")?.nodeValue
-                    if (name != null) names += name
+            val stringNodes = doc.getElementsByTagName("string")
+            for (i in 0 until stringNodes.length) {
+                val name = stringNodes.item(i).attributes?.getNamedItem("name")?.nodeValue
+                if (name != null) names += name
+            }
+            val pluralNodes = doc.getElementsByTagName("plurals")
+            for (i in 0 until pluralNodes.length) {
+                val node = pluralNodes.item(i)
+                val name = node.attributes?.getNamedItem("name")?.nodeValue ?: continue
+                names += name
+                plurals += name
+                val items = (node as org.w3c.dom.Element).getElementsByTagName("item")
+                val qs = quantities.getOrPut(name) { linkedSetOf() }
+                for (j in 0 until items.length) {
+                    val quantity = items.item(j).attributes?.getNamedItem("quantity")?.nodeValue
+                    if (quantity != null) qs += quantity
                 }
             }
         }
-        return names
+        return ResNames(names, plurals, quantities)
     }
 
     private fun projectRoot(): File {

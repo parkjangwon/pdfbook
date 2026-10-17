@@ -167,12 +167,13 @@ class MainScreenshotsTest {
 
     private fun captureShelf(dark: Boolean, file: String) {
         val listings = sampleShelfListings()
+        val shelf = sampleShelfUi()
         capture(file, dark) {
             FolderShelfScreen(
-                shelf = sampleShelfUi(),
+                shelf = shelf,
                 covers = sampleShelfCovers(listings),
                 snackbarMessage = null,
-                scrollToUri = null,
+                scrollToUri = shelf.cards.last().uri,
                 showRenameFor = null,
                 onSnackbarShown = {},
                 onScrollHandled = {},

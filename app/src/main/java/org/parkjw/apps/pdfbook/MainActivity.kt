@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -103,6 +104,21 @@ private sealed interface FolderPickTarget {
     data class Repick(val targetUri: String) : FolderPickTarget
 }
 
+private val FolderPickTargetSaver = listSaver<FolderPickTarget, Any>(
+    save = { target ->
+        when (target) {
+            FolderPickTarget.Add -> listOf("add")
+            is FolderPickTarget.Repick -> listOf("repick", target.targetUri)
+        }
+    },
+    restore = { saved ->
+        when (saved.getOrNull(0) as? String) {
+            "repick" -> FolderPickTarget.Repick(saved.getOrNull(1) as? String ?: return@listSaver FolderPickTarget.Add)
+            else -> FolderPickTarget.Add
+        }
+    },
+)
+
 @Composable
 private fun App(
     volumeDelta: SharedFlow<Int>,
@@ -126,11 +142,14 @@ private fun App(
     var shelfListings by remember { mutableStateOf<Map<String, Listing?>>(emptyMap()) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var startApplied by rememberSaveable { mutableStateOf(false) }
-    var pickTarget by remember { mutableStateOf<FolderPickTarget>(FolderPickTarget.Add) }
+    var pickTarget by rememberSaveable(stateSaver = FolderPickTargetSaver) {
+        mutableStateOf<FolderPickTarget>(FolderPickTarget.Add)
+    }
     var snackbarMessage by remember { mutableStateOf<String?>(null) }
     var scrollToUri by remember { mutableStateOf<String?>(null) }
     var renameCard by remember { mutableStateOf<FolderCardUi?>(null) }
-    var showLostForUri by remember { mutableStateOf<String?>(null) }
+    var showLostForUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var folderScanToken by rememberSaveable { mutableStateOf(0) }
     val statesState = store.states.collectAsState(initial = null)
     val states = statesState.value ?: emptyMap()
     val folderList = folders.orEmpty()
@@ -160,6 +179,8 @@ private fun App(
                     showLostForUri = null
                     if (selectedFolderUri == target.targetUri) {
                         selectedFolderUri = uriString
+                        scanned = false
+                        folderScanToken++
                     }
                 }
             }
@@ -188,7 +209,7 @@ private fun App(
         shelfListings = next
     }
 
-    LaunchedEffect(selectedFolderUri, selectedFolder?.displayName, loaded) {
+    LaunchedEffect(selectedFolderUri, selectedFolder?.displayName, loaded, folderScanToken) {
         if (!loaded) return@LaunchedEffect
         val uri = selectedFolderUri
         if (uri == null) {
@@ -207,11 +228,22 @@ private fun App(
         scanned = true
     }
 
-    LaunchedEffect(loaded, settingsReady, settings.startScreen, statesState.value, startApplied, shelfListings) {
-        if (startApplied || !loaded || !settingsReady || statesState.value == null) return@LaunchedEffect
-        if (folderList.isNotEmpty() && shelfListings.size < folderList.size) return@LaunchedEffect
-        startApplied = true
-        if (settings.startScreen != StartScreen.LastBook) return@LaunchedEffect
+    LaunchedEffect(loaded, settingsReady, settings.startScreen, statesState.value, shelfListings) {
+        if (!canApplyStartScreen(
+                startApplied = startApplied,
+                loaded = loaded,
+                settingsReady = settingsReady,
+                statesReady = statesState.value != null,
+                folderCount = folderList.size,
+                shelfListingCount = shelfListings.size,
+            )
+        ) {
+            return@LaunchedEffect
+        }
+        if (settings.startScreen != StartScreen.LastBook) {
+            startApplied = true
+            return@LaunchedEffect
+        }
         var bestFolder: String? = null
         var bestBook: String? = null
         var bestAt = 0L
@@ -229,11 +261,14 @@ private fun App(
         }
         if (bestFolder != null && bestBook != null) {
             folderRepo.markOpened(bestFolder)
-            selectedFolderUri = bestFolder
             openUri = bestBook
+            selectedFolderUri = bestFolder
+            scanned = false
+            folderScanToken++
         } else {
             snackbarMessage = lastBookUnavailable
         }
+        startApplied = true
     }
 
     val book = listing?.books?.firstOrNull { it.uri == openUri }
@@ -246,6 +281,7 @@ private fun App(
     BackHandler(enabled = selectedFolderUri != null && book == null && !showSettings && showLostForUri == null) {
         selectedFolderUri = null
         listing = null
+        openUri = null
     }
     BackHandler(enabled = showLostForUri != null) { showLostForUri = null }
 
@@ -254,8 +290,11 @@ private fun App(
         if (selectedFolder?.access == FolderAccess.Lost) {
             showLostForUri = uri
             selectedFolderUri = null
+            openUri = null
         }
     }
+
+    val contentPhase = folderContentPhase(selectedFolderUri, scanned, listing)
 
     val shelfUi = remember(folderList, shelfListings, states) {
         buildFolderShelfUi(folderList, shelfListings, states)
@@ -300,8 +339,8 @@ private fun App(
             defaultReadingDirection = settings.defaultReadingDirection,
             onBack = { openUri = null },
         )
-        selectedFolderUri != null && !scanned -> Unit
-        selectedFolderUri != null && listing == null -> FolderPickScreen(
+        contentPhase == FolderContentPhase.Loading -> Unit
+        contentPhase == FolderContentPhase.AccessLost -> FolderPickScreen(
             illustration = R.drawable.es_permission_lost,
             title = stringResource(R.string.es_permission_lost_title),
             body = stringResource(R.string.es_permission_lost_body),
@@ -311,7 +350,7 @@ private fun App(
                 pickFolder.launch(null)
             },
         )
-        selectedFolderUri != null && listing!!.books.isEmpty() -> FolderPickScreen(
+        contentPhase == FolderContentPhase.Empty -> FolderPickScreen(
             illustration = R.drawable.es_empty_folder,
             title = stringResource(R.string.es_empty_folder_title),
             body = stringResource(R.string.es_empty_folder_body),
@@ -319,9 +358,10 @@ private fun App(
             onPick = {
                 selectedFolderUri = null
                 listing = null
+                openUri = null
             },
         )
-        selectedFolderUri != null -> LibraryScreen(
+        contentPhase == FolderContentPhase.Ready -> LibraryScreen(
             listing = listing!!,
             states = states,
             onOpen = { openUri = it.uri },
@@ -329,6 +369,7 @@ private fun App(
             onBack = {
                 selectedFolderUri = null
                 listing = null
+                openUri = null
             },
         )
         folderList.isEmpty() -> FolderPickScreen(
@@ -352,14 +393,19 @@ private fun App(
             onOpenFolder = { uri ->
                 scope.launch {
                     folderRepo.markOpened(uri)
+                    openUri = null
                     selectedFolderUri = uri
+                    scanned = false
+                    folderScanToken++
                 }
             },
             onOpenResume = { resume ->
                 scope.launch {
                     folderRepo.markOpened(resume.folderUri)
-                    selectedFolderUri = resume.folderUri
                     openUri = resume.book.uri
+                    selectedFolderUri = resume.folderUri
+                    scanned = false
+                    folderScanToken++
                 }
             },
             onAddFolder = {

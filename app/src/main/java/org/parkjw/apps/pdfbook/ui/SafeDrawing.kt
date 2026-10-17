@@ -55,7 +55,7 @@ fun Modifier.safeDrawingHorizontalPadding(): Modifier =
     windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
 
 @Composable
-fun safeDrawingGridContentPadding(base: Dp = 16.dp): PaddingValues {
+fun safeDrawingGridContentPadding(base: Dp = 16.dp, extraBottom: Dp = 0.dp): PaddingValues {
     val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
-    return PaddingValues(start = base, top = base, end = base, bottom = base + bottom)
+    return PaddingValues(start = base, top = base, end = base, bottom = base + bottom + extraBottom)
 }

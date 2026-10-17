@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -102,9 +103,14 @@ fun FolderShelfScreen(
     LaunchedEffect(scrollToUri, shelf.cards) {
         val uri = scrollToUri ?: return@LaunchedEffect
         val index = shelf.cards.indexOfFirst { it.uri == uri }
-        if (index >= 0) {
-            val offset = if (shelf.globalResume != null) 1 else 0
-            listState.animateScrollToItem(index + offset)
+        if (!shouldClearScrollTarget(index)) return@LaunchedEffect
+        val offset = if (shelf.globalResume != null) 1 else 0
+        val listIndex = index + offset
+        val lastIndex = offset + shelf.cards.lastIndex
+        if (listIndex >= lastIndex) {
+            listState.scrollToItem(listIndex, scrollOffset = Int.MAX_VALUE / 4)
+        } else {
+            listState.animateScrollToItem(listIndex)
         }
         onScrollHandled()
     }
@@ -164,7 +170,9 @@ fun FolderShelfScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = safeDrawingGridContentPadding(),
+            contentPadding = safeDrawingGridContentPadding(
+                extraBottom = 56.dp + PdfBookSpacing.md,
+            ),
             verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.md),
         ) {
             shelf.globalResume?.let { resume ->
@@ -348,7 +356,11 @@ private fun FolderCard(
                             )
                         }
                     } else {
-                        val countText = stringResource(R.string.folder_books_count, card.bookCount)
+                        val countText = pluralStringResource(
+                            R.plurals.folder_books_count,
+                            card.bookCount,
+                            card.bookCount,
+                        )
                         Text(
                             text = withNumericSpans(
                                 countText,

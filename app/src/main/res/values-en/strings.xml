@@ -22,7 +22,10 @@
     <string name="folder_remove_confirm_title">Remove this folder from the list?</string>
     <string name="folder_remove_confirm_body">The files in the folder won\'t be deleted.</string>
     <string name="folder_duplicate">This folder is already added</string>
-    <string name="folder_books_count">%d books</string>
+    <plurals name="folder_books_count">
+        <item quantity="one">%d book</item>
+        <item quantity="other">%d books</item>
+    </plurals>
     <string name="folder_no_access_badge">No access</string>
     <string name="last_book_unavailable">Can\'t open your last book</string>
     <string name="settings_title">Settings</string>
