@@ -4,6 +4,11 @@
 
 Android PDF 리더.
 
+## Fonts
+
+- Pretendard v1.3.9 (OFL) — https://github.com/orioncactus/pretendard/releases — subset renamed to PDFBook Sans (RFN)
+- JetBrains Mono v2.304 (OFL) — https://github.com/JetBrains/JetBrainsMono/releases — digits/symbols subset
+
 ## 커밋 메시지 훅
 
 Conventional Commits 검사를 쓰려면:
