@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -45,6 +46,7 @@ import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.safeDrawingGridContentPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingHorizontalPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingPadding
+import org.parkjw.apps.pdfbook.ui.theme.LocalPdfBookColors
 
 @Composable
 fun FolderPickScreen(
@@ -67,7 +69,14 @@ fun FolderPickScreen(
         )
         Text(title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
         Text(body, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-        Button(onClick = onPick) { Text(buttonLabel) }
+        val ink = LocalPdfBookColors.current
+        Button(
+            onClick = onPick,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = ink.inkButton,
+                contentColor = ink.onInkButton,
+            ),
+        ) { Text(buttonLabel) }
     }
 }
 
@@ -89,7 +98,12 @@ fun LibraryScreen(
         ) {
             Text(listing.folderName, style = MaterialTheme.typography.titleLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { byName = !byName }) {
+                TextButton(
+                    onClick = { byName = !byName },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                ) {
                     Text(stringResource(if (byName) R.string.sort_name else R.string.sort_recent))
                 }
                 IconButton(onClick = onSettings) {

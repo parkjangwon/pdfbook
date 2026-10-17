@@ -22,6 +22,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -47,9 +48,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
+import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
@@ -383,6 +386,13 @@ private fun ReaderOverlayBottom(
                 value = pageToSlider(currentPage, pageCount, direction),
                 onValueChange = { onSeekPage(sliderToPage(it, pageCount, direction)) },
                 valueRange = 0f..(pageCount - 1).toFloat(),
+                colors = SliderDefaults.colors(
+                    thumbColor = ReaderAccent,
+                    activeTrackColor = ReaderAccent,
+                    inactiveTrackColor = ReaderTrack,
+                    activeTickColor = ReaderAccent,
+                    inactiveTickColor = ReaderTrack,
+                ),
                 modifier = Modifier.fillMaxWidth(),
             )
         }

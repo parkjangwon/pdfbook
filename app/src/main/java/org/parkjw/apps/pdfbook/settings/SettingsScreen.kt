@@ -158,7 +158,7 @@ private fun SettingsSection(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(
             start = PdfBookSpacing.screenHorizontalFolded,
             end = PdfBookSpacing.screenHorizontalFolded,
