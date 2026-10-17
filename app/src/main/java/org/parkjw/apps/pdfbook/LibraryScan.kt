@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.DocumentsContract
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -63,11 +64,18 @@ suspend fun loadCover(context: Context, book: BookInfo): Bitmap? = withContext(D
     try {
         val pfd = context.contentResolver.openFileDescriptor(Uri.parse(book.uri), "r")
             ?: return@withContext null
-        val bitmap = PageRenderer.open(pfd).use { it.render(1, COVER_WIDTH, COVER_HEIGHT) }
+        val bitmap = try {
+            PageRenderer.open(pfd)
+        } catch (e: Exception) {
+            pfd.close()
+            throw e
+        }.use { it.render(1, COVER_WIDTH, COVER_HEIGHT) }
             ?: return@withContext null
         file.parentFile?.mkdirs()
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, it) }
         bitmap
+    } catch (e: CancellationException) {
+        throw e
     } catch (_: IOException) {
         null
     } catch (_: SecurityException) {

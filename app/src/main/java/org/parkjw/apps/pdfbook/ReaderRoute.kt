@@ -40,6 +40,7 @@ fun ReaderRoute(book: BookInfo, store: BookStore, volumeDelta: Flow<Int>) {
         value = try {
             PageRenderer.open(pfd).also { opened = it }.let { PdfOpenResult.Ready(it) }
         } catch (_: Exception) {
+            pfd.close()
             PdfOpenResult.Failed
         }
         awaitDispose { opened?.close() }
