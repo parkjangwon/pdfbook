@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">PDFBook</string>
     <string name="open_failed">Can\'t open this file</string>
-    <string name="es_pick_folder_title">Choose your manga folder</string>
+    <string name="es_pick_folder_title">Choose your book folder</string>
     <string name="es_pick_folder_body">PDFBook uses one folder of PDFs as your library.</string>
     <string name="es_pick_folder_action">Choose folder</string>
     <string name="es_empty_folder_title">No PDFs in this folder</string>
@@ -20,7 +20,7 @@
     <string name="settings_start_screen">Start screen</string>
     <string name="settings_start_library">Library</string>
     <string name="settings_start_last_book">Last book</string>
-    <string name="settings_change_folder">Change comics folder</string>
+    <string name="settings_change_folder">Change book folder</string>
     <string name="settings_change_folder_hint">Pick the folder used as your library</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_system">System</string>

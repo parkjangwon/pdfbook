@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">PDFBook</string>
     <string name="open_failed">열 수 없는 파일</string>
-    <string name="es_pick_folder_title">만화 폴더를 골라 주세요</string>
+    <string name="es_pick_folder_title">책 폴더를 골라 주세요</string>
     <string name="es_pick_folder_body">PDF가 들어 있는 폴더 하나를 서재로 써요.</string>
     <string name="es_pick_folder_action">폴더 고르기</string>
     <string name="es_empty_folder_title">이 폴더에 PDF가 없어요</string>
@@ -20,7 +20,7 @@
     <string name="settings_start_screen">시작 화면</string>
     <string name="settings_start_library">서재</string>
     <string name="settings_start_last_book">마지막 읽던 책</string>
-    <string name="settings_change_folder">만화 폴더 바꾸기</string>
+    <string name="settings_change_folder">책 폴더 바꾸기</string>
     <string name="settings_change_folder_hint">서재로 쓸 폴더를 다시 고릅니다</string>
     <string name="settings_theme">테마</string>
     <string name="settings_theme_system">시스템</string>
