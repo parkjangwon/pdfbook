@@ -17,9 +17,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.parkjw.apps.pdfbook.BookInfo
 import org.parkjw.apps.pdfbook.BookState
+import org.parkjw.apps.pdfbook.FolderShelfUi
 import org.parkjw.apps.pdfbook.Listing
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.bookKey
+import org.parkjw.apps.pdfbook.buildFolderShelfUi
+import org.parkjw.apps.pdfbook.folders.Folder
+import org.parkjw.apps.pdfbook.folders.FolderAccess
 import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
@@ -74,6 +78,61 @@ internal fun sampleSettings(): AppSettings = AppSettings(
     themeMode = ThemeMode.Light,
     defaultReadingDirection = ReadingDirection.RTL,
 )
+
+internal fun sampleShelfFolders(): List<Folder> = listOf(
+    Folder("content://tree/weekly", "주간 연재", 0, FolderAccess.Ok, lastOpenedAt = 3_000L),
+    Folder("content://tree/done", "완결작", 1, FolderAccess.Ok, lastOpenedAt = 2_000L),
+    Folder("content://tree/lost", "옛 폴더", 2, FolderAccess.Lost, lastOpenedAt = 1_000L),
+)
+
+internal fun sampleShelfListings(): Map<String, Listing?> {
+    val weekly = listOf(
+        BookInfo("content://tree/weekly/doc/a.pdf", "밤의 정원.pdf", 1000),
+        BookInfo("content://tree/weekly/doc/b.pdf", "Harbor Lights.pdf", 2000),
+        BookInfo("content://tree/weekly/doc/c.pdf", "시계탑 아래.pdf", 3000),
+        BookInfo("content://tree/weekly/doc/d.pdf", "잔잔한 오후.pdf", 4000),
+    )
+    val done = listOf(
+        BookInfo("content://tree/done/doc/e.pdf", "North Line.pdf", 5000),
+        BookInfo("content://tree/done/doc/f.pdf", "Paper Moon.pdf", 6000),
+    )
+    return mapOf(
+        "content://tree/weekly" to Listing("주간 연재", weekly),
+        "content://tree/done" to Listing("완결작", done),
+        "content://tree/lost" to null,
+    )
+}
+
+internal fun sampleShelfStates(listings: Map<String, Listing?>): Map<String, BookState> {
+    val weekly = listings["content://tree/weekly"]!!.books
+    val done = listings["content://tree/done"]!!.books
+    return mapOf(
+        bookKey(weekly[1].uri, weekly[1].size) to BookState(page = 3, pageCount = 7, openedAt = 9_000L),
+        bookKey(weekly[0].uri, weekly[0].size) to BookState(page = 12, pageCount = 40, openedAt = 4_000L),
+        bookKey(done[0].uri, done[0].size) to BookState(page = 8, pageCount = 8, openedAt = 5_000L),
+    )
+}
+
+internal fun sampleShelfCovers(listings: Map<String, Listing?>): Map<String, Bitmap?> {
+    val books = listings.values.filterNotNull().flatMap { it.books }
+    val colors = listOf(
+        0xFFD97757.toInt() to 0xFF2F2A26.toInt(),
+        0xFF6B8F71.toInt() to 0xFFF4F0E8.toInt(),
+        0xFF4A6FA5.toInt() to 0xFFE8EEF5.toInt(),
+        0xFFC4A35A.toInt() to 0xFF2A2418.toInt(),
+        0xFF8B5E6E.toInt() to 0xFFF6EBEF.toInt(),
+        0xFF3E8E6E.toInt() to 0xFFE8F2EC.toInt(),
+    )
+    return books.mapIndexed { index, book ->
+        val (bg, accent) = colors[index % colors.size]
+        bookKey(book.uri, book.size) to solidCover(bg, accent)
+    }.toMap()
+}
+
+internal fun sampleShelfUi(): FolderShelfUi {
+    val listings = sampleShelfListings()
+    return buildFolderShelfUi(sampleShelfFolders(), listings, sampleShelfStates(listings))
+}
 
 @Composable
 internal fun ScreenshotTheme(
