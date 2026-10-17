@@ -85,5 +85,6 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
     implementation(libs.window)
+    implementation(libs.datastore.preferences)
     testImplementation(libs.junit)
 }
