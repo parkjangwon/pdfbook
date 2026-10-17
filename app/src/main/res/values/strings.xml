@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">PDFBook</string>
+    <string name="open_failed">열 수 없는 파일</string>
 </resources>

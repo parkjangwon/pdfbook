@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.parkjw.pdfbook"
+    namespace = "org.parkjw.apps.pdfbook"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "dev.parkjw.pdfbook"
+        applicationId = "org.parkjw.apps.pdfbook"
         minSdk = 35
         targetSdk = 37
         versionCode = 1
@@ -31,8 +31,10 @@ kotlin {
 
 dependencies {
     implementation(platform(libs.compose.bom))
+    implementation(libs.compose.foundation)
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
+    implementation(libs.window)
     testImplementation(libs.junit)
 }
