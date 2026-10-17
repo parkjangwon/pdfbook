@@ -130,6 +130,82 @@ class DesignGuardTest {
     }
 
     @Test
+    fun snackbarOnlyViaSharedWrapper() {
+        val root = projectRoot()
+        val javaRoot = File(root, "app/src/main/java")
+        val allowed = setOf("PdfBookSnackbar.kt")
+        val offenders = javaRoot.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.name !in allowed }
+            .flatMap { file ->
+                val text = file.readText()
+                (findDirectSnackbarCalls(text) + findDirectSnackbarHostCalls(text))
+                    .map { "${file.relativeTo(root)}: $it" }
+            }
+            .toList()
+        assertEquals(
+            "Snackbar/SnackbarHost outside PdfBookSnackbar.kt:\n${offenders.joinToString("\n")}",
+            emptyList<String>(),
+            offenders,
+        )
+    }
+
+    @Test
+    fun sharedSnackbarUsesZeroShadowElevation() {
+        val source = File(
+            projectRoot(),
+            "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/PdfBookSnackbar.kt",
+        ).readText()
+        assertTrue(
+            "PdfBookSnackbar must set shadowElevation = 0.dp",
+            usesZeroShadowElevation(source),
+        )
+        assertTrue(
+            "PdfBookSnackbar must set tonalElevation = 0.dp",
+            usesZeroTonalElevation(source),
+        )
+        assertFalse(
+            "self-check: missing zero shadow must fail",
+            usesZeroShadowElevation("Surface(color = c) {}"),
+        )
+        assertFalse(
+            "self-check: non-zero shadow must fail",
+            usesZeroShadowElevation("Surface(shadowElevation = 6.dp) {}"),
+        )
+        assertFalse(
+            "self-check: missing zero tonal must fail",
+            usesZeroTonalElevation("Surface(shadowElevation = 0.dp) {}"),
+        )
+        assertFalse(
+            "self-check: non-zero tonal must fail",
+            usesZeroTonalElevation("Surface(tonalElevation = 6.dp) {}"),
+        )
+    }
+
+    @Test
+    fun sharedSnackbarFillsWidthWithMaxCap() {
+        val source = File(
+            projectRoot(),
+            "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/PdfBookSnackbar.kt",
+        ).readText()
+        assertTrue(
+            "PdfBookSnackbar must use widthIn(max = 600.dp)",
+            usesSnackbarMaxWidth(source),
+        )
+        assertTrue(
+            "PdfBookSnackbar must use fillMaxWidth()",
+            usesSnackbarFillMaxWidth(source),
+        )
+        assertFalse(
+            "self-check: missing widthIn max must fail",
+            usesSnackbarMaxWidth("Modifier.fillMaxWidth()"),
+        )
+        assertFalse(
+            "self-check: missing fillMaxWidth must fail",
+            usesSnackbarFillMaxWidth("Modifier.widthIn(max = 600.dp)"),
+        )
+    }
+
+    @Test
     fun m3ShapesDoNotUsePill() {
         val shape = File(projectRoot(), "app/src/main/java/org/parkjw/apps/pdfbook/ui/theme/Shape.kt").readText()
         assertTrue("DialogCorner missing", Regex("""val\s+DialogCorner\s*=""").containsMatchIn(shape))
@@ -206,6 +282,12 @@ class DesignGuardTest {
         assertFalse(findDirectProgressOrSliderCalls("PdfBookReaderSlider(value = 0f, onValueChange = {})").isNotEmpty())
         assertTrue(findDirectDropdownMenuCalls("DropdownMenu(expanded = true, onDismissRequest = {}) {}").isNotEmpty())
         assertFalse(findDirectDropdownMenuCalls("PdfBookDropdownMenu(expanded = true, onDismissRequest = {}) {}").isNotEmpty())
+        assertTrue(findDirectSnackbarCalls("Snackbar(snackbarData = data)").isNotEmpty())
+        assertFalse(findDirectSnackbarCalls("PdfBookSnackbar(snackbarData = data)").isNotEmpty())
+        assertTrue(findDirectSnackbarHostCalls("SnackbarHost(hostState = state) {}").isNotEmpty())
+        assertFalse(findDirectSnackbarHostCalls("PdfBookSnackbarHost(hostState = state)").isNotEmpty())
+        assertTrue(usesZeroShadowElevation("Surface(shadowElevation = 0.dp, tonalElevation = 0.dp) {}"))
+        assertTrue(usesZeroTonalElevation("Surface(shadowElevation = 0.dp, tonalElevation = 0.dp) {}"))
     }
 
     private fun projectRoot(): File {
@@ -247,6 +329,18 @@ class DesignGuardTest {
             Regex("""(?<![A-Za-z0-9_])(?:LinearProgressIndicator|Slider)\s*\(""")
         private val directDropdownMenuCall =
             Regex("""(?<![A-Za-z0-9_])DropdownMenu\s*\(""")
+        private val directSnackbarCall =
+            Regex("""(?<![A-Za-z0-9_])Snackbar\s*\(""")
+        private val directSnackbarHostCall =
+            Regex("""(?<![A-Za-z0-9_])SnackbarHost\s*\(""")
+        private val zeroShadowElevation =
+            Regex("""shadowElevation\s*=\s*0(?:\.0)?\.dp\b""")
+        private val zeroTonalElevation =
+            Regex("""tonalElevation\s*=\s*0(?:\.0)?\.dp\b""")
+        private val snackbarMaxWidth =
+            Regex("""widthIn\s*\(\s*max\s*=\s*600(?:\.0)?\.dp\s*\)""")
+        private val snackbarFillMaxWidth =
+            Regex("""fillMaxWidth\s*\(\s*\)""")
 
         fun findTextButtonsWithoutColors(source: String): List<String> {
             val hits = mutableListOf<String>()
@@ -275,6 +369,24 @@ class DesignGuardTest {
 
         fun findDirectDropdownMenuCalls(source: String): List<String> =
             directDropdownMenuCall.findAll(source).map { it.value.trim() }.toList()
+
+        fun findDirectSnackbarCalls(source: String): List<String> =
+            directSnackbarCall.findAll(source).map { it.value.trim() }.toList()
+
+        fun findDirectSnackbarHostCalls(source: String): List<String> =
+            directSnackbarHostCall.findAll(source).map { it.value.trim() }.toList()
+
+        fun usesZeroShadowElevation(source: String): Boolean =
+            zeroShadowElevation.containsMatchIn(source)
+
+        fun usesZeroTonalElevation(source: String): Boolean =
+            zeroTonalElevation.containsMatchIn(source)
+
+        fun usesSnackbarMaxWidth(source: String): Boolean =
+            snackbarMaxWidth.containsMatchIn(source)
+
+        fun usesSnackbarFillMaxWidth(source: String): Boolean =
+            snackbarFillMaxWidth.containsMatchIn(source)
 
         private fun balancedArgs(source: String, openParenIndex: Int): String? {
             if (openParenIndex !in source.indices || source[openParenIndex] != '(') return null
