@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalWindowInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
@@ -81,7 +80,12 @@ fun ReaderScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    layout.forEach { page ->
+                    layout.forEachIndexed { index, page ->
+                        val pageAlignment = when {
+                            layout.size == 1 -> Alignment.Center
+                            index == 0 -> Alignment.CenterEnd
+                            else -> Alignment.CenterStart
+                        }
                         PageBitmap(
                             renderer = renderer,
                             page = page,
@@ -90,6 +94,7 @@ fun ReaderScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight(),
+                            alignment = pageAlignment,
                         )
                     }
                 }
@@ -136,6 +141,7 @@ private fun PageBitmap(
     maxWidth: Int,
     maxHeight: Int,
     modifier: Modifier = Modifier,
+    alignment: Alignment = Alignment.Center,
 ) {
     var bitmap by remember(page, maxWidth, maxHeight) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(page, maxWidth, maxHeight) {
@@ -148,14 +154,9 @@ private fun PageBitmap(
                 bitmap = bmp.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
+                alignment = alignment,
                 modifier = Modifier.fillMaxSize(),
             )
         }
     }
-}
-
-@Composable
-fun rememberTwoPage(): Boolean {
-    val size = LocalWindowInfo.current.containerSize
-    return size.width > size.height
 }
