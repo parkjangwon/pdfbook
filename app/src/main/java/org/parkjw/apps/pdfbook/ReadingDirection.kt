@@ -18,6 +18,11 @@ fun toggledDirection(direction: ReadingDirection): ReadingDirection =
         ReadingDirection.LTR -> ReadingDirection.RTL
     }
 
+fun resolveReadingDirection(
+    saved: ReadingDirection?,
+    default: ReadingDirection,
+): ReadingDirection = saved ?: default
+
 fun spreadLayout(spread: List<Int>, direction: ReadingDirection): List<Int> {
     if (spread.size <= 1) return spread
     return when (direction) {

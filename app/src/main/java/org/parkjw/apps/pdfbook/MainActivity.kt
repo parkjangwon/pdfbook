@@ -149,7 +149,13 @@ private fun App(
             onChangeFolder = { pickFolder.launch(null) },
         )
         !loaded || (folder != null && !scanned) -> Unit
-        book != null -> ReaderRoute(book, store, volumeDelta, onBack = { openUri = null })
+        book != null -> ReaderRoute(
+            book,
+            store,
+            volumeDelta,
+            defaultReadingDirection = settings.defaultReadingDirection,
+            onBack = { openUri = null },
+        )
         folder == null -> FolderPickScreen(
             illustration = R.drawable.es_pick_folder,
             title = stringResource(R.string.es_pick_folder_title),

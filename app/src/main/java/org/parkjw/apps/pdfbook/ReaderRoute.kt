@@ -25,12 +25,19 @@ fun ReaderRoute(
     book: BookInfo,
     store: BookStore,
     volumeDelta: Flow<Int>,
+    defaultReadingDirection: ReadingDirection,
     onBack: () -> Unit,
 ) {
     val key = bookKey(book.uri, book.size)
+    var loaded by remember(key) { mutableStateOf(false) }
     var saved by remember(key) { mutableStateOf<BookState?>(null) }
-    LaunchedEffect(key) { saved = store.state(key) }
-    val state = saved ?: return
+    LaunchedEffect(key) {
+        saved = store.state(key)
+        loaded = true
+    }
+    if (!loaded) return
+    val initialDirection = resolveReadingDirection(saved?.direction, defaultReadingDirection)
+    val state = saved ?: BookState(direction = initialDirection)
 
     val context = LocalContext.current
     val uri = remember(key) { Uri.parse(book.uri) }
@@ -72,9 +79,9 @@ fun ReaderRoute(
                 key,
                 stateSaver = ReadingDirectionSaver,
             ) {
-                mutableStateOf(state.direction)
+                mutableStateOf(initialDirection)
             }
-            LaunchedEffect(state.direction) { direction = state.direction }
+            LaunchedEffect(initialDirection) { direction = initialDirection }
             if (!hasReadableSpreads(spreadList)) {
                 Box(Modifier.fillMaxSize())
             } else {
