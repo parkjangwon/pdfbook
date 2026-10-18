@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.swipeUp
@@ -151,10 +152,15 @@ class FolderReorderComposeTest {
         composeRule.onNodeWithText("Folder a").performClick()
         composeRule.waitForIdle()
         assertEquals(listOf("a"), opened)
+        handles()[0].performTouchInput { click(androidx.compose.ui.geometry.Offset(width / 2f, height + 24f)) }
+        composeRule.waitForIdle()
+        assertEquals(listOf("a", "a"), opened)
+        val handleA = handleNodes().first().boundsInRoot
         composeRule.onNodeWithText("Folder a").performTouchInput { longClick() }
         composeRule.waitForIdle()
         composeRule.onNodeWithText(context.getString(R.string.folder_rename)).assertExists()
         assertTrue(saved.isEmpty())
+        assertTrue(handleA.height < handleA.width * 1.5f)
     }
 
     @Test
@@ -173,7 +179,7 @@ class FolderReorderComposeTest {
         val fab = generateSequence(fabText) { it.parent }.first { it.config.contains(SemanticsActions.OnClick) }
         val handleBottom = lastHandle.boundsInRoot.bottom
         val lastTitleTop = composeRule.onNodeWithText("Folder f8").fetchSemanticsNode().boundsInRoot.top
-        assertTrue(lastTitleTop < handleBottom)
+        assertTrue("handle ${lastHandle.boundsInRoot} title $lastTitleTop", lastHandle.boundsInRoot.top > lastTitleTop)
         assertTrue(
             "handle bottom $handleBottom must be above add button top ${fab.boundsInRoot.top}",
             handleBottom <= fab.boundsInRoot.top,

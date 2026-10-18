@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -55,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -597,11 +599,22 @@ private fun FolderCard(
                 }
             }
             if (handle != null) {
-                Box(
-                    modifier = Modifier.fillMaxHeight().then(cardClick),
-                    contentAlignment = Alignment.Center,
+                val gapTap = Modifier.pointerInput(card.isHidden) {
+                    detectTapGestures(
+                        onTap = { onOpen() },
+                        onLongPress = {
+                            if (shouldUnhideOnLongPress(card.isHidden)) onUnhide()
+                            else onMenuExpand()
+                        },
+                    )
+                }
+                Column(
+                    modifier = Modifier.fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Spacer(Modifier.weight(1f).width(48.dp).then(gapTap))
                     handle()
+                    Spacer(Modifier.weight(1f).width(48.dp).then(gapTap))
                 }
             }
         }
