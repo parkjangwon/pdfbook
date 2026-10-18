@@ -38,6 +38,7 @@ import org.parkjw.apps.pdfbook.folders.displayNameForUri
 import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.SettingsRepository
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
+import org.parkjw.apps.pdfbook.settings.SyncAppLanguage
 import org.parkjw.apps.pdfbook.settings.StartScreen
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
 
@@ -55,6 +56,12 @@ class MainActivity : ComponentActivity() {
             val settingsState = settingsRepo.settings.collectAsState(initial = null)
             val settings = settingsState.value ?: AppSettings()
             val scope = rememberCoroutineScope()
+            SyncAppLanguage(
+                ready = settingsState.value != null,
+                language = settings.language,
+            ) { language ->
+                scope.launch { settingsRepo.update { it.copy(language = language) } }
+            }
             LaunchedEffect(settings.volumeKeyPaging) {
                 volumeKeyPaging = settings.volumeKeyPaging
             }
