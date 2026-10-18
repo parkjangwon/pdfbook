@@ -31,20 +31,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.theme.CardCorner
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.extendedColors
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookRadioButtonColors
+import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
+    versionName: String,
     modifier: Modifier = Modifier,
+    scrollToEnd: Boolean = false,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -68,7 +74,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState(if (scrollToEnd) Int.MAX_VALUE else 0))
                 .padding(bottom = PdfBookSpacing.lg),
         ) {
             SettingsSection(stringResource(R.string.settings_section_general))
@@ -155,6 +161,27 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_tap_zone_guide),
                     checked = settings.showTapZoneGuide,
                     onCheckedChange = { checked -> onSettingsChange { it.copy(showTapZoneGuide = checked) } },
+                )
+            }
+
+            SettingsSection(stringResource(R.string.settings_section_about))
+            SettingsGroup {
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = withNumericSpans(
+                                stringResource(R.string.about_version, versionName),
+                                SpanStyle(
+                                    fontFamily = PdfBookNumeric.fontFamily,
+                                    fontSize = 15.sp,
+                                    letterSpacing = (-0.2).sp,
+                                ),
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }

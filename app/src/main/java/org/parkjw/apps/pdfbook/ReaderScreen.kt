@@ -270,21 +270,33 @@ private fun ReaderScreenContent(
                     } else {
                         Row(Modifier.fillMaxSize()) {
                             tapZoneSpans(direction, sideFraction).forEach { span ->
+                                val interactionSource = remember { MutableInteractionSource() }
+                                val onTap = {
+                                    if (span.zone == TapZone.Menu) {
+                                        overlayVisible = !overlayVisible
+                                    } else {
+                                        goTo(span.zone.pageDelta)
+                                    }
+                                }
                                 Box(
                                     modifier = Modifier
                                         .weight(span.width)
                                         .fillMaxHeight()
-                                        .combinedClickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = {
-                                                if (span.zone == TapZone.Menu) {
-                                                    overlayVisible = !overlayVisible
-                                                } else {
-                                                    goTo(span.zone.pageDelta)
-                                                }
+                                        .then(
+                                            if (span.zone.acceptsDoubleTapAtBaseScale) {
+                                                Modifier.combinedClickable(
+                                                    interactionSource = interactionSource,
+                                                    indication = null,
+                                                    onClick = onTap,
+                                                    onDoubleClick = { toggleZoom() },
+                                                )
+                                            } else {
+                                                Modifier.clickable(
+                                                    interactionSource = interactionSource,
+                                                    indication = null,
+                                                    onClick = onTap,
+                                                )
                                             },
-                                            onDoubleClick = { toggleZoom() },
                                         ),
                                 )
                             }
