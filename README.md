@@ -7,9 +7,9 @@
 휴대폰에 있는 PDF 책을 폴더째 등록해 두고, 서재처럼 골라 읽는 앱입니다. 폴더블 기기의 펼친 화면에서는 두 쪽을 나란히 보여 줍니다.
 
 <p align="center">
-  <img src="docs/screenshots/shelf-light-folded.png" alt="폴더 목록 화면" width="30%">
-  <img src="docs/screenshots/reader-guide-light-folded.png" alt="읽기 화면과 탭 영역 안내" width="30%">
-  <img src="docs/screenshots/reader-book-list-light-folded.png" alt="같은 폴더의 책 목록" width="30%">
+  <img src="docs/readme/shelf.png" alt="폴더 목록 화면" width="30%">
+  <img src="docs/readme/tap-zones.png" alt="읽기 화면의 탭 영역: 다음, 메뉴, 이전" width="30%">
+  <img src="docs/readme/book-list.png" alt="같은 폴더의 책 목록" width="30%">
 </p>
 
 ## 주요 기능
