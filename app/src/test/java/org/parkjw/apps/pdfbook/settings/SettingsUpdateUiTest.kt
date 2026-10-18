@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -54,10 +55,13 @@ class SettingsUpdateUiTest {
     )
 
     @Test
-    fun autoCheckIsOnByDefaultAndPersists() = runBlocking {
+    fun autoCheckIsOnByDefaultAndPersists() = runTest {
         assertTrue(AppSettings().autoUpdateCheck)
         val repo = SettingsRepository(
-            PreferenceDataStoreFactory.create(produceFile = { File(tmp.root, "settings.preferences_pb") }),
+            PreferenceDataStoreFactory.create(
+                scope = backgroundScope,
+                produceFile = { File(tmp.root, "settings.preferences_pb") },
+            ),
         )
         assertTrue(repo.settings.first().autoUpdateCheck)
         repo.update { it.copy(autoUpdateCheck = false) }

@@ -4,7 +4,8 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -16,11 +17,14 @@ class SortStoreTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private fun dataStore() =
-        PreferenceDataStoreFactory.create(produceFile = { File(tmp.root, "pdfbook.preferences_pb") })
+    private fun TestScope.dataStore() =
+        PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = { File(tmp.root, "pdfbook.preferences_pb") },
+        )
 
     @Test
-    fun defaultIsRecentWhenNothingSaved() = runBlocking {
+    fun defaultIsRecentWhenNothingSaved() = runTest {
         val store = SortStore(dataStore())
         val sorts = store.sorts.first()
         assertEquals(BookSort.Recent, sortFor(sorts, "content://a"))
@@ -28,7 +32,7 @@ class SortStoreTest {
     }
 
     @Test
-    fun savedSortIsKeptPerFolder() = runBlocking {
+    fun savedSortIsKeptPerFolder() = runTest {
         val store = SortStore(dataStore())
         store.save(sortKey("content://a"), BookSort.Name)
         val sorts = store.sorts.first()
@@ -37,7 +41,7 @@ class SortStoreTest {
     }
 
     @Test
-    fun choiceStaysUntilChangedAgain() = runBlocking {
+    fun choiceStaysUntilChangedAgain() = runTest {
         val store = SortStore(dataStore())
         store.save(sortKey("content://a"), BookSort.Name)
         store.save(sortKey("content://b"), BookSort.Name)
@@ -49,7 +53,7 @@ class SortStoreTest {
     }
 
     @Test
-    fun ignoresOtherKeysAndBrokenValues() = runBlocking {
+    fun ignoresOtherKeysAndBrokenValues() = runTest {
         val prefs = dataStore()
         val store = SortStore(prefs)
         val book = BookStore(prefs)
@@ -68,7 +72,7 @@ class SortStoreTest {
     }
 
     @Test
-    fun unsetSubfolderFollowsNearestParent() = runBlocking {
+    fun unsetSubfolderFollowsNearestParent() = runTest {
         val store = SortStore(dataStore())
         store.save(sortKey("content://a"), BookSort.Name)
         store.save(sortKey("content://a", listOf("s1", "s2")), BookSort.Recent)
@@ -80,7 +84,7 @@ class SortStoreTest {
     }
 
     @Test
-    fun removingRootClearsItsSubfoldersOnly() = runBlocking {
+    fun removingRootClearsItsSubfoldersOnly() = runTest {
         val store = SortStore(dataStore())
         store.save(sortKey("content://a"), BookSort.Name)
         store.save(sortKey("content://a", listOf("s1")), BookSort.Name)
@@ -104,7 +108,7 @@ class SortStoreTest {
     }
 
     @Test
-    fun repickMovesSortsToNewFolderUri() = runBlocking {
+    fun repickMovesSortsToNewFolderUri() = runTest {
         val store = SortStore(dataStore())
         store.save(sortKey("content://old"), BookSort.Name)
         store.save(sortKey("content://old", listOf("s1")), BookSort.Recent)
@@ -118,7 +122,7 @@ class SortStoreTest {
     }
 
     @Test
-    fun repickOntoFolderWithOwnSortKeepsThatSort() = runBlocking {
+    fun repickOntoFolderWithOwnSortKeepsThatSort() = runTest {
         val store = SortStore(dataStore())
         store.save(sortKey("content://old"), BookSort.Name)
         store.save(sortKey("content://new"), BookSort.Recent)

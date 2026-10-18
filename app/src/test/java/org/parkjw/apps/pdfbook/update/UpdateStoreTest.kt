@@ -2,7 +2,7 @@ package org.parkjw.apps.pdfbook.update
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import java.io.File
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -14,9 +14,12 @@ class UpdateStoreTest {
     val tmp = TemporaryFolder()
 
     @Test
-    fun persistsLastCheckDayAndSnooze() = runBlocking {
+    fun persistsLastCheckDayAndSnooze() = runTest {
         val store = DataStoreUpdateStore(
-            PreferenceDataStoreFactory.create(produceFile = { File(tmp.root, "update.preferences_pb") }),
+            PreferenceDataStoreFactory.create(
+                scope = backgroundScope,
+                produceFile = { File(tmp.root, "update.preferences_pb") },
+            ),
         )
         assertNull(store.lastAutoCheckDay())
         assertNull(store.snooze())

@@ -3,7 +3,8 @@ package org.parkjw.apps.pdfbook.lock
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import java.io.File
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -16,21 +17,24 @@ class LockRepositoryTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private fun open(): Pair<File, LockRepository> {
+    private fun TestScope.open(): Pair<File, LockRepository> {
         val file = File(tmp.newFolder(), "lock.preferences_pb")
-        val store = PreferenceDataStoreFactory.create(produceFile = { file })
+        val store = PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = { file },
+        )
         return file to LockRepository(store)
     }
 
     @Test
-    fun l1_emptyLockStoreIsNone() = runBlocking {
+    fun l1_emptyLockStoreIsNone() = runTest {
         val (_, repo) = open()
         assertEquals(LockConfig(), repo.config.first())
         assertEquals(AppLockMode.None, repo.config.first().mode)
     }
 
     @Test
-    fun l5_repositoryRejectsBiometricWithoutPin() = runBlocking {
+    fun l5_repositoryRejectsBiometricWithoutPin() = runTest {
         val (_, repo) = open()
         assertFalse(repo.setMode(AppLockMode.Biometric))
         assertEquals(AppLockMode.None, repo.config.first().mode)
@@ -38,7 +42,7 @@ class LockRepositoryTest {
     }
 
     @Test
-    fun l6_pinIsHashedNotStoredAndVerifyMatches() = runBlocking {
+    fun l6_pinIsHashedNotStoredAndVerifyMatches() = runTest {
         val secret = "91827364"
         val (file, repo) = open()
         val pin = secret.toCharArray()
@@ -78,7 +82,7 @@ class LockRepositoryTest {
     }
 
     @Test
-    fun l7_fiveFailuresLockOutAndIgnoreCorrectPinAndClockRollback() = runBlocking {
+    fun l7_fiveFailuresLockOutAndIgnoreCorrectPinAndClockRollback() = runTest {
         val (_, repo) = open()
         repo.saveNewPin("1357".toCharArray(), AppLockMode.Pin)
         val start = 10_000L
