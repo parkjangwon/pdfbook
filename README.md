@@ -32,14 +32,14 @@ JDK 21이 필요합니다.
 
 릴리스 서명 빌드(`assembleRelease`)는 환경 변수 `PDFBOOK_KEYSTORE`, `PDFBOOK_STORE_PASSWORD`, `PDFBOOK_KEY_ALIAS`, `PDFBOOK_KEY_PASSWORD`가 있어야 합니다.
 
-## Fonts
+## 폰트
 
 - Pretendard v1.3.9 (OFL) — https://github.com/orioncactus/pretendard/releases — subset renamed to PDFBook Sans (RFN)
 - JetBrains Mono v2.304 (OFL) — https://github.com/JetBrains/JetBrainsMono/releases — digits/symbols subset
 
 라이선스 전문: [licenses/Pretendard-OFL.txt](licenses/Pretendard-OFL.txt), [licenses/JetBrainsMono-OFL.txt](licenses/JetBrainsMono-OFL.txt). 서브셋은 `scripts/subset_fonts.py`로 다시 만들 수 있습니다.
 
-## License
+## 라이선스
 
 코드는 [MIT License](LICENSE)를 따릅니다. 앱에 포함된 폰트는 SIL Open Font License 1.1이며 전문은 [licenses/](licenses/)에 있습니다.
 
