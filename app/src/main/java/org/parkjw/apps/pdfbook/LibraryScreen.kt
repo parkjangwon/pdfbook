@@ -139,8 +139,10 @@ fun LibraryScreen(
     onPeekToggle: () -> Unit = {},
     peekHiddenBookIds: Set<String> = emptySet(),
     showPeekMenu: Boolean = false,
+    sort: BookSort = BookSort.Recent,
+    onSortChange: (BookSort) -> Unit = {},
 ) {
-    var byName by remember { mutableStateOf(false) }
+    val byName = sort == BookSort.Name
     var menuBookUri by remember { mutableStateOf<String?>(null) }
     var peekMenuOpen by remember { mutableStateOf(showPeekMenu) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -186,7 +188,7 @@ fun LibraryScreen(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(
-                    onClick = { byName = !byName },
+                    onClick = { onSortChange(if (byName) BookSort.Recent else BookSort.Name) },
                     colors = pdfBookTextButtonColors(),
                 ) {
                     Text(stringResource(if (byName) R.string.sort_name else R.string.sort_recent))
