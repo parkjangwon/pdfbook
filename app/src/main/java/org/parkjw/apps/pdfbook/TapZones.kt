@@ -1,5 +1,7 @@
 package org.parkjw.apps.pdfbook
 
+import kotlin.math.roundToInt
+
 enum class TapZone(val pageDelta: Int) {
     Previous(-1),
     Menu(0),
@@ -18,6 +20,28 @@ val TapZone.acceptsDoubleTapAtBaseScale: Boolean
     get() = this == TapZone.Menu
 
 const val DEFAULT_TAP_ZONE_SIDE_FRACTION = 1f / 3f
+const val TAP_ZONE_SIDE_MIN_PERCENT = 20
+const val TAP_ZONE_SIDE_MAX_PERCENT = 45
+const val TAP_ZONE_SIDE_STEP_PERCENT = 5
+const val DEFAULT_TAP_ZONE_SIDE_PERCENT = 33
+
+fun normalizeTapZoneSidePercent(percent: Int): Int {
+    if (percent == DEFAULT_TAP_ZONE_SIDE_PERCENT) return percent
+    return snapTapZoneSidePercent(percent.toFloat())
+}
+
+fun snapTapZoneSidePercent(value: Float): Int {
+    if (value.isNaN()) return DEFAULT_TAP_ZONE_SIDE_PERCENT
+    val clamped = value.coerceIn(TAP_ZONE_SIDE_MIN_PERCENT.toFloat(), TAP_ZONE_SIDE_MAX_PERCENT.toFloat())
+    val steps = ((clamped - TAP_ZONE_SIDE_MIN_PERCENT) / TAP_ZONE_SIDE_STEP_PERCENT).roundToInt()
+    return TAP_ZONE_SIDE_MIN_PERCENT + steps * TAP_ZONE_SIDE_STEP_PERCENT
+}
+
+fun tapZoneSideFraction(percent: Int): Float {
+    val normalized = normalizeTapZoneSidePercent(percent)
+    if (normalized == DEFAULT_TAP_ZONE_SIDE_PERCENT) return DEFAULT_TAP_ZONE_SIDE_FRACTION
+    return normalized / 100f
+}
 
 fun tapZoneSpans(
     direction: ReadingDirection,
