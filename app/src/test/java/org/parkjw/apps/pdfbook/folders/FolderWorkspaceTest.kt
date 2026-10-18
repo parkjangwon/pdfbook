@@ -123,6 +123,47 @@ class FolderWorkspaceTest {
     }
 
     @Test
+    fun applyVisibleOrderFillsOnlyVisibleSlots() {
+        val base = listOf(
+            folder("a", "A", 0),
+            folder("lost", "L", 1, FolderAccess.Lost),
+            folder("h", "H", 2),
+            folder("b", "B", 3),
+        )
+        assertEquals(
+            listOf("b", "lost", "h", "a"),
+            applyVisibleOrder(base, listOf("b", "lost", "a")).map { it.uri },
+        )
+        val partial = applyVisibleOrder(base, listOf("b", "a"))
+        assertEquals(listOf("b", "lost", "h", "a"), partial.map { it.uri })
+        assertEquals(listOf(0, 1, 2, 3), partial.map { it.order })
+        assertEquals(base.map { it.uri }, applyVisibleOrder(base, listOf("x", "a", "a")).map { it.uri })
+    }
+
+    @Test
+    fun moveInOrderClampsAtEdges() {
+        val order = listOf("a", "b", "c")
+        assertEquals(listOf("b", "a", "c"), moveInOrder(order, "b", -1))
+        assertEquals(listOf("a", "c", "b"), moveInOrder(order, "b", 1))
+        assertEquals(order, moveInOrder(order, "a", -1))
+        assertEquals(order, moveInOrder(order, "c", 1))
+        assertEquals(order, moveInOrder(order, "x", 1))
+    }
+
+    @Test
+    fun migrateToManualOrderUsesRecentThenOrder() {
+        val base = listOf(
+            Folder("a", "A", 0, FolderAccess.Ok, 5L),
+            Folder("b", "B", 1, FolderAccess.Ok, 0L),
+            Folder("c", "C", 2, FolderAccess.Ok, 5L),
+            Folder("d", "D", 3, FolderAccess.Ok, 9L),
+        )
+        val migrated = migrateToManualOrder(base)
+        assertEquals(listOf("d", "a", "c", "b"), migrated.map { it.uri })
+        assertEquals(listOf(0, 1, 2, 3), migrated.map { it.order })
+    }
+
+    @Test
     fun migrateFromLegacyCreatesFirstFolderOnce() {
         val migrated = migrateFromLegacy(emptyList(), "content://tree/old", "Old")
         assertEquals(listOf(folder("content://tree/old", "Old", 0)), migrated)

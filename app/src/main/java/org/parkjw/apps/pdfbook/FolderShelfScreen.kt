@@ -5,14 +5,17 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,6 +55,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -114,6 +120,8 @@ fun FolderShelfScreen(
     showPeekMenu: Boolean = false,
     exitHintToken: Int = 0,
     updateBanner: (@Composable () -> Unit)? = null,
+    onReorder: (List<String>) -> Unit = {},
+    showDraggingFor: String? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val gridState = rememberLazyGridState()
@@ -121,6 +129,8 @@ fun FolderShelfScreen(
     var peekMenuOpen by remember { mutableStateOf(showPeekMenu) }
     var confirmRemoveUri by remember { mutableStateOf(showRemoveConfirmFor) }
     val hasResume = shelf.globalResume != null
+    val reorder = rememberFolderReorderState(gridState, shelf.cards.map { it.uri })
+    val displayedCards = orderedCards(shelf.cards, reorder.pendingOrder)
 
     val exitConfirm = stringResource(R.string.exit_confirm)
     val currentOnSnackbarAction by rememberUpdatedState(onSnackbarAction)
@@ -275,8 +285,23 @@ fun FolderShelfScreen(
                         )
                     }
                 }
-                itemsIndexed(shelf.cards, key = { _, card -> card.uri }) { _, card ->
-                    Box {
+                itemsIndexed(displayedCards, key = { _, card -> card.uri }) { _, card ->
+                    val dragging = reorder.draggingUri == card.uri || showDraggingFor == card.uri
+                    Box(
+                        if (dragging) {
+                            Modifier
+                                .zIndex(1f)
+                                .graphicsLayer {
+                                    val offset = reorder.translation(card.uri)
+                                    translationX = offset.x
+                                    translationY = offset.y
+                                    scaleX = 1.02f
+                                    scaleY = 1.02f
+                                }
+                        } else {
+                            Modifier.animateItem()
+                        },
+                    ) {
                         FolderCard(
                             card = card,
                             covers = covers,
@@ -304,6 +329,14 @@ fun FolderShelfScreen(
                                 onHide(card.uri)
                             },
                             onUnhide = { onUnhide(card.uri) },
+                            dragging = dragging,
+                            handle = {
+                                FolderReorderHandle(
+                                    uri = card.uri,
+                                    state = reorder,
+                                    onReorder = onReorder,
+                                )
+                            },
                         )
                     }
                 }
@@ -405,147 +438,187 @@ private fun FolderCard(
     onRemove: () -> Unit,
     onHide: () -> Unit,
     onUnhide: () -> Unit = {},
+    dragging: Boolean = false,
+    handle: (@Composable () -> Unit)? = null,
 ) {
     val lost = card.access == FolderAccess.Lost
     val contentAlpha = if (card.isHidden) 0.4f else 1f
     Surface(
         shape = CardCorner,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = onOpen,
-                onLongClick = {
-                    if (shouldUnhideOnLongPress(card.isHidden)) onUnhide()
-                    else onMenuExpand()
-                },
-            ),
+        color = if (dragging) {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
+        border = if (dragging) {
+            BorderStroke(1.5.dp, MaterialTheme.extendedColors.hairlineStrong)
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        },
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(PdfBookSpacing.md)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
+        val cardClick = Modifier.combinedClickable(
+            onClick = onOpen,
+            onLongClick = {
+                if (shouldUnhideOnLongPress(card.isHidden)) onUnhide()
+                else onMenuExpand()
+            },
+        )
+        Row(Modifier.height(IntrinsicSize.Min)) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .then(cardClick)
+                    .padding(PdfBookSpacing.md),
             ) {
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .alpha(contentAlpha),
-                    verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.xxs),
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    Text(
-                        text = card.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (lost) {
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .alpha(contentAlpha),
+                        verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.xxs),
+                    ) {
                         Text(
-                            text = card.pathTail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = card.displayName,
+                            style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        Surface(
-                            shape = PdfBookShapeTokens.pill,
-                            color = MaterialTheme.colorScheme.errorContainer,
-                        ) {
+                        if (lost) {
                             Text(
-                                text = stringResource(R.string.folder_no_access_badge),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.padding(
-                                    horizontal = PdfBookSpacing.xs,
-                                    vertical = PdfBookSpacing.xxs,
+                                text = card.pathTail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Surface(
+                                shape = PdfBookShapeTokens.pill,
+                                color = MaterialTheme.colorScheme.errorContainer,
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.folder_no_access_badge),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(
+                                        horizontal = PdfBookSpacing.xs,
+                                        vertical = PdfBookSpacing.xxs,
+                                    ),
+                                )
+                            }
+                        } else {
+                            val countText = pluralStringResource(
+                                R.plurals.folder_books_count,
+                                card.bookCount,
+                                card.bookCount,
+                            )
+                            Text(
+                                text = folderPathBookAnnotated(
+                                    card.pathTail,
+                                    countText,
+                                    SpanStyle(
+                                        fontFamily = PdfBookNumeric.fontFamily,
+                                        fontSize = 12.sp,
+                                        letterSpacing = (-0.2).sp,
+                                    ),
                                 ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
-                    } else {
-                        val countText = pluralStringResource(
-                            R.plurals.folder_books_count,
-                            card.bookCount,
-                            card.bookCount,
-                        )
+                    }
+                    if (card.isHidden) {
+                        HiddenBadge(Modifier.padding(top = PdfBookSpacing.xxs))
+                    }
+                    Box {
+                        IconButton(onClick = onMenuExpand, colors = pdfBookIconButtonColors()) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_more),
+                                contentDescription = null,
+                            )
+                        }
+                        PdfBookDropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.folder_rename)) },
+                                onClick = onRename,
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.folder_repick)) },
+                                onClick = onRepick,
+                            )
+                            if (!card.isHidden) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.hide_item)) },
+                                    onClick = onHide,
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = stringResource(R.string.folder_remove),
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                                onClick = onRemove,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(PdfBookSpacing.sm))
+                CoverStrip(card.coverKeys, covers, dimmed = lost || card.isHidden)
+                if (lost) {
+                    Spacer(Modifier.height(PdfBookSpacing.sm))
+                    val ink = MaterialTheme.extendedColors
+                    OutlinedButton(
+                        onClick = onRepick,
+                        shape = ButtonCorner,
+                        border = BorderStroke(1.dp, ink.hairlineStrong),
+                        colors = pdfBookOutlinedButtonColors(),
+                        modifier = Modifier.height(40.dp),
+                    ) {
+                        Text(stringResource(R.string.folder_repick))
+                    }
+                } else if (card.resume != null) {
+                    Spacer(Modifier.height(PdfBookSpacing.sm))
+                    Column(Modifier.alpha(contentAlpha)) {
                         Text(
-                            text = folderPathBookAnnotated(
-                                card.pathTail,
-                                countText,
-                                SpanStyle(
-                                    fontFamily = PdfBookNumeric.fontFamily,
-                                    fontSize = 12.sp,
-                                    letterSpacing = (-0.2).sp,
-                                ),
-                            ),
+                            text = card.resume.title,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                    }
-                }
-                if (card.isHidden) {
-                    HiddenBadge(Modifier.padding(top = PdfBookSpacing.xxs))
-                }
-                Box {
-                    IconButton(onClick = onMenuExpand, colors = pdfBookIconButtonColors()) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_more),
-                            contentDescription = null,
-                        )
-                    }
-                    PdfBookDropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.folder_rename)) },
-                            onClick = onRename,
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.folder_repick)) },
-                            onClick = onRepick,
-                        )
-                        if (!card.isHidden) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.hide_item)) },
-                                onClick = onHide,
-                            )
-                        }
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = stringResource(R.string.folder_remove),
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            },
-                            onClick = onRemove,
-                        )
+                        ResumeProgress(card.resume.percent, card.resume.progress)
                     }
                 }
             }
-            Spacer(Modifier.height(PdfBookSpacing.sm))
-            CoverStrip(card.coverKeys, covers, dimmed = lost || card.isHidden)
-            if (lost) {
-                Spacer(Modifier.height(PdfBookSpacing.sm))
-                val ink = MaterialTheme.extendedColors
-                OutlinedButton(
-                    onClick = onRepick,
-                    shape = ButtonCorner,
-                    border = BorderStroke(1.dp, ink.hairlineStrong),
-                    colors = pdfBookOutlinedButtonColors(),
-                    modifier = Modifier.height(40.dp),
-                ) {
-                    Text(stringResource(R.string.folder_repick))
-                }
-            } else if (card.resume != null) {
-                Spacer(Modifier.height(PdfBookSpacing.sm))
-                Column(Modifier.alpha(contentAlpha)) {
-                    Text(
-                        text = card.resume.title,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+            if (handle != null) {
+                val currentOnOpen by rememberUpdatedState(onOpen)
+                val currentOnUnhide by rememberUpdatedState(onUnhide)
+                val currentOnMenuExpand by rememberUpdatedState(onMenuExpand)
+                val currentHidden by rememberUpdatedState(card.isHidden)
+                val gapTap = Modifier.pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { currentOnOpen() },
+                        onLongPress = {
+                            if (shouldUnhideOnLongPress(currentHidden)) currentOnUnhide()
+                            else currentOnMenuExpand()
+                        },
                     )
-                    ResumeProgress(card.resume.percent, card.resume.progress)
+                }
+                Column(
+                    modifier = Modifier.fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Spacer(Modifier.weight(1f).width(48.dp).then(gapTap))
+                    handle()
+                    Spacer(Modifier.weight(1f).width(48.dp).then(gapTap))
                 }
             }
         }
