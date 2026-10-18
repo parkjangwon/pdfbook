@@ -26,7 +26,7 @@ fun PinCreateScreen(
         subtitleIsError = session.mismatch,
         warning = if (confirming) null else stringResource(R.string.pin_forget_warning),
         note = null,
-        slotCount = if (confirming) session.length else maxOf(4, session.length).coerceAtMost(8),
+        slotCount = session.length,
         filled = session.length,
         inputEnabled = true,
         showLockIcon = false,

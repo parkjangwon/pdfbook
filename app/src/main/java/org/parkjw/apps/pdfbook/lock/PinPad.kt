@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -137,7 +138,9 @@ fun PinPadScreen(
                 )
             }
             Row(
-                modifier = Modifier.padding(top = PdfBookSpacing.xl, bottom = PdfBookSpacing.xl),
+                modifier = Modifier
+                    .padding(top = PdfBookSpacing.xl, bottom = PdfBookSpacing.xl)
+                    .height(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(PdfBookSpacing.md),
             ) {
                 repeat(slotCount) { index ->

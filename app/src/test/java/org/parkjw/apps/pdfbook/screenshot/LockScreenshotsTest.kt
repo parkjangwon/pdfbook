@@ -155,7 +155,7 @@ class LockScreenshotsTest {
         title = R.string.pin_create_title,
         subtitle = R.string.pin_create_hint,
         warning = R.string.pin_forget_warning,
-        slotCount = 4,
+        slotCount = 3,
         filled = 3,
         actionEnabled = false,
     )

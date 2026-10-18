@@ -289,8 +289,10 @@ class LockScreensTest {
                 )
             }
         }
+        composeRule.onAllNodesWithTag(PIN_DOT_TAG).assertCountEquals(0)
         composeRule.onNodeWithTag("pin_next").assertIsNotEnabled()
         "123".forEach { tapDigit(it) }
+        composeRule.onAllNodesWithTag(PIN_DOT_TAG).assertCountEquals(3)
         composeRule.onNodeWithTag("pin_next").assertIsNotEnabled()
         tapDigit('4')
         composeRule.onNodeWithTag("pin_next").assertIsEnabled()
@@ -300,6 +302,7 @@ class LockScreensTest {
         composeRule.onNodeWithTag("pin_next").performScrollTo().assertIsEnabled().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText(text(R.string.pin_confirm_title)).assertExists()
+        composeRule.onAllNodesWithTag(PIN_DOT_TAG).assertCountEquals(0)
         "12345679".forEach { tapDigit(it) }
         composeRule.waitForIdle()
         composeRule.onNodeWithText(text(R.string.pin_mismatch)).assertExists()
