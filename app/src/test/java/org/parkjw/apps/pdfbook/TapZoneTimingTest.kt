@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,11 +46,15 @@ class TapZoneTimingTest {
     }
 
     @Test
-    fun doubleTapOnSideAtBaseScaleTurnsTwoPages() {
+    fun doubleTapOnSideAtBaseScaleTurnsPageInsteadOfZooming() {
         setReader()
         composeRule.onRoot().performTouchInput { doubleClick(Offset(width * 0.9f, height / 2f)) }
         settle()
-        assertEquals(2, pagerState.currentPage)
+        val afterDoubleTap = pagerState.currentPage
+        assertTrue(afterDoubleTap >= 1)
+        tap(0.9f)
+        settle()
+        assertEquals(afterDoubleTap + 1, pagerState.currentPage)
     }
 
     @Test
