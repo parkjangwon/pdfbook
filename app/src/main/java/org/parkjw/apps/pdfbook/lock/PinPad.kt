@@ -13,8 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,21 +26,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.R
+import org.parkjw.apps.pdfbook.ui.theme.ButtonCorner
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookInkButtonColors
 import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 
-enum class PinPadLeft { Blank, Fingerprint, Confirm }
+const val PIN_DOT_TAG = "pin_dot"
+
+enum class PinPadLeft { Blank, Fingerprint }
 
 @Composable
 fun PinPadScreen(
@@ -55,6 +66,9 @@ fun PinPadScreen(
     onDelete: () -> Unit,
     onLeft: () -> Unit,
     modifier: Modifier = Modifier,
+    actionLabel: String? = null,
+    actionEnabled: Boolean = false,
+    onAction: (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val numericStyle = remember {
@@ -81,6 +95,7 @@ fun PinPadScreen(
             modifier = Modifier
                 .widthIn(max = 360.dp)
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = PdfBookSpacing.lg, vertical = PdfBookSpacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -121,14 +136,6 @@ fun PinPadScreen(
                     modifier = Modifier.padding(top = PdfBookSpacing.md),
                 )
             }
-            if (!warning.isNullOrEmpty()) {
-                Text(
-                    text = warning,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = PdfBookSpacing.md),
-                )
-            }
             Row(
                 modifier = Modifier.padding(top = PdfBookSpacing.xl, bottom = PdfBookSpacing.xl),
                 horizontalArrangement = Arrangement.spacedBy(PdfBookSpacing.md),
@@ -139,8 +146,19 @@ fun PinPadScreen(
                     } else {
                         Modifier.border(1.5.dp, scheme.outline, CircleShape)
                     }
-                    Box(Modifier.size(12.dp).then(dot))
+                    Box(Modifier.size(12.dp).testTag(PIN_DOT_TAG).then(dot))
                 }
+            }
+            if (!warning.isNullOrEmpty()) {
+                Text(
+                    text = warning,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
+                    color = scheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = PdfBookSpacing.xl),
+                )
             }
             Keypad(
                 enabled = inputEnabled,
@@ -150,6 +168,28 @@ fun PinPadScreen(
                 onDelete = onDelete,
                 onLeft = onLeft,
             )
+            if (actionLabel != null && onAction != null) {
+                Button(
+                    onClick = onAction,
+                    enabled = actionEnabled,
+                    shape = ButtonCorner,
+                    colors = pdfBookInkButtonColors(),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 0.dp,
+                        pressedElevation = 0.dp,
+                        focusedElevation = 0.dp,
+                        hoveredElevation = 0.dp,
+                        disabledElevation = 0.dp,
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = PdfBookSpacing.xl)
+                        .alpha(if (actionEnabled) 1f else 0.38f)
+                        .testTag("pin_next"),
+                ) {
+                    Text(actionLabel, style = MaterialTheme.typography.labelLarge)
+                }
+            }
         }
     }
 }
@@ -169,7 +209,10 @@ private fun Keypad(
         listOf("7", "8", "9"),
         listOf("L", "0", "D"),
     )
-    Column(verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.md)) {
+    Column(
+        modifier = Modifier.alpha(if (enabled) 1f else 0.38f),
+        verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.md),
+    ) {
         rows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(PdfBookSpacing.lg)) {
                 row.forEach { key ->
@@ -232,12 +275,6 @@ private fun LeftKey(left: PinPadLeft, enabled: Boolean, onClick: () -> Unit) {
         PinPadLeft.Fingerprint -> IconKey(
             icon = R.drawable.ic_fingerprint,
             description = stringResource(R.string.app_lock_biometric),
-            enabled = enabled,
-            onClick = onClick,
-        )
-        PinPadLeft.Confirm -> IconKey(
-            icon = R.drawable.ic_check,
-            description = stringResource(R.string.pin_done),
             enabled = enabled,
             onClick = onClick,
         )

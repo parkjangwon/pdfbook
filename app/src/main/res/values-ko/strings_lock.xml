@@ -10,6 +10,7 @@
     <string name="pin_create_hint">숫자 4~8자리</string>
     <string name="pin_confirm_title">PIN 한 번 더 입력</string>
     <string name="pin_mismatch">PIN이 서로 달라요</string>
+    <string name="pin_next">다음</string>
     <string name="pin_forget_warning">PIN을 잊으면 되찾을 수 없어요. 앱 데이터를 지워야 하고, 폴더 목록과 읽던 기록도 함께 지워져요.</string>
     <string name="lock_title">PDFBook이 잠겨 있어요</string>
     <string name="lock_enter_pin">PIN을 입력해 주세요</string>
@@ -21,6 +22,5 @@
     <string name="hide_in_recents_desc">최근 앱 목록에서 화면 내용을 가려요</string>
     <string name="confirm_identity">본인 확인이 필요해요</string>
     <string name="pin_change">PIN 바꾸기</string>
-    <string name="pin_done">확인</string>
     <string name="pin_delete">지우기</string>
 </resources>

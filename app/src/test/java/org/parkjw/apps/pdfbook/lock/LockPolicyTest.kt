@@ -5,9 +5,24 @@ import android.provider.Settings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
+import org.parkjw.apps.pdfbook.hidden.HiddenPeek
 
 class LockPolicyTest {
+    @Before
+    fun resetH11Before() {
+        HiddenPeek.reset()
+        AppLockProcess.state.resetForTest()
+    }
+
+    @After
+    fun resetH11After() {
+        HiddenPeek.reset()
+        AppLockProcess.state.resetForTest()
+    }
+
     @Test
     fun l1_defaultConfigIsUnlockedMode() {
         assertEquals(AppLockMode.None, LockConfig().mode)
@@ -123,8 +138,53 @@ class LockPolicyTest {
         assertEquals(LockEditPhase.Menu, phaseAfterConfirmed(LockEdit.None, hasPin = true))
         assertEquals(LockEditPhase.Create(LockEdit.ChangePin), phaseAfterConfirmed(LockEdit.ChangePin, hasPin = true))
         assertEquals(
-            LockEditPhase.Create(LockEdit.Biometric, needsPinNote = true),
+            LockEditPhase.Menu,
             phaseFor(LockEdit.Biometric, LockConfig(), canAuthenticate = true),
         )
+    }
+
+    @Test
+    fun h11_onStopResetsPeek() {
+        val state = AppLockProcess.state
+        state.unlock()
+        HiddenPeek.set(true)
+        state.onStop(isChangingConfigurations = false, nowElapsedMs = 10L)
+        assertFalse(HiddenPeek.enabled.value)
+        assertFalse(state.unlocked)
+    }
+
+    @Test
+    fun h11_configChangeOnStopKeepsPeek() {
+        val state = AppLockProcess.state
+        state.unlock()
+        HiddenPeek.set(true)
+        state.onStop(isChangingConfigurations = true, nowElapsedMs = 10L)
+        assertTrue(HiddenPeek.enabled.value)
+        assertTrue(state.unlocked)
+    }
+
+    @Test
+    fun h11_exemptReturnPastGraceResetsPeek() {
+        val state = AppLockProcess.state
+        state.unlock()
+        HiddenPeek.set(true)
+        state.expectSystemReturn()
+        state.onStop(isChangingConfigurations = false, nowElapsedMs = 0L)
+        assertTrue(state.unlocked)
+        state.onStart(SYSTEM_RETURN_GRACE_MS + 1)
+        assertFalse(state.unlocked)
+        assertFalse(HiddenPeek.enabled.value)
+    }
+
+    @Test
+    fun h11_exemptReturnInsideGraceKeepsUnlock() {
+        val state = AppLockProcess.state
+        state.unlock()
+        HiddenPeek.set(true)
+        state.expectSystemReturn()
+        state.onStop(isChangingConfigurations = false, nowElapsedMs = 0L)
+        state.onStart(SYSTEM_RETURN_GRACE_MS)
+        assertTrue(state.unlocked)
+        assertTrue(HiddenPeek.enabled.value)
     }
 }

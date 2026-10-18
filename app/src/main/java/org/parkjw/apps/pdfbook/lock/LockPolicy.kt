@@ -74,7 +74,7 @@ sealed interface LockEditPhase {
 
     data class Confirm(val edit: LockEdit, val keypad: Boolean) : LockEditPhase
 
-    data class Create(val edit: LockEdit, val needsPinNote: Boolean = false) : LockEditPhase
+    data class Create(val edit: LockEdit) : LockEditPhase
 }
 
 fun phaseFor(edit: LockEdit, config: LockConfig, canAuthenticate: Boolean): LockEditPhase {
@@ -87,7 +87,7 @@ fun phaseFor(edit: LockEdit, config: LockConfig, canAuthenticate: Boolean): Lock
             else -> LockEditPhase.Confirm(edit, keypad)
         }
         LockEdit.Biometric -> when {
-            !canSelectBiometric(config.hasPin) -> LockEditPhase.Create(edit, needsPinNote = true)
+            !canSelectBiometric(config.hasPin) -> LockEditPhase.Menu
             config.mode == AppLockMode.Biometric -> LockEditPhase.Menu
             else -> LockEditPhase.Confirm(edit, keypad = !canAuthenticate)
         }
@@ -102,7 +102,7 @@ fun phaseFor(edit: LockEdit, config: LockConfig, canAuthenticate: Boolean): Lock
 fun phaseAfterConfirmed(edit: LockEdit, hasPin: Boolean): LockEditPhase = when (edit) {
     LockEdit.ChangePin -> LockEditPhase.Create(edit)
     LockEdit.Pin -> if (hasPin) LockEditPhase.Menu else LockEditPhase.Create(edit)
-    LockEdit.Biometric -> if (hasPin) LockEditPhase.Menu else LockEditPhase.Create(edit, needsPinNote = true)
+    LockEdit.Biometric -> LockEditPhase.Menu
     LockEdit.None, LockEdit.HideOff -> LockEditPhase.Menu
 }
 

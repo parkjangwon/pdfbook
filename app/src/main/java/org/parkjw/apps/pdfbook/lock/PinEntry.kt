@@ -68,8 +68,8 @@ fun LockScreen(
         awaitBiometricPrompt(activity, session, promptTitle, usePin, onUnlocked) { session.showKeypad() }
     }
     PinEntry(
-        title = stringResource(R.string.lock_enter_pin),
-        idleSubtitle = stringResource(R.string.lock_title),
+        title = stringResource(R.string.lock_title),
+        idleSubtitle = stringResource(R.string.lock_enter_pin),
         pinLength = config.pinLength,
         failedAttempts = config.failedAttempts,
         lockoutUntilEpochMs = config.lockoutUntilEpochMs,
@@ -176,17 +176,17 @@ private fun PinEntry(
     PinPadScreen(
         title = title,
         subtitle = subtitle,
-        subtitleIsError = wrong && !waiting,
+        subtitleIsError = waiting || wrong,
         warning = null,
         note = null,
-        slotCount = pinLength.coerceIn(0, 8),
+        slotCount = buffer.length,
         filled = buffer.length,
         inputEnabled = !waiting && !busy,
         showLockIcon = showLockIcon,
         left = if (showFingerprint) PinPadLeft.Fingerprint else PinPadLeft.Blank,
         leftEnabled = showFingerprint,
         onDigit = { digit ->
-            if (waiting || busy) return@PinPadScreen
+            if (waiting || busy || buffer.length >= pinLength) return@PinPadScreen
             wrong = false
             buffer.push(digit)
             if (buffer.length == pinLength) submit()

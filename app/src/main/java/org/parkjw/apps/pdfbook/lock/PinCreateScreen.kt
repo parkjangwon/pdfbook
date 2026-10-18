@@ -8,7 +8,6 @@ import org.parkjw.apps.pdfbook.R
 
 @Composable
 fun PinCreateScreen(
-    needsPinNote: Boolean,
     onCreated: (CharArray) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -16,23 +15,35 @@ fun PinCreateScreen(
     BackHandler {
         if (session.back()) onBack()
     }
+    val confirming = session.confirming
     PinPadScreen(
-        title = stringResource(if (session.confirming) R.string.pin_confirm_title else R.string.pin_create_title),
-        subtitle = stringResource(if (session.mismatch) R.string.pin_mismatch else R.string.pin_create_hint),
+        title = stringResource(if (confirming) R.string.pin_confirm_title else R.string.pin_create_title),
+        subtitle = when {
+            session.mismatch -> stringResource(R.string.pin_mismatch)
+            confirming -> ""
+            else -> stringResource(R.string.pin_create_hint)
+        },
         subtitleIsError = session.mismatch,
-        warning = if (session.confirming) null else stringResource(R.string.pin_forget_warning),
-        note = if (!session.confirming && needsPinNote) stringResource(R.string.app_lock_biometric_needs_pin) else null,
-        slotCount = if (session.confirming) session.firstLength else maxOf(4, session.length).coerceAtMost(8),
+        warning = if (confirming) null else stringResource(R.string.pin_forget_warning),
+        note = null,
+        slotCount = if (confirming) session.length else maxOf(4, session.length).coerceAtMost(8),
         filled = session.length,
         inputEnabled = true,
         showLockIcon = false,
-        left = if (!session.confirming && session.length in PIN_LENGTH) PinPadLeft.Confirm else PinPadLeft.Blank,
-        leftEnabled = !session.confirming && session.length in PIN_LENGTH,
+        left = PinPadLeft.Blank,
+        leftEnabled = false,
         onDigit = { digit ->
             val created = session.digit(digit)
             if (created != null) onCreated(created)
         },
         onDelete = { session.delete() },
-        onLeft = { session.confirmFirst() },
+        onLeft = {},
+        actionLabel = if (confirming) null else stringResource(R.string.pin_next),
+        actionEnabled = !confirming && session.length in PIN_LENGTH,
+        onAction = if (confirming) {
+            null
+        } else {
+            { session.confirmFirst() }
+        },
     )
 }

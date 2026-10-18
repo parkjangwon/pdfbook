@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -112,7 +113,6 @@ fun AppLockSettingsScreen(
             onRequestBiometric = { phase = current.copy(keypad = false) },
         )
         is LockEditPhase.Create -> PinCreateScreen(
-            needsPinNote = current.needsPinNote,
             onCreated = { pin ->
                 onAuthenticated()
                 scope.launch {
@@ -180,7 +180,17 @@ internal fun AppLockSettingsMenu(
                     HorizontalDivider(color = MaterialTheme.extendedColors.hairline)
                     LockChoice(AppLockMode.Pin, config.mode, enabled = true) { onEdit(LockEdit.Pin) }
                     HorizontalDivider(color = MaterialTheme.extendedColors.hairline)
-                    LockChoice(AppLockMode.Biometric, config.mode, enabled = biometricAvailable) {
+                    val biometricEnabled = biometricAvailable && config.hasPin
+                    LockChoice(
+                        mode = AppLockMode.Biometric,
+                        selected = config.mode,
+                        enabled = biometricEnabled,
+                        supporting = if (!config.hasPin) {
+                            stringResource(R.string.app_lock_biometric_needs_pin)
+                        } else {
+                            null
+                        },
+                    ) {
                         onEdit(LockEdit.Biometric)
                     }
                     if (locked) {
@@ -245,6 +255,7 @@ private fun LockChoice(
     mode: AppLockMode,
     selected: AppLockMode,
     enabled: Boolean,
+    supporting: String? = null,
     onClick: () -> Unit,
 ) {
     val label = when (mode) {
@@ -255,6 +266,15 @@ private fun LockChoice(
     ListItem(
         headlineContent = {
             Text(label, style = MaterialTheme.typography.bodyLarge)
+        },
+        supportingContent = supporting?.let {
+            {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         leadingContent = {
             RadioButton(
@@ -267,6 +287,7 @@ private fun LockChoice(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.38f)
             .selectable(
                 selected = selected == mode,
                 enabled = enabled,
