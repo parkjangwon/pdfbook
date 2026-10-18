@@ -43,6 +43,9 @@ import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.extendedColors
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookRadioButtonColors
 import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
+import org.parkjw.apps.pdfbook.update.UpdateAction
+import org.parkjw.apps.pdfbook.update.UpdateCheckBlock
+import org.parkjw.apps.pdfbook.update.UpdateUiState
 
 @Composable
 fun SettingsScreen(
@@ -51,6 +54,8 @@ fun SettingsScreen(
     versionName: String,
     modifier: Modifier = Modifier,
     scrollToEnd: Boolean = false,
+    updateState: UpdateUiState = UpdateUiState.Idle,
+    onUpdateAction: (UpdateAction) -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -162,6 +167,18 @@ fun SettingsScreen(
                     checked = settings.showTapZoneGuide,
                     onCheckedChange = { checked -> onSettingsChange { it.copy(showTapZoneGuide = checked) } },
                 )
+            }
+
+            SettingsSection(stringResource(R.string.settings_section_update))
+            SettingsGroup {
+                SwitchRow(
+                    title = stringResource(R.string.update_auto),
+                    supporting = stringResource(R.string.update_auto_desc),
+                    checked = settings.autoUpdateCheck,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(autoUpdateCheck = checked) } },
+                )
+                GroupDivider()
+                UpdateCheckBlock(state = updateState, onAction = onUpdateAction)
             }
 
             SettingsSection(stringResource(R.string.settings_section_about))
@@ -324,10 +341,20 @@ private fun SwitchRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    supporting: String? = null,
 ) {
     ListItem(
         headlineContent = {
             Text(title, style = MaterialTheme.typography.bodyLarge)
+        },
+        supportingContent = supporting?.let {
+            {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         trailingContent = {
             Switch(

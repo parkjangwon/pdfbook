@@ -33,6 +33,13 @@ import org.parkjw.apps.pdfbook.ReaderScreen
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode
+import org.parkjw.apps.pdfbook.update.AppVersion
+import org.parkjw.apps.pdfbook.update.RELEASES_PAGE_URL
+import org.parkjw.apps.pdfbook.update.Release
+import org.parkjw.apps.pdfbook.update.ReleaseAsset
+import org.parkjw.apps.pdfbook.update.UpdatePromptDialog
+import org.parkjw.apps.pdfbook.update.UpdateProblem
+import org.parkjw.apps.pdfbook.update.UpdateUiState
 import org.parkjw.apps.pdfbook.spreads
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSnackbar
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
@@ -232,6 +239,53 @@ class MainScreenshotsTest {
     @Test
     @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
     fun settingsDarkUnfolded() = captureSettings(dark = true, file = "settings-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdateAvailableLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-available-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Available(sampleRelease, null, prompt = false),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun settingsUpdateDownloadingDarkFolded() = captureSettings(
+        dark = true,
+        file = "settings-update-downloading-dark-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Downloading(sampleRelease, 42),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdateFailedLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-failed-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Failed(UpdateProblem.Verify, RELEASES_PAGE_URL),
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun settingsUpdatePermissionLightUnfolded() = captureSettings(
+        dark = false,
+        file = "settings-update-permission-light-unfolded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.NeedsInstallPermission(
+            sampleRelease,
+            ReleaseAsset("pdfbook-0.3.1.apk", "https://github.com/x", 1, ""),
+        ),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun updatePromptLightFolded() = captureUpdatePrompt(dark = false, file = "update-prompt-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun updatePromptDarkFolded() = captureUpdatePrompt(dark = true, file = "update-prompt-dark-folded.png")
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
@@ -475,7 +529,12 @@ class MainScreenshotsTest {
         )
     }
 
-    private fun captureSettings(dark: Boolean, file: String, scrollToEnd: Boolean = false) {
+    private fun captureSettings(
+        dark: Boolean,
+        file: String,
+        scrollToEnd: Boolean = false,
+        updateState: UpdateUiState = UpdateUiState.Idle,
+    ) {
         capture(file, dark) {
             SettingsScreen(
                 settings = sampleSettings().copy(
@@ -485,9 +544,34 @@ class MainScreenshotsTest {
                 versionName = "0.3.0",
                 modifier = Modifier.fillMaxSize(),
                 scrollToEnd = scrollToEnd,
+                updateState = updateState,
             )
         }
     }
+
+    private fun captureUpdatePrompt(dark: Boolean, file: String) {
+        capture(file, dark) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                UpdatePromptDialog(
+                    state = UpdateUiState.Available(sampleRelease, null, prompt = true),
+                    onDownload = {},
+                    onLater = {},
+                )
+            }
+        }
+    }
+
+    private val sampleRelease = Release(
+        tagName = "v0.3.1",
+        version = AppVersion(0, 3, 1),
+        name = "v0.3.1",
+        htmlUrl = "https://github.com/parkjangwon/pdfbook/releases/tag/v0.3.1",
+        notes = "",
+        publishedAt = null,
+        draft = false,
+        prerelease = false,
+        assets = emptyList(),
+    )
 
     private fun captureReader(dark: Boolean, file: String) {
         val pageCount = 12

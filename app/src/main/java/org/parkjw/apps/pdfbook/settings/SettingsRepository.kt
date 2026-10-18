@@ -44,6 +44,7 @@ class SettingsRepository(
         val ShowTapZoneGuideKey = booleanPreferencesKey("show_tap_zone_guide")
         val PageTurnAnimationKey = stringPreferencesKey("page_turn_animation")
         val DoubleTapZoomScaleKey = floatPreferencesKey("double_tap_zoom_scale")
+        val AutoUpdateCheckKey = booleanPreferencesKey("auto_update_check")
     }
 }
 
@@ -68,6 +69,7 @@ internal fun Preferences.toAppSettings(): AppSettings {
         ),
         doubleTapZoomScale = this[SettingsRepository.DoubleTapZoomScaleKey]
             ?: defaults.doubleTapZoomScale,
+        autoUpdateCheck = this[SettingsRepository.AutoUpdateCheckKey] ?: defaults.autoUpdateCheck,
     )
 }
 
@@ -83,6 +85,7 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.ShowTapZoneGuideKey] = settings.showTapZoneGuide
     this[SettingsRepository.PageTurnAnimationKey] = settings.pageTurnAnimation.name
     this[SettingsRepository.DoubleTapZoomScaleKey] = settings.doubleTapZoomScale
+    this[SettingsRepository.AutoUpdateCheckKey] = settings.autoUpdateCheck
 }
 
 private inline fun <reified T : Enum<T>> enumOrDefault(raw: String?, default: T): T {
