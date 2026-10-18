@@ -599,12 +599,16 @@ private fun FolderCard(
                 }
             }
             if (handle != null) {
-                val gapTap = Modifier.pointerInput(card.isHidden) {
+                val currentOnOpen by rememberUpdatedState(onOpen)
+                val currentOnUnhide by rememberUpdatedState(onUnhide)
+                val currentOnMenuExpand by rememberUpdatedState(onMenuExpand)
+                val currentHidden by rememberUpdatedState(card.isHidden)
+                val gapTap = Modifier.pointerInput(Unit) {
                     detectTapGestures(
-                        onTap = { onOpen() },
+                        onTap = { currentOnOpen() },
                         onLongPress = {
-                            if (shouldUnhideOnLongPress(card.isHidden)) onUnhide()
-                            else onMenuExpand()
+                            if (shouldUnhideOnLongPress(currentHidden)) currentOnUnhide()
+                            else currentOnMenuExpand()
                         },
                     )
                 }
