@@ -332,6 +332,35 @@ class MainScreenshotsTest {
     @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
     fun readerDarkUnfolded() = captureReader(dark = true, file = "reader-dark-unfolded.png")
 
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun readerGuideLightFolded() = captureReader(dark = false, file = "reader-guide-light-folded.png", showTapZoneGuide = true)
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun readerGuideDarkFolded() = captureReader(dark = true, file = "reader-guide-dark-folded.png", showTapZoneGuide = true)
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun readerGuideLightUnfolded() = captureReader(dark = false, file = "reader-guide-light-unfolded.png", showTapZoneGuide = true)
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun readerGuideDarkUnfolded() = captureReader(dark = true, file = "reader-guide-dark-unfolded.png", showTapZoneGuide = true)
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun readerGuideLtrLightFolded() = captureReader(
+        dark = false,
+        file = "reader-guide-ltr-light-folded.png",
+        showTapZoneGuide = true,
+        direction = ReadingDirection.LTR,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_EN_QUALIFIERS)
+    fun readerGuideLightFoldedEn() = captureReader(dark = false, file = "reader-guide-light-folded-en.png", showTapZoneGuide = true)
+
     private fun captureLibrary(dark: Boolean, file: String) {
         val listing = sampleListing()
         capture(file, dark) {
@@ -519,7 +548,12 @@ class MainScreenshotsTest {
         }
     }
 
-    private fun captureReader(dark: Boolean, file: String) {
+    private fun captureReader(
+        dark: Boolean,
+        file: String,
+        showTapZoneGuide: Boolean = false,
+        direction: ReadingDirection = ReadingDirection.RTL,
+    ) {
         val pageCount = 12
         val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
         capture(file, dark, systemBarsColor = ReaderBackground) {
@@ -538,8 +572,9 @@ class MainScreenshotsTest {
                 twoPage = false,
                 onBack = {},
                 onDirectionChange = {},
-                direction = ReadingDirection.RTL,
+                direction = direction,
                 overlayVisible = true,
+                showTapZoneGuide = showTapZoneGuide,
                 modifier = Modifier.fillMaxSize(),
             )
         }

@@ -82,6 +82,7 @@ fun ReaderScreen(
     direction: ReadingDirection = ReadingDirection.RTL,
     volumeDelta: Flow<Int>? = null,
     overlayVisible: Boolean = false,
+    showTapZoneGuide: Boolean = true,
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -98,6 +99,7 @@ fun ReaderScreen(
             direction = direction,
             volumeDelta = volumeDelta,
             initialOverlayVisible = overlayVisible,
+            showTapZoneGuide = showTapZoneGuide,
         )
     }
 }
@@ -117,6 +119,7 @@ private fun ReaderScreenContent(
     direction: ReadingDirection,
     volumeDelta: Flow<Int>?,
     initialOverlayVisible: Boolean,
+    showTapZoneGuide: Boolean,
 ) {
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
@@ -245,46 +248,49 @@ private fun ReaderScreenContent(
                                 },
                         )
                     } else {
-                        val leftDelta = if (rtl) 1 else -1
-                        val rightDelta = if (rtl) -1 else 1
                         Row(Modifier.fillMaxSize()) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .combinedClickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = { goTo(leftDelta) },
-                                        onDoubleClick = { toggleZoom() },
-                                    ),
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .combinedClickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = { overlayVisible = !overlayVisible },
-                                        onDoubleClick = { toggleZoom() },
-                                    ),
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .combinedClickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = { goTo(rightDelta) },
-                                        onDoubleClick = { toggleZoom() },
-                                    ),
-                            )
+                            tapZoneSpans(direction).forEach { span ->
+                                val interactionSource = remember { MutableInteractionSource() }
+                                val onTap = {
+                                    if (span.zone == TapZone.Menu) {
+                                        overlayVisible = !overlayVisible
+                                    } else {
+                                        goTo(span.zone.pageDelta)
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(span.width)
+                                        .fillMaxHeight()
+                                        .then(
+                                            if (span.zone.acceptsDoubleTapAtBaseScale) {
+                                                Modifier.combinedClickable(
+                                                    interactionSource = interactionSource,
+                                                    indication = null,
+                                                    onClick = onTap,
+                                                    onDoubleClick = { toggleZoom() },
+                                                )
+                                            } else {
+                                                Modifier.clickable(
+                                                    interactionSource = interactionSource,
+                                                    indication = null,
+                                                    onClick = onTap,
+                                                )
+                                            },
+                                        ),
+                                )
+                            }
                         }
                     }
                 }
             }
+        }
+
+        if (overlayVisible && showTapZoneGuide && !zoomed) {
+            TapZoneGuide(
+                direction = direction,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
 
         if (overlayVisible) {

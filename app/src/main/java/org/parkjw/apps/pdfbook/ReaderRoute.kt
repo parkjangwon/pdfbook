@@ -27,6 +27,7 @@ fun ReaderRoute(
     volumeDelta: Flow<Int>,
     defaultReadingDirection: ReadingDirection,
     onBack: () -> Unit,
+    showTapZoneGuide: Boolean = true,
 ) {
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
@@ -123,6 +124,7 @@ fun ReaderRoute(
                     onDirectionChange = { direction = it },
                     direction = direction,
                     volumeDelta = volumeDelta,
+                    showTapZoneGuide = showTapZoneGuide,
                 )
             }
         }
