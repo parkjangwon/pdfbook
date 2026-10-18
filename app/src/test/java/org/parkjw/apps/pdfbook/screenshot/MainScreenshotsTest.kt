@@ -235,6 +235,38 @@ class MainScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsAboutLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-about-light-folded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun settingsAboutDarkFolded() = captureSettings(
+        dark = true,
+        file = "settings-about-dark-folded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun settingsAboutLightUnfolded() = captureSettings(
+        dark = false,
+        file = "settings-about-light-unfolded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun settingsAboutDarkUnfolded() = captureSettings(
+        dark = true,
+        file = "settings-about-dark-unfolded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun dialogLightFolded() = capture("dialog-light-folded.png", dark = false) {
         AlertDialog(
             onDismissRequest = {},
@@ -443,14 +475,16 @@ class MainScreenshotsTest {
         )
     }
 
-    private fun captureSettings(dark: Boolean, file: String) {
+    private fun captureSettings(dark: Boolean, file: String, scrollToEnd: Boolean = false) {
         capture(file, dark) {
             SettingsScreen(
                 settings = sampleSettings().copy(
                     themeMode = if (dark) ThemeMode.Dark else ThemeMode.Light,
                 ),
                 onSettingsChange = {},
+                versionName = "0.3.0",
                 modifier = Modifier.fillMaxSize(),
+                scrollToEnd = scrollToEnd,
             )
         }
     }

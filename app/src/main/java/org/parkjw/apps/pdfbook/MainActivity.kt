@@ -1,5 +1,6 @@
 package org.parkjw.apps.pdfbook
 
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
@@ -307,6 +308,11 @@ private fun App(
         showSettings -> SettingsScreen(
             settings = settings,
             onSettingsChange = onSettingsChange,
+            versionName = remember(context) {
+                context.packageManager
+                    .getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
+                    .versionName.orEmpty()
+            },
         )
         showLostForUri != null -> FolderPickScreen(
             illustration = R.drawable.es_permission_lost,
