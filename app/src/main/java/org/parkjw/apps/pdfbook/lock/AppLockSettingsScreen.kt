@@ -279,18 +279,21 @@ private fun LockChoice(
         AppLockMode.Pin -> stringResource(R.string.app_lock_pin)
         AppLockMode.Biometric -> stringResource(R.string.app_lock_biometric)
     }
+    val description = supporting ?: when (mode) {
+        AppLockMode.None -> stringResource(R.string.app_lock_none_desc)
+        AppLockMode.Pin -> stringResource(R.string.app_lock_pin_desc)
+        AppLockMode.Biometric -> stringResource(R.string.app_lock_biometric_desc)
+    }
     ListItem(
         headlineContent = {
             Text(label, style = MaterialTheme.typography.bodyLarge)
         },
-        supportingContent = supporting?.let {
-            {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        supportingContent = {
+            Text(
+                description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         },
         leadingContent = {
             RadioButton(

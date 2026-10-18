@@ -173,6 +173,34 @@ class LockScreensTest {
     }
 
     @Test
+    fun l5_lockOptionsShowDescriptions() {
+        var config by mutableStateOf(LockConfig())
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                AppLockSettingsScreen(
+                    config = config,
+                    session = AppLockState(),
+                    biometricAvailable = true,
+                    onBack = {},
+                    onAuthenticated = {},
+                    onVerify = { pin, _ -> pin.fill('\u0000'); PinVerify.Wrong },
+                    onSavePin = { pin, _ -> pin.fill('\u0000') },
+                    onSetMode = { false },
+                    onSetHideInRecents = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText(text(R.string.app_lock_none_desc)).assertExists()
+        composeRule.onNodeWithText(text(R.string.app_lock_pin_desc)).assertExists()
+        composeRule.onNodeWithText(text(R.string.app_lock_biometric_desc)).assertDoesNotExist()
+        config = LockConfig(mode = AppLockMode.Pin, pinHash = "h", pinSalt = "s", pinLength = 4, hideInRecents = true)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(text(R.string.app_lock_biometric_desc)).assertExists()
+        composeRule.onNodeWithText(text(R.string.app_lock_biometric_needs_pin)).assertDoesNotExist()
+        assertEquals("지문이나 얼굴로 열고, 안 되면 PIN을 써요", text(R.string.app_lock_biometric_desc))
+    }
+
+    @Test
     fun l5_noneModeHidesPinChangeAndHideInRecents() {
         composeRule.setContent {
             PdfBookTheme(themeMode = ThemeMode.Light) {

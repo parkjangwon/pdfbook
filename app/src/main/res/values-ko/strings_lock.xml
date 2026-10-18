@@ -23,4 +23,7 @@
     <string name="confirm_identity">본인 확인이 필요해요</string>
     <string name="pin_change">PIN 바꾸기</string>
     <string name="pin_delete">지우기</string>
+    <string name="app_lock_none_desc">누구나 바로 열 수 있어요</string>
+    <string name="app_lock_pin_desc">앱을 열 때 PIN을 입력해요</string>
+    <string name="app_lock_biometric_desc">지문이나 얼굴로 열고, 안 되면 PIN을 써요</string>
 </resources>
