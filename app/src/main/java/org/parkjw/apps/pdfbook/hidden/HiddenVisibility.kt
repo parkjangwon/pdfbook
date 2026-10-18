@@ -1,22 +1,32 @@
 package org.parkjw.apps.pdfbook.hidden
 
+import org.parkjw.apps.pdfbook.BookInfo
 import org.parkjw.apps.pdfbook.Listing
 import org.parkjw.apps.pdfbook.folders.Folder
 
+data class ShelfFolderItem(
+    val folder: Folder,
+    val isHidden: Boolean,
+)
+
+data class LibraryBookItem(
+    val book: BookInfo,
+    val isHidden: Boolean,
+)
+
 fun isDotName(name: String): Boolean = name.startsWith('.')
 
-fun visibleFolders(folders: List<Folder>, hidden: List<HiddenItem>): List<Folder> {
-    val hiddenIds = hidden.asSequence()
-        .filter { it.kind == HiddenKind.Folder }
-        .map { it.id }
-        .toSet()
-    if (hiddenIds.isEmpty()) return folders
-    return folders.filter { it.uri !in hiddenIds }
-}
+fun visibleFolders(folders: List<Folder>, hidden: List<HiddenItem>): List<Folder> =
+    shelfFolders(folders, hidden, peek = false).map { it.folder }
 
 fun hiddenBookIds(hidden: List<HiddenItem>): Set<String> =
     hidden.mapNotNullTo(linkedSetOf()) { item ->
         if (item.kind == HiddenKind.Book) item.id else null
+    }
+
+fun hiddenFolderIds(hidden: List<HiddenItem>): Set<String> =
+    hidden.mapNotNullTo(linkedSetOf()) { item ->
+        if (item.kind == HiddenKind.Folder) item.id else null
     }
 
 fun filterListing(
@@ -29,3 +39,39 @@ fun filterListing(
     }
     return if (books.size == listing.books.size) listing else listing.copy(books = books)
 }
+
+fun shelfFolders(
+    folders: List<Folder>,
+    hidden: List<HiddenItem>,
+    peek: Boolean,
+): List<ShelfFolderItem> {
+    val hiddenIds = hiddenFolderIds(hidden)
+    return folders.mapNotNull { folder ->
+        val isHidden = folder.uri in hiddenIds
+        when {
+            !isHidden -> ShelfFolderItem(folder, isHidden = false)
+            peek -> ShelfFolderItem(folder, isHidden = true)
+            else -> null
+        }
+    }
+}
+
+fun libraryBooks(
+    books: List<BookInfo>,
+    hiddenBookIds: Set<String>,
+    peek: Boolean,
+    showDotFiles: Boolean,
+): List<LibraryBookItem> =
+    books.mapNotNull { book ->
+        if (!showDotFiles && isDotName(book.name)) return@mapNotNull null
+        val isHidden = book.uri in hiddenBookIds
+        when {
+            !isHidden -> LibraryBookItem(book, isHidden = false)
+            peek -> LibraryBookItem(book, isHidden = true)
+            else -> null
+        }
+    }
+
+fun peekMenuEnabled(hiddenCount: Int): Boolean = hiddenCount > 0
+
+fun shouldUnhideOnLongPress(isHiddenMarked: Boolean): Boolean = isHiddenMarked

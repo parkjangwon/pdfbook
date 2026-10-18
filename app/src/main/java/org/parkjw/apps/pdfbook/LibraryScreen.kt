@@ -42,6 +42,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -52,6 +53,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.parkjw.apps.pdfbook.hidden.HiddenBadge
+import org.parkjw.apps.pdfbook.hidden.PeekHiddenBanner
+import org.parkjw.apps.pdfbook.hidden.shouldUnhideOnLongPress
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.safeDrawingGridContentPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingHorizontalPadding
@@ -127,12 +131,25 @@ fun LibraryScreen(
     onSnackbarShown: () -> Unit = {},
     onSnackbarAction: () -> Unit = {},
     onHideBook: (BookInfo) -> Unit = {},
+    onUnhideBook: (BookInfo) -> Unit = {},
+    peekEnabled: Boolean = false,
+    peekMenuEnabled: Boolean = false,
+    onPeekToggle: () -> Unit = {},
+    peekHiddenBookIds: Set<String> = emptySet(),
+    showPeekMenu: Boolean = false,
 ) {
     var byName by remember { mutableStateOf(false) }
     var menuBookUri by remember { mutableStateOf<String?>(null) }
+    var peekMenuOpen by remember { mutableStateOf(showPeekMenu) }
     val snackbarHostState = remember { SnackbarHostState() }
     val sorted = remember(listing, states, byName) { sortBooks(listing.books, states, byName) }
-    val resume = if (byName) null else sorted.firstOrNull { (states[bookKey(it.uri, it.size)]?.openedAt ?: 0L) > 0L }
+    val resume = if (byName) {
+        null
+    } else {
+        sorted.firstOrNull { book ->
+            book.uri !in peekHiddenBookIds && (states[bookKey(book.uri, book.size)]?.openedAt ?: 0L) > 0L
+        }
+    }
     LaunchedEffect(snackbarMessage, snackbarActionLabel) {
         val message = snackbarMessage ?: return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(message = message, actionLabel = snackbarActionLabel)
@@ -180,7 +197,46 @@ fun LibraryScreen(
                         contentDescription = stringResource(R.string.settings_title),
                     )
                 }
+                Box {
+                    IconButton(
+                        onClick = { peekMenuOpen = true },
+                        colors = pdfBookIconButtonColors(),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_more),
+                            contentDescription = null,
+                        )
+                    }
+                    PdfBookDropdownMenu(
+                        expanded = peekMenuOpen,
+                        onDismissRequest = { peekMenuOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(
+                                        if (peekEnabled) R.string.peek_hidden_off else R.string.peek_hidden_on,
+                                    ),
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_eye),
+                                    contentDescription = null,
+                                )
+                            },
+                            enabled = peekMenuEnabled,
+                            onClick = {
+                                peekMenuOpen = false
+                                onPeekToggle()
+                            },
+                        )
+                    }
+                }
             }
+        }
+        if (peekEnabled) {
+            PeekHiddenBanner(onStop = onPeekToggle)
         }
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingHorizontalPadding()) {
             LazyVerticalGrid(
@@ -208,6 +264,7 @@ fun LibraryScreen(
                     }
                 }
                 items(sorted, key = { it.uri }) { book ->
+                    val isHidden = book.uri in peekHiddenBookIds
                     BookCell(
                         book,
                         states[bookKey(book.uri, book.size)],
@@ -221,6 +278,8 @@ fun LibraryScreen(
                             menuBookUri = null
                             onHideBook(book)
                         },
+                        onUnhide = { onUnhideBook(book) },
+                        isHidden = isHidden,
                     )
                 }
             }
@@ -293,28 +352,52 @@ private fun BookCell(
     onMenuExpand: () -> Unit,
     onMenuDismiss: () -> Unit,
     onHide: () -> Unit,
+    onUnhide: () -> Unit = {},
+    isHidden: Boolean = false,
 ) {
     Box(Modifier.fillMaxWidth()) {
     Column(
         Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = { onOpen(book) }, onLongClick = onMenuExpand),
+            .combinedClickable(
+                onClick = { onOpen(book) },
+                onLongClick = {
+                    if (shouldUnhideOnLongPress(isHidden)) onUnhide()
+                    else onMenuExpand()
+                },
+            ),
         verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.xxs),
     ) {
-        Cover(book, Modifier.fillMaxWidth(), cover, coverProvided)
-        Text(
-            titleOf(book.name),
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        ProgressInfo(state ?: BookState())
-    }
-        PdfBookDropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.hide_item)) },
-                onClick = onHide,
+        Box {
+            Cover(
+                book,
+                Modifier
+                    .fillMaxWidth()
+                    .alpha(if (isHidden) 0.4f else 1f),
+                cover,
+                coverProvided,
             )
+            if (isHidden) {
+                HiddenBadge(Modifier.align(Alignment.TopEnd).padding(PdfBookSpacing.xxs))
+            }
+        }
+        Column(Modifier.alpha(if (isHidden) 0.4f else 1f)) {
+            Text(
+                titleOf(book.name),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            ProgressInfo(state ?: BookState())
+        }
+    }
+        if (!isHidden) {
+            PdfBookDropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.hide_item)) },
+                    onClick = onHide,
+                )
+            }
         }
     }
 }

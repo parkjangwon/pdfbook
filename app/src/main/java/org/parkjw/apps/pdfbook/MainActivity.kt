@@ -38,9 +38,13 @@ import org.parkjw.apps.pdfbook.folders.displayNameForUri
 import org.parkjw.apps.pdfbook.hidden.HiddenItem
 import org.parkjw.apps.pdfbook.hidden.HiddenItemsScreen
 import org.parkjw.apps.pdfbook.hidden.HiddenKind
+import org.parkjw.apps.pdfbook.hidden.HiddenPeek
 import org.parkjw.apps.pdfbook.hidden.HiddenRepository
 import org.parkjw.apps.pdfbook.hidden.filterListing
 import org.parkjw.apps.pdfbook.hidden.hiddenBookIds
+import org.parkjw.apps.pdfbook.hidden.libraryBooks
+import org.parkjw.apps.pdfbook.hidden.peekMenuEnabled
+import org.parkjw.apps.pdfbook.hidden.shelfFolders
 import org.parkjw.apps.pdfbook.hidden.visibleFolders
 import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.SettingsRepository
@@ -104,6 +108,13 @@ class MainActivity : ComponentActivity() {
             else -> super.onKeyUp(keyCode, event)
         }
     }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) {
+            HiddenPeek.reset()
+        }
+    }
 }
 
 private sealed interface FolderPickTarget {
@@ -153,6 +164,8 @@ private fun App(
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showHiddenItems by rememberSaveable { mutableStateOf(false) }
     var undoItem by remember { mutableStateOf<HiddenItem?>(null) }
+    var undoWasUnhide by remember { mutableStateOf(false) }
+    val peekEnabled by HiddenPeek.enabled.collectAsState()
     var startApplied by rememberSaveable { mutableStateOf(false) }
     var pickTarget by rememberSaveable(stateSaver = FolderPickTargetSaver) {
         mutableStateOf<FolderPickTarget>(FolderPickTarget.Add)
@@ -169,6 +182,7 @@ private fun App(
     val duplicateMessage = stringResource(R.string.folder_duplicate)
     val lastBookUnavailable = stringResource(R.string.last_book_unavailable)
     val hiddenSnackbar = stringResource(R.string.hidden_snackbar)
+    val unhiddenSnackbar = stringResource(R.string.unhidden_snackbar)
     val undoLabel = stringResource(R.string.action_undo)
 
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
@@ -187,7 +201,10 @@ private fun App(
                             snackbarMessage = duplicateMessage
                             scrollToUri = uriString
                         }
-                        AddKind.Restored -> hiddenRepo.unhide(HiddenKind.Folder, uriString)
+                        AddKind.Restored -> {
+                            hiddenRepo.unhide(HiddenKind.Folder, uriString)
+                            undoItem = null
+                        }
                         AddKind.Created -> Unit
                     }
                 }
@@ -240,12 +257,20 @@ private fun App(
         scanned = true
     }
 
-    val shownFolders = visibleFolders(folderList, hiddenItems)
+    val resumeFolders = visibleFolders(folderList, hiddenItems)
     val shownBookIds = hiddenBookIds(hiddenItems)
-    val shownListings = shelfListings.mapValues { (_, value) ->
+    val resumeListings = shelfListings.mapValues { (_, value) ->
         value?.let { filterListing(it, shownBookIds, settings.showDotFiles) }
     }
-    val shownListing = listing?.let { filterListing(it, shownBookIds, settings.showDotFiles) }
+    val shelfFolderItems = shelfFolders(folderList, hiddenItems, peekEnabled)
+    val displayFolders = shelfFolderItems.map { it.folder }
+    val peekHiddenFolderIds = shelfFolderItems.filter { it.isHidden }.map { it.folder.uri }.toSet()
+    val libraryItems = listing?.let {
+        libraryBooks(it.books, shownBookIds, peekEnabled, settings.showDotFiles)
+    }.orEmpty()
+    val displayListing = listing?.copy(books = libraryItems.map { it.book })
+    val peekHiddenBookIds = libraryItems.filter { it.isHidden }.map { it.book.uri }.toSet()
+    val canPeek = peekMenuEnabled(hiddenItems.size)
 
     LaunchedEffect(loaded, settingsReady, settings.startScreen, statesState.value, shelfListings, hiddenState.value, settings.showDotFiles) {
         if (hiddenState.value == null) return@LaunchedEffect
@@ -264,7 +289,7 @@ private fun App(
             startApplied = true
             return@LaunchedEffect
         }
-        val target = findLastBookTarget(shownFolders, shownListings, states)
+        val target = findLastBookTarget(resumeFolders, resumeListings, states)
         if (target != null) {
             folderRepo.markOpened(target.folderUri)
             openUri = target.bookUri
@@ -278,7 +303,7 @@ private fun App(
         startApplied = true
     }
 
-    val book = shownListing?.books?.firstOrNull { it.uri == openUri }
+    val book = listing?.books?.firstOrNull { it.uri == openUri }
     DisposableEffect(book) {
         onDocumentOpenChange(book != null)
         onDispose { onDocumentOpenChange(false) }
@@ -307,13 +332,21 @@ private fun App(
         }
     }
 
-    val contentPhase = folderContentPhase(selectedFolderUri, scanned, shownListing)
+    val contentPhase = folderContentPhase(selectedFolderUri, scanned, displayListing)
 
-    val shelfUi = remember(shownFolders, shownListings, states) {
-        buildFolderShelfUi(shownFolders, shownListings, states)
+    val shelfUi = remember(displayFolders, resumeFolders, resumeListings, states, peekHiddenFolderIds) {
+        val built = buildFolderShelfUi(displayFolders, resumeListings, states)
+        val resumeOnly = buildFolderShelfUi(resumeFolders, resumeListings, states)
+        FolderShelfUi(
+            cards = built.cards.map { card ->
+                val hidden = card.uri in peekHiddenFolderIds
+                card.copy(isHidden = hidden, resume = if (hidden) null else card.resume)
+            },
+            globalResume = resumeOnly.globalResume,
+        )
     }
     var shelfCovers by remember { mutableStateOf<Map<String, Bitmap?>>(emptyMap()) }
-    LaunchedEffect(shelfUi, shownListings) {
+    LaunchedEffect(shelfUi, resumeListings) {
         val needed = buildSet {
             shelfUi.globalResume?.let { add(bookKey(it.book.uri, it.book.size)) }
             shelfUi.cards.forEach { addAll(it.coverKeys) }
@@ -322,7 +355,7 @@ private fun App(
             shelfCovers = emptyMap()
             return@LaunchedEffect
         }
-        val books = shownListings.values.filterNotNull().flatMap { it.books }
+        val books = resumeListings.values.filterNotNull().flatMap { it.books }
             .associateBy { bookKey(it.uri, it.size) }
         shelfCovers = needed.associateWith { key ->
             books[key]?.let { loadCover(context, it) }
@@ -331,17 +364,33 @@ private fun App(
 
     val undoHidden = {
         val item = undoItem
+        val wasUnhide = undoWasUnhide
         undoItem = null
+        undoWasUnhide = false
         if (item != null) {
-            scope.launch { hiddenRepo.unhide(item.kind, item.id) }
+            scope.launch {
+                if (wasUnhide) hiddenRepo.hide(item) else hiddenRepo.unhide(item.kind, item.id)
+            }
         }
     }
     fun hideItem(item: HiddenItem) {
         scope.launch {
             hiddenRepo.hide(item)
             undoItem = item
+            undoWasUnhide = false
             snackbarMessage = hiddenSnackbar
         }
+    }
+    fun unhideItem(item: HiddenItem) {
+        scope.launch {
+            hiddenRepo.unhide(item.kind, item.id)
+            undoItem = item
+            undoWasUnhide = true
+            snackbarMessage = unhiddenSnackbar
+        }
+    }
+    val togglePeek = {
+        HiddenPeek.set(!HiddenPeek.enabled.value)
     }
     when {
         showHiddenItems -> HiddenItemsScreen(
@@ -396,7 +445,7 @@ private fun App(
             },
         )
         contentPhase == FolderContentPhase.Ready -> LibraryScreen(
-            listing = shownListing!!,
+            listing = displayListing!!,
             states = states,
             onOpen = { openUri = it.uri },
             onSettings = { showSettings = true },
@@ -419,6 +468,20 @@ private fun App(
                     ),
                 )
             },
+            onUnhideBook = { bookInfo ->
+                unhideItem(
+                    HiddenItem(
+                        kind = HiddenKind.Book,
+                        id = bookInfo.uri,
+                        name = titleOf(bookInfo.name),
+                        folderUri = selectedFolderUri,
+                    ),
+                )
+            },
+            peekEnabled = peekEnabled,
+            peekMenuEnabled = canPeek,
+            onPeekToggle = togglePeek,
+            peekHiddenBookIds = peekHiddenBookIds,
         )
         folderList.isEmpty() -> FolderPickScreen(
             illustration = R.drawable.es_pick_folder,
@@ -480,6 +543,15 @@ private fun App(
                 val card = shelfUi.cards.find { it.uri == uri }
                 if (card != null) {
                     hideItem(HiddenItem(HiddenKind.Folder, uri, card.displayName, uri))
+                }
+            },
+            peekEnabled = peekEnabled,
+            peekMenuEnabled = canPeek,
+            onPeekToggle = togglePeek,
+            onUnhide = { uri ->
+                val card = shelfUi.cards.find { it.uri == uri }
+                if (card != null) {
+                    unhideItem(HiddenItem(HiddenKind.Folder, uri, card.displayName, uri))
                 }
             },
         )
