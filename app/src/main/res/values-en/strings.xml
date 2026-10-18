@@ -23,6 +23,7 @@
     <string name="folder_remove_confirm_body">The files in the folder won\'t be deleted.</string>
     <string name="folder_duplicate">Already in your list. Moved to the top.</string>
     <string name="snackbar_dismiss">Dismiss</string>
+    <string name="exit_confirm">Press back again to exit</string>
     <plurals name="folder_books_count">
         <item quantity="one">%d book</item>
         <item quantity="other">%d books</item>
