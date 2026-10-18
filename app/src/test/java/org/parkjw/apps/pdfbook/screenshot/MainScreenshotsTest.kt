@@ -130,6 +130,22 @@ class MainScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun shelfExitLightFolded() = captureShelfExit(dark = false, file = "shelf-exit-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun shelfExitDarkFolded() = captureShelfExit(dark = true, file = "shelf-exit-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun shelfExitLightUnfolded() = captureShelfExit(dark = false, file = "shelf-exit-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun shelfExitDarkUnfolded() = captureShelfExit(dark = true, file = "shelf-exit-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun shelfBottomLightFolded() = captureShelfBottom(dark = false, file = "shelf-bottom-light-folded.png")
 
     @Test
@@ -407,6 +423,7 @@ class MainScreenshotsTest {
         showRenameFor: FolderCardUi? = null,
         showMenuFor: String? = null,
         showRemoveConfirmFor: String? = null,
+        exitHintToken: Int = 0,
     ) {
         capture(file, dark) {
             FolderShelfScreen(
@@ -430,6 +447,7 @@ class MainScreenshotsTest {
                 modifier = Modifier.fillMaxSize(),
                 showMenuFor = showMenuFor,
                 showRemoveConfirmFor = showRemoveConfirmFor,
+                exitHintToken = exitHintToken,
             )
         }
     }
@@ -442,6 +460,18 @@ class MainScreenshotsTest {
             file = file,
             shelf = shelf,
             covers = sampleShelfCovers(listings),
+        )
+    }
+
+    private fun captureShelfExit(dark: Boolean, file: String) {
+        val listings = sampleShelfListings()
+        val shelf = sampleShelfUi()
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = shelf,
+            covers = sampleShelfCovers(listings),
+            exitHintToken = 1,
         )
     }
 

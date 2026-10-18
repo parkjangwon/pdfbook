@@ -35,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,6 +57,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.folders.FolderAccess
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.safeDrawingGridContentPadding
@@ -96,6 +99,7 @@ fun FolderShelfScreen(
     modifier: Modifier = Modifier,
     showMenuFor: String? = null,
     showRemoveConfirmFor: String? = null,
+    exitHintToken: Int = 0,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val gridState = rememberLazyGridState()
@@ -103,10 +107,22 @@ fun FolderShelfScreen(
     var confirmRemoveUri by remember { mutableStateOf(showRemoveConfirmFor) }
     val hasResume = shelf.globalResume != null
 
+    val exitConfirm = stringResource(R.string.exit_confirm)
     LaunchedEffect(snackbarMessage) {
         val message = snackbarMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         onSnackbarShown()
+    }
+    LaunchedEffect(exitHintToken) {
+        if (exitHintToken == 0) return@LaunchedEffect
+        val shown = launch {
+            snackbarHostState.showSnackbar(
+                message = exitConfirm,
+                duration = SnackbarDuration.Indefinite,
+            )
+        }
+        delay(2_000)
+        shown.cancel()
     }
 
     Scaffold(
