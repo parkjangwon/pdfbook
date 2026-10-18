@@ -640,6 +640,7 @@ private fun App(
                 }
             },
             exitHintToken = exitHintToken,
+            onReorder = { uris -> scope.launch { folderRepo.reorderVisible(uris) } },
         )
     }
 }

@@ -67,17 +67,12 @@ fun folderPathBookAnnotated(
         append(withNumericSpans(bookCountLabel, numericStyle))
     }
 
-fun sortFoldersByRecent(folders: List<Folder>): List<Folder> =
-    folders.sortedWith(
-        compareByDescending<Folder> { it.lastOpenedAt }.thenBy { it.order },
-    )
-
 fun buildFolderShelfUi(
     folders: List<Folder>,
     listings: Map<String, Listing?>,
     states: Map<String, BookState>,
 ): FolderShelfUi {
-    val sorted = sortFoldersByRecent(folders)
+    val sorted = folders.sortedBy { it.order }
     val cards = sorted.map { folder ->
         val listing = listings[folder.uri]
         val books = listing?.books.orEmpty()
@@ -125,4 +120,36 @@ fun buildFolderShelfUi(
         }
     }
     return FolderShelfUi(cards = cards, globalResume = best)
+}
+
+fun orderedCards(cards: List<FolderCardUi>, pendingOrder: List<String>?): List<FolderCardUi> {
+    if (pendingOrder == null) return cards
+    val byUri = cards.associateBy { it.uri }
+    if (pendingOrder.size != cards.size || pendingOrder.toSet() != byUri.keys) return cards
+    return pendingOrder.map { byUri.getValue(it) }
+}
+
+fun moveBefore(order: List<String>, uri: String, targetUri: String): List<String> {
+    val from = order.indexOf(uri)
+    val to = order.indexOf(targetUri)
+    if (from < 0 || to < 0 || from == to) return order
+    return order.toMutableList().apply { add(to, removeAt(from)) }
+}
+
+fun reorderAutoScrollStep(
+    itemStart: Float,
+    itemEnd: Float,
+    viewportStart: Float,
+    viewportEnd: Float,
+    edge: Float,
+    maxStep: Float,
+): Float {
+    if (edge <= 0f || viewportEnd <= viewportStart) return 0f
+    val before = viewportStart + edge - itemStart
+    val after = itemEnd - (viewportEnd - edge)
+    return when {
+        before > 0f -> -maxStep * (before / edge).coerceAtMost(1f)
+        after > 0f -> maxStep * (after / edge).coerceAtMost(1f)
+        else -> 0f
+    }
 }

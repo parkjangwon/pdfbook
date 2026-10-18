@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="folder_reorder_handle">순서 바꾸기</string>
+    <string name="folder_move_up">위로 옮기기</string>
+    <string name="folder_move_down">아래로 옮기기</string>
+</resources>

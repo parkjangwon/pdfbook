@@ -32,10 +32,7 @@ class FolderRepository(
 
     suspend fun add(uri: String, displayName: String): AddKind {
         val preview = previewAdd(uri, displayName)
-        if (preview == AddKind.Duplicate) {
-            markOpened(uri)
-            return AddKind.Duplicate
-        }
+        if (preview == AddKind.Duplicate) return AddKind.Duplicate
         uriPermissions.take(uri)
         var kind = preview
         dataStore.edit { prefs ->
@@ -79,6 +76,13 @@ class FolderRepository(
             migrateInto(prefs)
             prefs[FoldersKey] = encodeFolders(reorder(decodeFolders(prefs[FoldersKey]), orderedUris))
             prefs[MigratedKey] = true
+        }
+    }
+
+    suspend fun reorderVisible(visibleOrder: List<String>) {
+        dataStore.edit { prefs ->
+            migrateInto(prefs)
+            prefs[FoldersKey] = encodeFolders(applyVisibleOrder(decodeFolders(prefs[FoldersKey]), visibleOrder))
         }
     }
 
@@ -145,6 +149,13 @@ class FolderRepository(
     }
 
     private fun migrateInto(prefs: MutablePreferences) {
+        migrateLegacyInto(prefs)
+        if (prefs[ManualOrderKey] == true) return
+        prefs[FoldersKey] = encodeFolders(migrateToManualOrder(decodeFolders(prefs[FoldersKey])))
+        prefs[ManualOrderKey] = true
+    }
+
+    private fun migrateLegacyInto(prefs: MutablePreferences) {
         if (prefs[MigratedKey] == true) return
         val legacyUri = prefs[LegacyFolderKey]
         val migrated = migrateFromLegacy(
@@ -159,6 +170,7 @@ class FolderRepository(
     companion object {
         val FoldersKey = stringPreferencesKey("folders")
         val MigratedKey = booleanPreferencesKey("folders_migrated")
+        val ManualOrderKey = booleanPreferencesKey("folders_manual_order")
         val LegacyFolderKey = stringPreferencesKey("folder")
     }
 }

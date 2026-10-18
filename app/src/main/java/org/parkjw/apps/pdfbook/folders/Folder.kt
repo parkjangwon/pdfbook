@@ -192,6 +192,30 @@ fun reorder(folders: List<Folder>, orderedUris: List<String>): List<Folder> {
     return reordered.mapIndexed { index, folder -> folder.copy(order = index) }
 }
 
+fun migrateToManualOrder(folders: List<Folder>): List<Folder> =
+    folders
+        .sortedWith(compareByDescending<Folder> { it.lastOpenedAt }.thenBy { it.order })
+        .mapIndexed { index, folder -> folder.copy(order = index) }
+
+fun applyVisibleOrder(folders: List<Folder>, visibleOrder: List<String>): List<Folder> {
+    val sorted = folders.sortedBy { it.order }
+    val byUri = sorted.associateBy { it.uri }
+    val wanted = visibleOrder.distinct().filter { it in byUri }
+    val wantedSet = wanted.toSet()
+    val queue = ArrayDeque(wanted)
+    return sorted
+        .map { folder -> if (folder.uri in wantedSet) byUri.getValue(queue.removeFirst()) else folder }
+        .mapIndexed { index, folder -> folder.copy(order = index) }
+}
+
+fun moveInOrder(order: List<String>, uri: String, delta: Int): List<String> {
+    val from = order.indexOf(uri)
+    if (from < 0) return order
+    val to = (from + delta).coerceIn(0, order.lastIndex)
+    if (to == from) return order
+    return order.toMutableList().apply { add(to, removeAt(from)) }
+}
+
 fun migrateFromLegacy(folders: List<Folder>, legacyUri: String?, displayName: String): List<Folder> {
     if (folders.isNotEmpty()) return folders
     if (legacyUri.isNullOrBlank()) return folders
