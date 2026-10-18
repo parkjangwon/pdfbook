@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -44,10 +46,57 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
+import org.parkjw.apps.pdfbook.ui.theme.extendedColors
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookTextButtonColors
 import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 
 const val TAP_ZONE_WIDTH_SHEET_TAG = "tap_zone_width_sheet"
+
+data class TapZoneWidthSheetColors(
+    val container: Color,
+    val divider: Color,
+    val handle: Color,
+    val title: Color,
+    val body: Color,
+    val accent: Color,
+    val track: Color,
+    val reset: Color,
+    val doneContainer: Color,
+    val doneContent: Color,
+)
+
+object TapZoneWidthSheetDefaults {
+    val readerColors = TapZoneWidthSheetColors(
+        container = ReaderOverlay,
+        divider = ReaderChip,
+        handle = ReaderTrack,
+        title = ReaderOnOverlay,
+        body = ReaderOnOverlayVariant,
+        accent = ReaderAccent,
+        track = ReaderTrack,
+        reset = ReaderOnOverlay,
+        doneContainer = ReaderOnOverlay,
+        doneContent = ReaderOverlay,
+    )
+
+    @Composable
+    fun appColors(): TapZoneWidthSheetColors {
+        val scheme = MaterialTheme.colorScheme
+        val ink = MaterialTheme.extendedColors
+        return TapZoneWidthSheetColors(
+            container = scheme.surfaceContainer,
+            divider = ink.hairline,
+            handle = ink.hairlineStrong,
+            title = scheme.onSurface,
+            body = scheme.onSurfaceVariant,
+            accent = scheme.primary,
+            track = ink.hairlineStrong,
+            reset = scheme.onSurface,
+            doneContainer = ink.inkButton,
+            doneContent = ink.onInkButton,
+        )
+    }
+}
 
 @Composable
 fun TapZoneWidthSheet(
@@ -55,15 +104,16 @@ fun TapZoneWidthSheet(
     onPercentChange: (Int) -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
+    colors: TapZoneWidthSheetColors = TapZoneWidthSheetDefaults.readerColors,
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
             .testTag(TAP_ZONE_WIDTH_SHEET_TAG)
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-            .background(ReaderOverlay)
+            .background(colors.container)
             .drawBehind {
-                drawLine(ReaderChip, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx())
+                drawLine(colors.divider, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx())
             }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -77,18 +127,18 @@ fun TapZoneWidthSheet(
             Modifier
                 .align(Alignment.CenterHorizontally)
                 .size(width = 32.dp, height = 4.dp)
-                .background(ReaderTrack, PdfBookShapeTokens.pill),
+                .background(colors.handle, PdfBookShapeTokens.pill),
         )
         Spacer(Modifier.height(14.dp))
         Text(
             text = stringResource(R.string.reader_tap_width_title),
-            color = ReaderOnOverlay,
+            color = colors.title,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = stringResource(R.string.reader_tap_width_body),
-            color = ReaderOnOverlayVariant,
+            color = colors.body,
             fontSize = 12.sp,
             lineHeight = 18.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
@@ -99,24 +149,24 @@ fun TapZoneWidthSheet(
         ) {
             Text(
                 text = stringResource(R.string.reader_tap_width_percent, TAP_ZONE_SIDE_MIN_PERCENT),
-                style = PdfBookNumeric.copy(fontSize = 11.sp, color = ReaderOnOverlayVariant),
+                style = PdfBookNumeric.copy(fontSize = 11.sp, color = colors.body),
             )
             PdfBookReaderSlider(
                 value = percent.toFloat(),
                 onValueChange = { onPercentChange(snapTapZoneSidePercent(it)) },
                 valueRange = TAP_ZONE_SIDE_MIN_PERCENT.toFloat()..TAP_ZONE_SIDE_MAX_PERCENT.toFloat(),
                 colors = SliderDefaults.colors(
-                    thumbColor = ReaderAccent,
-                    activeTrackColor = ReaderAccent,
-                    inactiveTrackColor = ReaderTrack,
-                    activeTickColor = ReaderAccent,
-                    inactiveTickColor = ReaderTrack,
+                    thumbColor = colors.accent,
+                    activeTrackColor = colors.accent,
+                    inactiveTrackColor = colors.track,
+                    activeTickColor = colors.accent,
+                    inactiveTickColor = colors.track,
                 ),
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = stringResource(R.string.reader_tap_width_percent, TAP_ZONE_SIDE_MAX_PERCENT),
-                style = PdfBookNumeric.copy(fontSize = 11.sp, color = ReaderOnOverlayVariant),
+                style = PdfBookNumeric.copy(fontSize = 11.sp, color = colors.body),
             )
         }
         Text(
@@ -124,7 +174,7 @@ fun TapZoneWidthSheet(
                 stringResource(R.string.reader_tap_width_value, percent, DEFAULT_TAP_ZONE_SIDE_PERCENT),
                 SpanStyle(fontFamily = PdfBookMonoFamily),
             ),
-            color = ReaderOnOverlayVariant,
+            color = colors.body,
             fontSize = 13.sp,
             modifier = Modifier.padding(top = 4.dp),
         )
@@ -137,7 +187,7 @@ fun TapZoneWidthSheet(
         ) {
             TextButton(
                 onClick = { onPercentChange(DEFAULT_TAP_ZONE_SIDE_PERCENT) },
-                colors = pdfBookTextButtonColors(contentColor = ReaderOnOverlay),
+                colors = pdfBookTextButtonColors(contentColor = colors.reset),
             ) {
                 Text(stringResource(R.string.reader_tap_width_reset))
             }
@@ -146,8 +196,8 @@ fun TapZoneWidthSheet(
                 onClick = onDone,
                 shape = ButtonCorner,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ReaderOnOverlay,
-                    contentColor = ReaderOverlay,
+                    containerColor = colors.doneContainer,
+                    contentColor = colors.doneContent,
                 ),
                 elevation = ButtonDefaults.buttonElevation(
                     defaultElevation = 0.dp,

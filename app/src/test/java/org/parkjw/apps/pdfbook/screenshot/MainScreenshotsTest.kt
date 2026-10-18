@@ -320,6 +320,15 @@ class MainScreenshotsTest {
     )
 
     @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun settingsTapWidthSheetDarkFolded() = captureSettings(
+        dark = true,
+        file = "settings-tapwidth-sheet-dark-folded.png",
+        initialSubScreen = SettingsSubScreen.Reading,
+        initiallyShowTapWidthSheet = true,
+    )
+
+    @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
     fun settingsOpenSourceLightFolded() = captureSettings(
         dark = false,
