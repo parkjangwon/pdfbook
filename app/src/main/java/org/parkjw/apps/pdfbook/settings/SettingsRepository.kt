@@ -46,6 +46,7 @@ class SettingsRepository(
         val ShowTapZoneGuideKey = booleanPreferencesKey("show_tap_zone_guide")
         val PageTurnAnimationKey = stringPreferencesKey("page_turn_animation")
         val DoubleTapZoomScaleKey = floatPreferencesKey("double_tap_zoom_scale")
+        val AutoUpdateCheckKey = booleanPreferencesKey("auto_update_check")
         val TapZoneSidePercentKey = intPreferencesKey("tap_zone_side_percent")
         val ShowDotFilesKey = booleanPreferencesKey("show_dot_files")
     }
@@ -72,6 +73,7 @@ internal fun Preferences.toAppSettings(): AppSettings {
         ),
         doubleTapZoomScale = this[SettingsRepository.DoubleTapZoomScaleKey]
             ?: defaults.doubleTapZoomScale,
+        autoUpdateCheck = this[SettingsRepository.AutoUpdateCheckKey] ?: defaults.autoUpdateCheck,
         tapZoneSidePercent = normalizeTapZoneSidePercent(
             this[SettingsRepository.TapZoneSidePercentKey] ?: defaults.tapZoneSidePercent,
         ),
@@ -91,6 +93,7 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.ShowTapZoneGuideKey] = settings.showTapZoneGuide
     this[SettingsRepository.PageTurnAnimationKey] = settings.pageTurnAnimation.name
     this[SettingsRepository.DoubleTapZoomScaleKey] = settings.doubleTapZoomScale
+    this[SettingsRepository.AutoUpdateCheckKey] = settings.autoUpdateCheck
     this[SettingsRepository.TapZoneSidePercentKey] = normalizeTapZoneSidePercent(settings.tapZoneSidePercent)
     this[SettingsRepository.ShowDotFilesKey] = settings.showDotFiles
 }

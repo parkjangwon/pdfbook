@@ -113,6 +113,7 @@ fun FolderShelfScreen(
     onUnhide: (String) -> Unit = {},
     showPeekMenu: Boolean = false,
     exitHintToken: Int = 0,
+    updateBanner: (@Composable () -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val gridState = rememberLazyGridState()
@@ -240,6 +241,7 @@ fun FolderShelfScreen(
             if (peekEnabled) {
                 PeekHiddenBanner(onStop = onPeekToggle)
             }
+            updateBanner?.invoke()
             BoxWithConstraints(Modifier.fillMaxSize()) {
             val columns = folderShelfColumns(maxWidth.value.toInt())
             LaunchedEffect(scrollToUri, shelf.cards, hasResume, columns) {

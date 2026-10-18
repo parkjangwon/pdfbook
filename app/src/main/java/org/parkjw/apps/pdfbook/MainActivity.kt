@@ -1,6 +1,5 @@
 package org.parkjw.apps.pdfbook
 
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
@@ -12,6 +11,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
@@ -58,12 +60,23 @@ import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.SyncAppLanguage
 import org.parkjw.apps.pdfbook.settings.StartScreen
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
+import org.parkjw.apps.pdfbook.update.RELEASES_PAGE_URL
+import org.parkjw.apps.pdfbook.update.UpdateAction
+import org.parkjw.apps.pdfbook.update.UpdateBanner
+import org.parkjw.apps.pdfbook.update.displayVersion
+import org.parkjw.apps.pdfbook.update.UpdateUiState
+import org.parkjw.apps.pdfbook.update.UpdateViewModel
+import org.parkjw.apps.pdfbook.update.installedVersionName
+import org.parkjw.apps.pdfbook.update.launchApkInstaller
+import org.parkjw.apps.pdfbook.update.openInstallPermissionSettings
+import org.parkjw.apps.pdfbook.update.openReleasePage
 
 class MainActivity : ComponentActivity() {
     private val volumeDeltas = MutableSharedFlow<Int>(extraBufferCapacity = 1)
     private val volumeDeltaFlow: SharedFlow<Int> = volumeDeltas
     @Volatile private var documentOpen = false
     @Volatile private var volumeKeyPaging = true
+    private val updates: UpdateViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +95,15 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(settings.volumeKeyPaging) {
                 volumeKeyPaging = settings.volumeKeyPaging
             }
+            val updateState by updates.state.collectAsState()
+            LaunchedEffect(settingsState.value != null) {
+                if (settingsState.value != null) updates.autoCheckOnLaunch(settings.autoUpdateCheck)
+            }
+            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { updates.onResumed() }
+            LaunchedEffect(updateState) {
+                val ready = updateState as? UpdateUiState.ReadyToInstall ?: return@LaunchedEffect
+                updates.installerLaunched(context.launchApkInstaller(ready.apk))
+            }
             PdfBookTheme(themeMode = settings.themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -93,6 +115,18 @@ class MainActivity : ComponentActivity() {
                         settingsReady = settingsState.value != null,
                         onSettingsChange = { transform -> scope.launch { settingsRepo.update(transform) } },
                         onDocumentOpenChange = { open -> documentOpen = open },
+                        updateState = updateState,
+                        onUpdateAction = { action ->
+                            when (action) {
+                                UpdateAction.Check -> updates.manualCheck()
+                                UpdateAction.Download -> updates.downloadAndInstall()
+                                UpdateAction.Later -> updates.later()
+                                UpdateAction.OpenSettings -> context.openInstallPermissionSettings()
+                                UpdateAction.OpenReleasePage -> context.openReleasePage(
+                                    (updateState as? UpdateUiState.Failed)?.releasePageUrl ?: RELEASES_PAGE_URL,
+                                )
+                            }
+                        },
                     )
                 }
             }
@@ -157,6 +191,8 @@ private fun App(
     settingsReady: Boolean,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     onDocumentOpenChange: (Boolean) -> Unit,
+    updateState: UpdateUiState,
+    onUpdateAction: (UpdateAction) -> Unit,
 ) {
     val context = LocalContext.current
     val store = remember { BookStore(context) }
@@ -390,6 +426,20 @@ private fun App(
         }
     }
 
+    val updateBanner: (@Composable () -> Unit)? =
+        (updateState as? UpdateUiState.Available)?.takeIf { it.prompt }?.let { available ->
+            {
+                UpdateBanner(
+                    version = displayVersion(available.release),
+                    onLater = { onUpdateAction(UpdateAction.Later) },
+                    onDownload = {
+                        showSettings = true
+                        onUpdateAction(UpdateAction.Download)
+                    },
+                )
+            }
+        }
+
     val undoHidden = {
         val item = undoItem
         val wasUnhide = undoWasUnhide
@@ -429,11 +479,9 @@ private fun App(
         showSettings -> SettingsScreen(
             settings = settings,
             onSettingsChange = onSettingsChange,
-            versionName = remember(context) {
-                context.packageManager
-                    .getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
-                    .versionName.orEmpty()
-            },
+            versionName = remember(context) { context.installedVersionName() },
+            updateState = updateState,
+            onUpdateAction = onUpdateAction,
             hiddenCount = hiddenItems.size,
             onOpenHiddenItems = { showHiddenItems = true },
         )
@@ -573,6 +621,7 @@ private fun App(
             },
             onRemove = { uri -> scope.launch { folderRepo.remove(uri) } },
             onLostFolder = { uri -> showLostForUri = uri },
+            updateBanner = updateBanner,
             snackbarActionLabel = if (undoItem != null) undoLabel else null,
             onSnackbarAction = undoHidden,
             onHide = { uri ->
