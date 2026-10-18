@@ -55,4 +55,11 @@ class TapZonesTest {
         assertEquals(0, TapZone.Menu.pageDelta)
         assertEquals(1, TapZone.Next.pageDelta)
     }
+
+    @Test
+    fun onlyMenuWaitsForDoubleTapAtBaseScale() {
+        assertEquals(false, TapZone.Previous.acceptsDoubleTapAtBaseScale)
+        assertEquals(true, TapZone.Menu.acceptsDoubleTapAtBaseScale)
+        assertEquals(false, TapZone.Next.acceptsDoubleTapAtBaseScale)
+    }
 }

@@ -14,6 +14,9 @@ data class TapZoneSpan(
     val width: Float get() = end - start
 }
 
+val TapZone.acceptsDoubleTapAtBaseScale: Boolean
+    get() = this == TapZone.Menu
+
 const val DEFAULT_TAP_ZONE_SIDE_FRACTION = 1f / 3f
 
 fun tapZoneSpans(
