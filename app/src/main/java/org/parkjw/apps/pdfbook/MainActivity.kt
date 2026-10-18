@@ -332,11 +332,17 @@ private fun App(
         folderPathState = FolderPath(selectedFolderUri, path)
     }
     val currentNode = treeRoot?.nodeAt(folderPath)
-    val insideHiddenFolder = folderPath.indices.any { i ->
-        treeRoot?.nodeAt(folderPath.take(i + 1))?.uri in rules.hiddenFolderIds
-    }
+    val pathFolderUris = folderPath.indices.mapNotNull { i -> treeRoot?.nodeAt(folderPath.take(i + 1))?.uri }.toSet()
+    val hiddenAncestors = hiddenItems.filter { it.kind == HiddenKind.Folder && it.id in pathFolderUris }
+    val insideHiddenFolder = hiddenAncestors.isNotEmpty()
     val subfolders = currentNode?.let { subfolderItems(it, folderPath, rules, peekEnabled) }.orEmpty()
-        .map { if (insideHiddenFolder) it.copy(isHidden = true) else it }
+        .let { items ->
+            when {
+                !insideHiddenFolder -> items
+                peekEnabled -> items.map { it.copy(isHidden = true) }
+                else -> emptyList()
+            }
+        }
     val currentBooks = currentNode?.books ?: listing?.books.orEmpty()
     val libraryHiddenIds = if (insideHiddenFolder) shownBookIds + currentBooks.map { it.uri } else shownBookIds
     val shelfFolderItems = shelfFolders(folderList, hiddenItems, peekEnabled)
@@ -515,6 +521,17 @@ private fun App(
             snackbarMessage = unhiddenSnackbar
         }
     }
+    fun unhideAll(items: List<HiddenItem>) {
+        if (items.size == 1) {
+            unhideItem(items.single())
+        } else if (items.isNotEmpty()) {
+            scope.launch {
+                for (hidden in items) hiddenRepo.unhide(hidden.kind, hidden.id)
+                undoItem = null
+                snackbarMessage = unhiddenSnackbar
+            }
+        }
+    }
     val togglePeek = {
         HiddenPeek.set(!HiddenPeek.enabled.value)
     }
@@ -630,14 +647,19 @@ private fun App(
                 )
             },
             onUnhideBook = { bookInfo ->
-                unhideItem(
-                    HiddenItem(
-                        kind = HiddenKind.Book,
-                        id = bookInfo.uri,
-                        name = titleOf(bookInfo.name),
-                        folderUri = selectedFolderUri,
-                    ),
-                )
+                if (insideHiddenFolder) {
+                    val own = hiddenItems.filter { it.kind == HiddenKind.Book && it.id == bookInfo.uri }
+                    unhideAll(own + hiddenAncestors)
+                } else {
+                    unhideItem(
+                        HiddenItem(
+                            kind = HiddenKind.Book,
+                            id = bookInfo.uri,
+                            name = titleOf(bookInfo.name),
+                            folderUri = selectedFolderUri,
+                        ),
+                    )
+                }
             },
             peekEnabled = peekEnabled,
             peekMenuEnabled = canPeek,
@@ -657,15 +679,7 @@ private fun App(
             onUnhideSubfolder = { item ->
                 val own = hiddenItems.firstOrNull { it.kind == HiddenKind.Folder && it.id == item.node.uri }
                 val under = if (own != null) listOf(own) else hiddenItemsUnder(item.node, hiddenItems)
-                if (under.size == 1) {
-                    unhideItem(under.single())
-                } else if (under.isNotEmpty()) {
-                    scope.launch {
-                        for (hidden in under) hiddenRepo.unhide(hidden.kind, hidden.id)
-                        undoItem = null
-                        snackbarMessage = unhiddenSnackbar
-                    }
-                }
+                unhideAll((under + hiddenAncestors).distinct())
             },
             pathLine = pathLine,
             resumeBooks = currentNode?.let { visibleBooksUnder(it, rules) },
