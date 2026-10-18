@@ -131,6 +131,18 @@ class MainScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun shelfReorderLightFolded() = captureShelfReorder(dark = false, file = "shelf-reorder-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun shelfReorderDarkFolded() = captureShelfReorder(dark = true, file = "shelf-reorder-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun shelfReorderLightUnfolded() = captureShelfReorder(dark = false, file = "shelf-reorder-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun shelfExitLightFolded() = captureShelfExit(dark = false, file = "shelf-exit-light-folded.png")
 
     @Test
@@ -560,6 +572,7 @@ class MainScreenshotsTest {
         showRemoveConfirmFor: String? = null,
         exitHintToken: Int = 0,
         updateBanner: (@Composable () -> Unit)? = null,
+        showDraggingFor: String? = null,
     ) {
         capture(file, dark) {
             FolderShelfScreen(
@@ -585,8 +598,21 @@ class MainScreenshotsTest {
                 showRemoveConfirmFor = showRemoveConfirmFor,
                 exitHintToken = exitHintToken,
                 updateBanner = updateBanner,
+                showDraggingFor = showDraggingFor,
             )
         }
+    }
+
+    private fun captureShelfReorder(dark: Boolean, file: String) {
+        val listings = sampleShelfListings()
+        val shelf = sampleShelfUi()
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = shelf,
+            covers = sampleShelfCovers(listings),
+            showDraggingFor = shelf.cards[1].uri,
+        )
     }
 
     private fun captureShelf(dark: Boolean, file: String) {
