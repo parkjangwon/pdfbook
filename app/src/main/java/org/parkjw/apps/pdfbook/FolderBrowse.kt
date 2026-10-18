@@ -16,6 +16,7 @@ enum class FolderBackAction {
     CloseSettings,
     CloseReader,
     CloseLibrary,
+    UpFolder,
     CloseLost,
 }
 
@@ -25,11 +26,12 @@ fun folderContentPhase(
     selectedFolderUri: String?,
     scanned: Boolean,
     listing: Listing?,
+    hasSubfolders: Boolean = false,
 ): FolderContentPhase {
     if (selectedFolderUri == null) return FolderContentPhase.None
     if (!scanned) return FolderContentPhase.Loading
     if (listing == null) return FolderContentPhase.AccessLost
-    if (listing.books.isEmpty()) return FolderContentPhase.Empty
+    if (listing.books.isEmpty() && !hasSubfolders) return FolderContentPhase.Empty
     return FolderContentPhase.Ready
 }
 
@@ -79,9 +81,11 @@ fun folderBackAction(
     readerOpen: Boolean,
     folderSelected: Boolean,
     showLost: Boolean,
+    inSubfolder: Boolean = false,
 ): FolderBackAction = when {
     showSettings -> FolderBackAction.CloseSettings
     readerOpen -> FolderBackAction.CloseReader
+    folderSelected && !showLost && inSubfolder -> FolderBackAction.UpFolder
     folderSelected && !showLost -> FolderBackAction.CloseLibrary
     showLost -> FolderBackAction.CloseLost
     else -> FolderBackAction.None
