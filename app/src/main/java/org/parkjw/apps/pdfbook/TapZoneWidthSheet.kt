@@ -1,6 +1,7 @@
 package org.parkjw.apps.pdfbook
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -28,6 +30,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -51,6 +55,9 @@ import org.parkjw.apps.pdfbook.ui.theme.pdfBookTextButtonColors
 import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 
 const val TAP_ZONE_WIDTH_SHEET_TAG = "tap_zone_width_sheet"
+const val TAP_ZONE_WIDTH_PREVIEW_TAG = "tap_zone_width_preview"
+
+fun tapZonePreviewTag(zone: TapZone): String = "tap_zone_width_preview_" + zone.name
 
 data class TapZoneWidthSheetColors(
     val container: Color,
@@ -84,13 +91,13 @@ object TapZoneWidthSheetDefaults {
         val scheme = MaterialTheme.colorScheme
         val ink = MaterialTheme.extendedColors
         return TapZoneWidthSheetColors(
-            container = scheme.surfaceContainer,
+            container = if (scheme.surface.luminance() < 0.5f) scheme.surfaceContainer else scheme.surfaceContainerLow,
             divider = ink.hairline,
             handle = ink.hairlineStrong,
             title = scheme.onSurface,
             body = scheme.onSurfaceVariant,
             accent = scheme.primary,
-            track = ink.hairlineStrong,
+            track = scheme.surfaceVariant,
             reset = scheme.onSurface,
             doneContainer = ink.inkButton,
             doneContent = ink.onInkButton,
@@ -105,6 +112,7 @@ fun TapZoneWidthSheet(
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
     colors: TapZoneWidthSheetColors = TapZoneWidthSheetDefaults.readerColors,
+    previewDirection: ReadingDirection? = null,
 ) {
     Column(
         modifier = modifier
@@ -143,6 +151,15 @@ fun TapZoneWidthSheet(
             lineHeight = 18.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
         )
+        if (previewDirection != null) {
+            TapZoneWidthPreview(
+                direction = previewDirection,
+                percent = percent,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 4.dp, bottom = 16.dp),
+            )
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -208,6 +225,63 @@ fun TapZoneWidthSheet(
                 ),
             ) {
                 Text(stringResource(R.string.reader_tap_width_done))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TapZoneWidthPreview(
+    direction: ReadingDirection,
+    percent: Int,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val ink = MaterialTheme.extendedColors
+    val shape = RoundedCornerShape(6.dp)
+    val spans = tapZoneSpans(direction, tapZoneSideFraction(percent))
+    Row(
+        modifier
+            .size(width = 120.dp, height = 168.dp)
+            .testTag(TAP_ZONE_WIDTH_PREVIEW_TAG)
+            .clip(shape)
+            .background(scheme.surfaceContainerLowest)
+            .border(1.dp, ink.hairlineStrong, shape),
+    ) {
+        spans.forEachIndexed { index, span ->
+            Box(
+                modifier = Modifier
+                    .weight(span.end - span.start)
+                    .fillMaxHeight()
+                    .testTag(tapZonePreviewTag(span.zone))
+                    .background(
+                        if (span.zone == TapZone.Menu) scheme.surfaceContainerLowest else scheme.surfaceContainerHigh,
+                    )
+                    .drawBehind {
+                        if (index > 0) {
+                            drawLine(
+                                color = ink.hairlineStrong,
+                                start = Offset(0f, 0f),
+                                end = Offset(0f, size.height),
+                                strokeWidth = 1.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx())),
+                            )
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(
+                        when (span.zone) {
+                            TapZone.Previous -> R.string.reader_zone_previous
+                            TapZone.Menu -> R.string.reader_zone_menu
+                            TapZone.Next -> R.string.reader_zone_next
+                        },
+                    ),
+                    color = scheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                )
             }
         }
     }

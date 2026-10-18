@@ -503,6 +503,7 @@ private fun ReadingSettingsScreen(
                 onPercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 onDone = { showTapWidthSheet = false },
                 colors = TapZoneWidthSheetDefaults.appColors(),
+                previewDirection = settings.defaultReadingDirection,
             )
         }
     }

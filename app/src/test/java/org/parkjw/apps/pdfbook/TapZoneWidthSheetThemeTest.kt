@@ -13,10 +13,12 @@ import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -38,7 +40,7 @@ import org.parkjw.apps.pdfbook.ui.theme.DarkPrimary
 import org.parkjw.apps.pdfbook.ui.theme.DarkSurfaceContainer
 import org.parkjw.apps.pdfbook.ui.theme.LightInkButton
 import org.parkjw.apps.pdfbook.ui.theme.LightPrimary
-import org.parkjw.apps.pdfbook.ui.theme.LightSurfaceContainer
+import org.parkjw.apps.pdfbook.ui.theme.LightSurfaceContainerLow
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
@@ -58,13 +60,54 @@ class TapZoneWidthSheetThemeTest {
     @Test
     fun tw1SettingsSheetFollowsLightTheme() {
         setSettings(ThemeMode.Light)
-        assertSheet(container = LightSurfaceContainer, done = LightInkButton, accent = LightPrimary)
+        assertSheet(container = LightSurfaceContainerLow, done = LightInkButton, accent = LightPrimary)
     }
 
     @Test
     fun tw2SettingsSheetFollowsDarkTheme() {
         setSettings(ThemeMode.Dark)
         assertSheet(container = DarkSurfaceContainer, done = DarkInkButton, accent = DarkPrimary)
+    }
+
+    @Test
+    fun previewZonesFollowSliderAndDefaultDirection() {
+        var settings by mutableStateOf(
+            AppSettings(tapZoneSidePercent = DEFAULT_TAP_ZONE_SIDE_PERCENT, defaultReadingDirection = ReadingDirection.RTL),
+        )
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                SettingsScreen(
+                    settings = settings,
+                    onSettingsChange = { settings = it(settings) },
+                    versionName = "0.3.0",
+                    initialSubScreen = SettingsSubScreen.Reading,
+                    initiallyShowTapWidthSheet = true,
+                )
+            }
+        }
+        val page = composeRule.onNodeWithTag(TAP_ZONE_WIDTH_PREVIEW_TAG, useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(120f, (page.right - page.left).value, 0.5f)
+        assertEquals(168f, (page.bottom - page.top).value, 0.5f)
+        val next = composeRule.onNodeWithTag(tapZonePreviewTag(TapZone.Next), useUnmergedTree = true).getBoundsInRoot()
+        val previous = composeRule.onNodeWithTag(tapZonePreviewTag(TapZone.Previous), useUnmergedTree = true).getBoundsInRoot()
+        assertTrue(next.left < previous.left)
+        assertEquals(40f, (next.right - next.left).value, 1f)
+        composeRule.onNode(slider).performSemanticsAction(SemanticsActions.SetProgress) { it(45f) }
+        composeRule.waitForIdle()
+        val wider = composeRule.onNodeWithTag(tapZonePreviewTag(TapZone.Next), useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(54f, (wider.right - wider.left).value, 1f)
+        settings = settings.copy(defaultReadingDirection = ReadingDirection.LTR)
+        composeRule.waitForIdle()
+        val ltrNext = composeRule.onNodeWithTag(tapZonePreviewTag(TapZone.Next), useUnmergedTree = true).getBoundsInRoot()
+        val ltrPrevious = composeRule.onNodeWithTag(tapZonePreviewTag(TapZone.Previous), useUnmergedTree = true).getBoundsInRoot()
+        assertTrue(ltrNext.left > ltrPrevious.left)
+    }
+
+    @Test
+    fun readerSheetHasNoPreview() {
+        setReader(ThemeMode.Light, percent = DEFAULT_TAP_ZONE_SIDE_PERCENT)
+        composeRule.onNodeWithText("폭 조절").performClick()
+        composeRule.onAllNodesWithTag(TAP_ZONE_WIDTH_PREVIEW_TAG, useUnmergedTree = true).assertCountEquals(0)
     }
 
     @Test
