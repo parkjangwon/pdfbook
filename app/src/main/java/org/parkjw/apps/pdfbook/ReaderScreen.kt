@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -69,6 +70,9 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
 import kotlinx.coroutines.flow.Flow
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
+import androidx.compose.foundation.layout.Spacer
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
@@ -92,6 +96,10 @@ fun ReaderScreen(
     tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     onTapZoneSidePercentChange: (Int) -> Unit = {},
     tapZoneWidthSheetVisible: Boolean = false,
+    volumes: ReaderVolumes = ReaderVolumes(),
+    bookListVisible: Boolean = false,
+    showTitleToast: Boolean = false,
+    onTitleToastShown: () -> Unit = {},
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -112,6 +120,10 @@ fun ReaderScreen(
             tapZoneSidePercent = tapZoneSidePercent,
             onTapZoneSidePercentChange = onTapZoneSidePercentChange,
             initialTapZoneWidthSheetVisible = tapZoneWidthSheetVisible,
+            volumes = volumes,
+            initialBookListVisible = bookListVisible,
+            showTitleToast = showTitleToast,
+            onTitleToastShown = onTitleToastShown,
         )
     }
 }
@@ -135,7 +147,12 @@ private fun ReaderScreenContent(
     tapZoneSidePercent: Int,
     onTapZoneSidePercentChange: (Int) -> Unit,
     initialTapZoneWidthSheetVisible: Boolean,
+    volumes: ReaderVolumes,
+    initialBookListVisible: Boolean,
+    showTitleToast: Boolean,
+    onTitleToastShown: () -> Unit,
 ) {
+    var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
     val scope = rememberCoroutineScope()
@@ -336,6 +353,18 @@ private fun ReaderScreenContent(
                 onDone = { widthSheetVisible = false },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        } else if (bookListVisible && volumes.bookList != null) {
+            BackHandler { bookListVisible = false }
+            BookListSheet(
+                folderName = volumes.bookList.folderName,
+                entries = volumes.bookList.entries,
+                covers = volumes.bookList.covers,
+                onPick = { book ->
+                    bookListVisible = false
+                    volumes.onPick(book)
+                },
+                onDismiss = { bookListVisible = false },
+            )
         } else if (overlayVisible) {
             ReaderOverlayTop(
                 title = title,
@@ -343,6 +372,7 @@ private fun ReaderScreenContent(
                 direction = direction,
                 onBack = onBack,
                 onDirectionChange = onDirectionChange,
+                onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
                 modifier = Modifier.align(Alignment.TopCenter),
             )
             ReaderOverlayBottom(
@@ -355,9 +385,57 @@ private fun ReaderScreenContent(
                     zoom = ZoomState()
                     widthSheetVisible = true
                 },
+                onPreviousBook = volumes.onPrevious,
+                onNextBook = volumes.onNext,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
+        if (showTitleToast) {
+            BookChangedToast(
+                title = title,
+                onShown = onTitleToastShown,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BookChangedToast(title: String, onShown: () -> Unit, modifier: Modifier = Modifier) {
+    val currentOnShown by rememberUpdatedState(onShown)
+    LaunchedEffect(title) {
+        delay(BOOK_CHANGED_TOAST_MILLIS)
+        currentOnShown()
+    }
+    Text(
+        text = stringResource(R.string.reader_book_changed, title),
+        color = ReaderOnOverlay,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+            .padding(horizontal = 32.dp)
+            .background(ReaderOverlay, PdfBookShapeTokens.pill)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    )
+}
+
+@Composable
+private fun VolumeButton(
+    iconRes: Int,
+    labelRes: Int,
+    onClick: (() -> Unit)?,
+) {
+    IconButton(
+        onClick = { onClick?.invoke() },
+        enabled = onClick != null,
+        colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = stringResource(labelRes),
+        )
     }
 }
 
@@ -369,6 +447,7 @@ private fun ReaderOverlayTop(
     onBack: () -> Unit,
     onDirectionChange: (ReadingDirection) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenBookList: (() -> Unit)? = null,
 ) {
     Row(
         modifier
@@ -401,6 +480,18 @@ private fun ReaderOverlayTop(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (onOpenBookList != null) {
+            IconButton(
+                onClick = onOpenBookList,
+                colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_book_list),
+                    contentDescription = stringResource(R.string.reader_book_list),
+                    tint = ReaderOnOverlay,
+                )
+            }
+        }
         Icon(
             painter = painterResource(
                 if (twoPage) R.drawable.ic_page_spread else R.drawable.ic_page_single,
@@ -445,6 +536,8 @@ private fun ReaderOverlayBottom(
     showTapZoneEntry: Boolean,
     onAdjustTapZones: () -> Unit,
     modifier: Modifier = Modifier,
+    onPreviousBook: (() -> Unit)? = null,
+    onNextBook: (() -> Unit)? = null,
 ) {
     Column(
         modifier
@@ -462,24 +555,41 @@ private fun ReaderOverlayBottom(
         if (showTapZoneEntry) {
             TapZoneEntry(onClick = onAdjustTapZones)
         }
-        if (pageCount > 1) {
-            val sliderDirection =
-                if (direction == ReadingDirection.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr
-            CompositionLocalProvider(LocalLayoutDirection provides sliderDirection) {
-                PdfBookReaderSlider(
-                    value = pageToSlider(currentPage, pageCount, ReadingDirection.LTR),
-                    onValueChange = { onSeekPage(sliderToPage(it, pageCount, ReadingDirection.LTR)) },
-                    valueRange = 0f..(pageCount - 1).toFloat(),
-                    colors = SliderDefaults.colors(
-                        thumbColor = ReaderAccent,
-                        activeTrackColor = ReaderAccent,
-                        inactiveTrackColor = ReaderTrack,
-                        activeTickColor = ReaderAccent,
-                        inactiveTickColor = ReaderTrack,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val rtlBook = direction == ReadingDirection.RTL
+            val leftVolume = volumeButtonAt(VolumeEnd.Left, rtlBook)
+            VolumeButton(
+                R.drawable.ic_prev_book,
+                leftVolume.labelRes,
+                if (leftVolume == VolumeStep.Next) onNextBook else onPreviousBook,
+            )
+            if (pageCount > 1) {
+                val sliderDirection =
+                    if (direction == ReadingDirection.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr
+                CompositionLocalProvider(LocalLayoutDirection provides sliderDirection) {
+                    PdfBookReaderSlider(
+                        value = pageToSlider(currentPage, pageCount, ReadingDirection.LTR),
+                        onValueChange = { onSeekPage(sliderToPage(it, pageCount, ReadingDirection.LTR)) },
+                        valueRange = 0f..(pageCount - 1).toFloat(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = ReaderAccent,
+                            activeTrackColor = ReaderAccent,
+                            inactiveTrackColor = ReaderTrack,
+                            activeTickColor = ReaderAccent,
+                            inactiveTickColor = ReaderTrack,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            } else {
+                Spacer(Modifier.weight(1f))
             }
+            val rightVolume = volumeButtonAt(VolumeEnd.Right, rtlBook)
+            VolumeButton(
+                R.drawable.ic_next_book,
+                rightVolume.labelRes,
+                if (rightVolume == VolumeStep.Next) onNextBook else onPreviousBook,
+            )
         }
         Text(
             text = stringResource(R.string.progress, currentPage, pageCount),

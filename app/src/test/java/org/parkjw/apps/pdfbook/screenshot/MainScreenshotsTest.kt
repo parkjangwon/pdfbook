@@ -876,6 +876,7 @@ class MainScreenshotsTest {
                 showTapZoneGuide = showTapZoneGuide,
                 tapZoneSidePercent = tapZoneSidePercent,
                 tapZoneWidthSheetVisible = tapZoneWidthSheetVisible,
+                volumes = sampleReaderVolumes(),
                 modifier = Modifier.fillMaxSize(),
             )
         }

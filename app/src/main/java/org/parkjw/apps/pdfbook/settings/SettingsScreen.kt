@@ -495,7 +495,6 @@ private fun ReadingSettingsScreen(
             containerColor = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onSurface,
             tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
             dragHandle = null,
         ) {
             TapZoneWidthSheet(
