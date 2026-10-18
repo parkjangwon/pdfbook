@@ -196,6 +196,8 @@ private fun App(
 ) {
     val context = LocalContext.current
     val store = remember { BookStore(context) }
+    val sortStore = remember { SortStore(context) }
+    val sorts by sortStore.sorts.collectAsState(initial = emptyMap())
     val folderRepo = remember {
         FolderRepository(context, ContentResolverUriPermissions(context.contentResolver))
     }
@@ -566,6 +568,11 @@ private fun App(
             peekMenuEnabled = canPeek,
             onPeekToggle = togglePeek,
             peekHiddenBookIds = peekHiddenBookIds,
+            sort = sortFor(sorts, selectedFolderUri),
+            onSortChange = { sort ->
+                val uri = selectedFolderUri
+                if (uri != null) scope.launch { sortStore.save(sortKey(uri), sort) }
+            },
         )
         folderList.isEmpty() -> FolderPickScreen(
             illustration = R.drawable.es_pick_folder,
@@ -619,7 +626,12 @@ private fun App(
                 pickTarget = FolderPickTarget.Repick(uri)
                 pickFolder.launch(null)
             },
-            onRemove = { uri -> scope.launch { folderRepo.remove(uri) } },
+            onRemove = { uri ->
+                scope.launch {
+                    folderRepo.remove(uri)
+                    sortStore.removeRoot(uri)
+                }
+            },
             onLostFolder = { uri -> showLostForUri = uri },
             updateBanner = updateBanner,
             snackbarActionLabel = if (undoItem != null) undoLabel else null,
