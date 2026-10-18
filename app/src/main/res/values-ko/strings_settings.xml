@@ -23,7 +23,7 @@
     <string name="oss_jetbrains_mono_url">https://scripts.sil.org/OFL</string>
     <string name="oss_pdfbook_sans_name">PDFBook Sans (Pretendard 기반)</string>
     <string name="oss_pdfbook_sans_license">SIL Open Font License 1.1</string>
-    <string name="oss_pdfbook_sans_copyright">Copyright © 2023 Kil Hyung-jin</string>
+    <string name="oss_pdfbook_sans_copyright">Copyright © 2021 Kil Hyung-jin</string>
     <string name="oss_pdfbook_sans_url">https://scripts.sil.org/OFL</string>
     <string name="oss_datastore_name">AndroidX DataStore</string>
     <string name="oss_datastore_license">Apache License 2.0</string>

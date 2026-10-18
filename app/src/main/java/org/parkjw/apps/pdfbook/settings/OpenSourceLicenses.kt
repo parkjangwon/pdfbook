@@ -145,7 +145,7 @@ fun OpenSourceLicensesScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Text(
-                                    text = withNumericSpans(stringResource(entry.url), ossNumericStyle),
+                                    text = stringResource(entry.url),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
