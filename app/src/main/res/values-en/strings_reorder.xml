@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="folder_reorder_handle">Reorder</string>
+    <string name="folder_move_up">Move up</string>
+    <string name="folder_move_down">Move down</string>
+</resources>
