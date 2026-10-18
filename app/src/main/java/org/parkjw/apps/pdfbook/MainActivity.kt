@@ -58,6 +58,7 @@ import org.parkjw.apps.pdfbook.hidden.HiddenRepository
 import org.parkjw.apps.pdfbook.hidden.buildPeekShelfUi
 import org.parkjw.apps.pdfbook.hidden.filterListing
 import org.parkjw.apps.pdfbook.hidden.hiddenBookIds
+import org.parkjw.apps.pdfbook.hidden.hiddenFolderIds
 import org.parkjw.apps.pdfbook.hidden.libraryBooks
 import org.parkjw.apps.pdfbook.hidden.peekMenuEnabled
 import org.parkjw.apps.pdfbook.hidden.shelfFolders
@@ -260,6 +261,11 @@ private val FolderPickTargetSaver = listSaver<FolderPickTarget, Any>(
     },
 )
 
+private val FolderPathSaver = listSaver<FolderPath, String>(
+    save = { listOf(it.rootUri.orEmpty()) + it.path },
+    restore = { saved -> FolderPath(saved.firstOrNull()?.ifEmpty { null }, saved.drop(1)) },
+)
+
 @Composable
 private fun App(
     volumeDelta: SharedFlow<Int>,
@@ -288,6 +294,8 @@ private fun App(
     var folders by remember { mutableStateOf<List<Folder>?>(null) }
     var selectedFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
     var openUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var switchedToUri by remember { mutableStateOf<String?>(null) }
+    var folderPathState by rememberSaveable(stateSaver = FolderPathSaver) { mutableStateOf(FolderPath()) }
     var listing by remember { mutableStateOf<Listing?>(null) }
     var scanned by remember { mutableStateOf(false) }
     var shelfListings by remember { mutableStateOf<Map<String, Listing?>>(emptyMap()) }
@@ -391,17 +399,51 @@ private fun App(
 
     val resumeFolders = visibleFolders(folderList, hiddenItems)
     val shownBookIds = hiddenBookIds(hiddenItems)
+    val rules = VisibilityRules(shownBookIds, hiddenFolderIds(hiddenItems), settings.showDotFiles)
     val resumeListings = shelfListings.mapValues { (_, value) ->
-        value?.let { filterListing(it, shownBookIds, settings.showDotFiles) }
+        value?.let { found ->
+            found.root?.let { flatListing(it, rules, found.folderName) }
+                ?: filterListing(found, shownBookIds, settings.showDotFiles)
+        }
     }
+    val treeRoot = listing?.root
+    val folderPath = trimPath(treeRoot, folderPathState.pathFor(selectedFolderUri))
+    fun setFolderPath(path: List<String>) {
+        folderPathState = FolderPath(selectedFolderUri, path)
+    }
+    val currentNode = treeRoot?.nodeAt(folderPath)
+    val pathFolderUris = folderPath.indices.mapNotNull { i -> treeRoot?.nodeAt(folderPath.take(i + 1))?.uri }.toSet()
+    val hiddenAncestors = hiddenItems.filter { it.kind == HiddenKind.Folder && it.id in pathFolderUris }
+    val insideHiddenFolder = hiddenAncestors.isNotEmpty()
+    val subfolders = currentNode?.let { subfolderItems(it, folderPath, rules, peekEnabled) }.orEmpty()
+        .let { items ->
+            when {
+                !insideHiddenFolder -> items
+                peekEnabled -> items.map { it.copy(isHidden = true) }
+                else -> emptyList()
+            }
+        }
+    val currentBooks = currentNode?.books ?: listing?.books.orEmpty()
+    val libraryHiddenIds = if (insideHiddenFolder) shownBookIds + currentBooks.map { it.uri } else shownBookIds
     val shelfFolderItems = shelfFolders(folderList, hiddenItems, peekEnabled)
     val displayFolders = shelfFolderItems.map { it.folder }
     val peekHiddenFolderIds = shelfFolderItems.filter { it.isHidden }.map { it.folder.uri }.toSet()
-    val libraryItems = listing?.let {
-        libraryBooks(it.books, shownBookIds, peekEnabled, settings.showDotFiles)
-    }.orEmpty()
-    val displayListing = listing?.copy(books = libraryItems.map { it.book })
+    val libraryItems = libraryBooks(currentBooks, libraryHiddenIds, peekEnabled, settings.showDotFiles)
+    val displayListing = listing?.copy(
+        folderName = if (folderPath.isEmpty() || currentNode == null) listing!!.folderName else currentNode.name,
+        books = libraryItems.map { it.book },
+    )
+    val pathLine = if (folderPath.isEmpty() || treeRoot == null) {
+        null
+    } else {
+        (listOf(listing!!.folderName) + treeRoot.pathNames(folderPath).drop(1)).joinToString(" / ")
+    }
     val peekHiddenBookIds = libraryItems.filter { it.isHidden }.map { it.book.uri }.toSet()
+    val currentFolderEmpty = scanned && treeRoot != null && folderPath.isNotEmpty() &&
+        subfolders.isEmpty() && libraryItems.isEmpty()
+    LaunchedEffect(currentFolderEmpty, folderPath) {
+        if (currentFolderEmpty && openUri == null) parentPath(folderPath)?.let { setFolderPath(it) }
+    }
     val canPeek = peekMenuEnabled(hiddenItems.size)
 
     LaunchedEffect(loaded, settingsReady, settings.startScreen, statesState.value, shelfListings, hiddenState.value, settings.showDotFiles) {
@@ -435,7 +477,12 @@ private fun App(
         startApplied = true
     }
 
-    val book = listing?.books?.firstOrNull { it.uri == openUri }
+    val book = openUri?.let { uri -> treeRoot?.findBook(uri) ?: listing?.books?.firstOrNull { it.uri == uri } }
+    LaunchedEffect(openUri, treeRoot) {
+        val uri = openUri ?: return@LaunchedEffect
+        val path = treeRoot?.pathOfBook(uri) ?: return@LaunchedEffect
+        if (path != folderPath) setFolderPath(path)
+    }
     DisposableEffect(book) {
         onDocumentOpenChange(book != null)
         onDispose { onDocumentOpenChange(false) }
@@ -445,7 +492,11 @@ private fun App(
         readerOpen = book != null,
         folderSelected = selectedFolderUri != null && book == null,
         showLost = showLostForUri != null,
+        inSubfolder = folderPath.isNotEmpty(),
     )
+    BackHandler(enabled = backAction == FolderBackAction.UpFolder) {
+        parentPath(folderPath)?.let { setFolderPath(it) }
+    }
     BackHandler(enabled = backAction == FolderBackAction.CloseSettings) {
         if (showAppLock) showAppLock = false else showSettings = false
     }
@@ -466,7 +517,7 @@ private fun App(
         }
     }
 
-    val contentPhase = folderContentPhase(selectedFolderUri, scanned, displayListing)
+    val contentPhase = folderContentPhase(selectedFolderUri, scanned, displayListing, subfolders.isNotEmpty())
     val rootFolderList = showsRootFolderList(
         showSettings = showSettings,
         showLost = showLostForUri != null,
@@ -552,6 +603,17 @@ private fun App(
             snackbarMessage = unhiddenSnackbar
         }
     }
+    fun unhideAll(items: List<HiddenItem>) {
+        if (items.size == 1) {
+            unhideItem(items.single())
+        } else if (items.isNotEmpty()) {
+            scope.launch {
+                for (hidden in items) hiddenRepo.unhide(hidden.kind, hidden.id)
+                undoItem = null
+                snackbarMessage = unhiddenSnackbar
+            }
+        }
+    }
     val togglePeek = {
         HiddenPeek.set(!HiddenPeek.enabled.value)
     }
@@ -594,16 +656,40 @@ private fun App(
             },
         )
         !loaded -> Unit
-        book != null -> ReaderRoute(
-            book,
-            store,
-            volumeDelta,
-            defaultReadingDirection = settings.defaultReadingDirection,
-            onBack = { openUri = null },
-            showTapZoneGuide = settings.showTapZoneGuide,
-            tapZoneSidePercent = settings.tapZoneSidePercent,
-            onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
-        )
+        book != null -> {
+            val bookPath = treeRoot?.pathOfBook(book.uri)
+            val bookFolder = bookPath?.let { treeRoot.nodeAt(it) }
+            val folderBooks = bookFolder?.books ?: listing?.books.orEmpty()
+            val volumes = volumeList(folderBooks, shownBookIds, settings.showDotFiles)
+            val adjacent = adjacentVolumes(volumes, book)
+            val switchTo: (BookInfo) -> Unit = { next ->
+                switchedToUri = next.uri
+                openUri = next.uri
+            }
+            val bookListName = if (bookPath.isNullOrEmpty() || bookFolder == null) {
+                listing?.folderName.orEmpty()
+            } else {
+                bookFolder.name
+            }
+            ReaderRoute(
+                book,
+                store,
+                volumeDelta,
+                defaultReadingDirection = settings.defaultReadingDirection,
+                onBack = { openUri = null },
+                showTapZoneGuide = settings.showTapZoneGuide,
+                tapZoneSidePercent = settings.tapZoneSidePercent,
+                onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
+                volumes = ReaderVolumes(
+                    onPrevious = adjacent.previous?.let { { switchTo(it) } },
+                    onNext = adjacent.next?.let { { switchTo(it) } },
+                    bookList = BookListUi(bookListName, bookListEntries(volumes, book, states)),
+                    onPick = switchTo,
+                ),
+                showTitleToast = switchedToUri == book.uri,
+                onTitleToastShown = { switchedToUri = null },
+            )
+        }
         contentPhase == FolderContentPhase.Loading -> Unit
         contentPhase == FolderContentPhase.AccessLost -> FolderPickScreen(
             illustration = R.drawable.es_permission_lost,
@@ -632,9 +718,14 @@ private fun App(
             onOpen = { openUri = it.uri },
             onSettings = { showSettings = true },
             onBack = {
-                selectedFolderUri = null
-                listing = null
-                openUri = null
+                val parent = parentPath(folderPath)
+                if (parent != null) {
+                    setFolderPath(parent)
+                } else {
+                    selectedFolderUri = null
+                    listing = null
+                    openUri = null
+                }
             },
             snackbarMessage = snackbarMessage,
             snackbarActionLabel = if (undoItem != null) undoLabel else null,
@@ -651,24 +742,42 @@ private fun App(
                 )
             },
             onUnhideBook = { bookInfo ->
-                unhideItem(
-                    HiddenItem(
-                        kind = HiddenKind.Book,
-                        id = bookInfo.uri,
-                        name = titleOf(bookInfo.name),
-                        folderUri = selectedFolderUri,
-                    ),
-                )
+                if (insideHiddenFolder) {
+                    val own = hiddenItems.filter { it.kind == HiddenKind.Book && it.id == bookInfo.uri }
+                    unhideAll(own + hiddenAncestors)
+                } else {
+                    unhideItem(
+                        HiddenItem(
+                            kind = HiddenKind.Book,
+                            id = bookInfo.uri,
+                            name = titleOf(bookInfo.name),
+                            folderUri = selectedFolderUri,
+                        ),
+                    )
+                }
             },
             peekEnabled = peekEnabled,
             peekMenuEnabled = canPeek,
             onPeekToggle = togglePeek,
             peekHiddenBookIds = peekHiddenBookIds,
-            sort = sortFor(sorts, selectedFolderUri),
+            sort = sortFor(sorts, selectedFolderUri, folderPath),
             onSortChange = { sort ->
                 val uri = selectedFolderUri
-                if (uri != null) scope.launch { sortStore.save(sortKey(uri), sort) }
+                val path = folderPath
+                if (uri != null) scope.launch { sortStore.save(sortKey(uri, path), sort) }
             },
+            subfolders = subfolders,
+            onOpenSubfolder = { item -> setFolderPath(item.path) },
+            onHideSubfolder = { item ->
+                hideItem(HiddenItem(HiddenKind.Folder, item.node.uri, item.node.name, selectedFolderUri))
+            },
+            onUnhideSubfolder = { item ->
+                val own = hiddenItems.firstOrNull { it.kind == HiddenKind.Folder && it.id == item.node.uri }
+                val under = if (own != null) listOf(own) else hiddenItemsUnder(item.node, hiddenItems)
+                unhideAll((under + hiddenAncestors).distinct())
+            },
+            pathLine = pathLine,
+            resumeBooks = currentNode?.let { visibleBooksUnder(it, rules) },
         )
         folderList.isEmpty() -> FolderPickScreen(
             illustration = R.drawable.es_pick_folder,
@@ -692,6 +801,7 @@ private fun App(
                 scope.launch {
                     folderRepo.markOpened(uri)
                     openUri = null
+                    folderPathState = FolderPath(uri)
                     selectedFolderUri = uri
                     scanned = false
                     folderScanToken++

@@ -16,6 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.parkjw.apps.pdfbook.BookInfo
+import org.parkjw.apps.pdfbook.BookListUi
+import org.parkjw.apps.pdfbook.ReaderVolumes
+import org.parkjw.apps.pdfbook.adjacentVolumes
+import org.parkjw.apps.pdfbook.bookListEntries
+import org.parkjw.apps.pdfbook.volumeList
 import org.parkjw.apps.pdfbook.BookState
 import org.parkjw.apps.pdfbook.FolderShelfUi
 import org.parkjw.apps.pdfbook.Listing
@@ -175,4 +180,41 @@ internal fun ScreenshotTheme(
             }
         }
     }
+}
+
+internal fun sampleVolumeBooks(): List<BookInfo> =
+    listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12).map { n ->
+        BookInfo("content://sample/vol$n", "샘플 시리즈 ${n}권.pdf", 1_000L + n)
+    }
+
+internal fun sampleReaderVolumes(current: Int = 1): ReaderVolumes {
+    val books = sampleVolumeBooks()
+    val volumes = volumeList(books, emptySet(), showDotFiles = false)
+    val book = books[current - 1]
+    val adjacent = adjacentVolumes(volumes, book)
+    val states = books.mapIndexed { index, b ->
+        bookKey(b.uri, b.size) to BookState(
+            page = if (index < current - 1) 120 else if (index == current - 1) 37 else 1,
+            pageCount = if (index <= current - 1) 120 else if (index == current) 120 else 0,
+        )
+    }.toMap()
+    val palette = listOf(
+        0xFFD97757.toInt() to 0xFF2F2A26.toInt(),
+        0xFF6B8F71.toInt() to 0xFFF4F0E8.toInt(),
+        0xFF4A6FA5.toInt() to 0xFFE8EEF5.toInt(),
+        0xFFC9A55B.toInt() to 0xFF2F2A26.toInt(),
+    )
+    val covers = books.mapIndexed { index, b ->
+        val (bg, fg) = palette[index % palette.size]
+        bookKey(b.uri, b.size) to solidCover(bg, fg)
+    }.toMap()
+    return ReaderVolumes(
+        onPrevious = adjacent.previous?.let { { } },
+        onNext = adjacent.next?.let { { } },
+        bookList = BookListUi(
+            folderName = "샘플 시리즈",
+            entries = bookListEntries(volumes, book, states),
+            covers = covers,
+        ),
+    )
 }
