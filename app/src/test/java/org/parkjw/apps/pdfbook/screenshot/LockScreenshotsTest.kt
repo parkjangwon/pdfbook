@@ -119,6 +119,31 @@ class LockScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun securityNoneDarkFolded() = captureSettings(
+        dark = true,
+        file = "security-none-dark-folded.png",
+        config = LockConfig(),
+        biometricAvailable = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsSecurityLightFolded() = captureSettingsEntry(
+        dark = false,
+        file = "settings-security-light-folded.png",
+        mode = AppLockMode.Biometric,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsSecurityDarkFolded() = captureSettingsEntry(
+        dark = true,
+        file = "settings-security-dark-folded.png",
+        mode = AppLockMode.None,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun securityPinLightFolded() = captureSettings(
         dark = false,
         file = "security-pin-light-folded.png",
@@ -245,7 +270,7 @@ class LockScreenshotsTest {
                     slotCount = slotCount,
                     filled = filled,
                     inputEnabled = true,
-                    showLockIcon = false,
+                    showLockIcon = true,
                     left = PinPadLeft.Blank,
                     leftEnabled = false,
                     onDigit = {},
@@ -258,6 +283,21 @@ class LockScreenshotsTest {
                     },
                     actionEnabled = actionEnabled,
                     onAction = if (showAction) ({}) else null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+
+    private fun captureSettingsEntry(dark: Boolean, file: String, mode: AppLockMode) {
+        captureRoboImage(file) {
+            ScreenshotTheme(dark) {
+                org.parkjw.apps.pdfbook.settings.SettingsScreen(
+                    settings = org.parkjw.apps.pdfbook.settings.AppSettings(),
+                    onSettingsChange = {},
+                    appLockMode = mode,
+                    versionName = "0.3.1",
+                    scrollToEnd = true,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

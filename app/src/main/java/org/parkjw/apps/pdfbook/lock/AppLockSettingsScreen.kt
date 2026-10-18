@@ -162,19 +162,7 @@ internal fun AppLockSettingsMenu(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = PdfBookSpacing.lg),
         ) {
-            Surface(
-                shape = CardCorner,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                border = BorderStroke(1.dp, MaterialTheme.extendedColors.hairline),
-                shadowElevation = 0.dp,
-                tonalElevation = 0.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = PdfBookSpacing.screenHorizontalFolded,
-                        vertical = PdfBookSpacing.md,
-                    ),
-            ) {
+            LockCard {
                 Column(Modifier.fillMaxWidth().selectableGroup()) {
                     LockChoice(AppLockMode.None, config.mode, enabled = true) { onEdit(LockEdit.None) }
                     HorizontalDivider(color = MaterialTheme.extendedColors.hairline)
@@ -193,60 +181,88 @@ internal fun AppLockSettingsMenu(
                     ) {
                         onEdit(LockEdit.Biometric)
                     }
-                    if (locked) {
-                        HorizontalDivider(color = MaterialTheme.extendedColors.hairline)
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    stringResource(R.string.pin_change),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                            },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(selected = false, onClick = { onEdit(LockEdit.ChangePin) }),
-                        )
-                        HorizontalDivider(color = MaterialTheme.extendedColors.hairline)
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    stringResource(R.string.hide_in_recents),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                            },
-                            supportingContent = {
-                                Text(
-                                    stringResource(R.string.hide_in_recents_desc),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            trailingContent = {
-                                Switch(
-                                    checked = config.hideInRecents,
-                                    onCheckedChange = null,
-                                    colors = SwitchDefaults.colors(
-                                        checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                                        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                        uncheckedBorderColor = MaterialTheme.extendedColors.hairlineStrong,
-                                    ),
-                                )
-                            },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .toggleable(
-                                    value = config.hideInRecents,
-                                    onValueChange = onHideChange,
-                                    role = Role.Switch,
+                }
+            }
+            if (locked) {
+                LockCard {
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                stringResource(R.string.pin_change),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        },
+                        trailingContent = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_chevron_right),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = false, onClick = { onEdit(LockEdit.ChangePin) }),
+                    )
+                }
+                LockCard {
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                stringResource(R.string.hide_in_recents),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        },
+                        supportingContent = {
+                            Text(
+                                stringResource(R.string.hide_in_recents_desc),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = config.hideInRecents,
+                                onCheckedChange = null,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    uncheckedBorderColor = MaterialTheme.extendedColors.hairlineStrong,
                                 ),
-                        )
-                    }
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(
+                                value = config.hideInRecents,
+                                onValueChange = onHideChange,
+                                role = Role.Switch,
+                            ),
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LockCard(content: @Composable () -> Unit) {
+    Surface(
+        shape = CardCorner,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.extendedColors.hairline),
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = PdfBookSpacing.screenHorizontalFolded,
+                vertical = PdfBookSpacing.md,
+            ),
+    ) {
+        content()
     }
 }
 

@@ -110,7 +110,7 @@ fun PinPadScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_lock),
+                        painter = painterResource(R.drawable.ic_app_mark),
                         contentDescription = null,
                         tint = scheme.onSurface,
                     )

@@ -29,7 +29,7 @@ fun PinCreateScreen(
         slotCount = session.length,
         filled = session.length,
         inputEnabled = true,
-        showLockIcon = false,
+        showLockIcon = true,
         left = PinPadLeft.Blank,
         leftEnabled = false,
         onDigit = { digit ->
