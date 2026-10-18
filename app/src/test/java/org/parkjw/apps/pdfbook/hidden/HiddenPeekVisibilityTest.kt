@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -14,10 +15,10 @@ import org.parkjw.apps.pdfbook.BookInfo
 import org.parkjw.apps.pdfbook.BookState
 import org.parkjw.apps.pdfbook.Listing
 import org.parkjw.apps.pdfbook.bookKey
-import org.parkjw.apps.pdfbook.buildFolderShelfUi
 import org.parkjw.apps.pdfbook.findLastBookTarget
 import org.parkjw.apps.pdfbook.folders.Folder
 import org.parkjw.apps.pdfbook.folders.FolderAccess
+import org.parkjw.apps.pdfbook.sortBooks
 import java.io.File
 
 class HiddenPeekVisibilityTest {
@@ -40,11 +41,6 @@ class HiddenPeekVisibilityTest {
             HiddenItem(HiddenKind.Folder, "fa", "Alpha", "fa"),
             HiddenItem(HiddenKind.Folder, "fc", "Gamma", "fc"),
         )
-        val off = shelfFolders(folders, hidden, peek = false)
-        assertEquals(listOf("fb"), off.map { it.folder.uri })
-        val on = shelfFolders(folders, hidden, peek = true)
-        assertEquals(listOf("fa", "fb", "fc"), on.map { it.folder.uri })
-        assertEquals(listOf(true, false, true), on.map { it.isHidden })
         val recent = BookInfo("content://new", "New.pdf", 1)
         val older = BookInfo("content://old", "Old.pdf", 2)
         val listings = mapOf(
@@ -60,11 +56,20 @@ class HiddenPeekVisibilityTest {
         val resumeListings = listings.mapValues { (_, listing) ->
             filterListing(listing, hiddenBookIds(hidden), showDotFiles = true)
         }
-        assertEquals(older.uri, buildFolderShelfUi(resumeFolders, resumeListings, states).globalResume?.book?.uri)
+        val displayFolders = shelfFolders(folders, hidden, peek = true).map { it.folder }
+        val ui = buildPeekShelfUi(
+            displayFolders,
+            resumeFolders,
+            hiddenFolderIds(hidden),
+            listings,
+            states,
+        )
+        assertEquals(listOf("fa", "fb", "fc"), ui.cards.map { it.uri })
+        assertEquals(listOf(true, false, true), ui.cards.map { it.isHidden })
+        assertEquals(older.uri, ui.globalResume?.book?.uri)
+        assertNull(ui.cards.first { it.uri == "fa" }.resume)
+        assertNull(ui.cards.first { it.uri == "fc" }.resume)
         assertEquals(older.uri, findLastBookTarget(resumeFolders, resumeListings, states)?.bookUri)
-        val peekFolders = shelfFolders(folders, hidden, peek = true).map { it.folder }
-        assertEquals(listOf("fa", "fb", "fc"), buildFolderShelfUi(peekFolders, resumeListings, states).cards.map { it.uri })
-        assertEquals(older.uri, buildFolderShelfUi(resumeFolders, resumeListings, states).globalResume?.book?.uri)
     }
 
     @Test
@@ -77,6 +82,18 @@ class HiddenPeekVisibilityTest {
         val on = libraryBooks(listOf(a, b, c), hiddenIds, peek = true, showDotFiles = true)
         assertEquals(listOf(a, b, c), on.map { it.book })
         assertEquals(listOf(false, true, false), on.map { it.isHidden })
+        val states = mapOf(
+            bookKey(a.uri, a.size) to BookState(page = 1, pageCount = 2, openedAt = 10),
+            bookKey(b.uri, b.size) to BookState(page = 1, pageCount = 2, openedAt = 100),
+            bookKey(c.uri, c.size) to BookState(page = 1, pageCount = 2, openedAt = 50),
+        )
+        val sorted = sortBooks(on.map { it.book }, states, byName = false)
+        assertEquals(c.uri, findLibraryResumeBook(sorted, states, hiddenIds)?.uri)
+        val folders = listOf(Folder("f", "F", 0, FolderAccess.Ok))
+        val resumeListings = mapOf(
+            "f" to filterListing(Listing("F", listOf(a, b, c)), hiddenIds, showDotFiles = true),
+        )
+        assertEquals(c.uri, findLastBookTarget(folders, resumeListings, states)?.bookUri)
     }
 
     @Test

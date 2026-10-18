@@ -44,11 +44,13 @@ import org.parkjw.apps.pdfbook.hidden.HiddenItemsScreen
 import org.parkjw.apps.pdfbook.hidden.HiddenKind
 import org.parkjw.apps.pdfbook.hidden.HiddenPeek
 import org.parkjw.apps.pdfbook.hidden.HiddenRepository
+import org.parkjw.apps.pdfbook.hidden.buildPeekShelfUi
 import org.parkjw.apps.pdfbook.hidden.filterListing
 import org.parkjw.apps.pdfbook.hidden.hiddenBookIds
 import org.parkjw.apps.pdfbook.hidden.libraryBooks
 import org.parkjw.apps.pdfbook.hidden.peekMenuEnabled
 import org.parkjw.apps.pdfbook.hidden.shelfFolders
+import org.parkjw.apps.pdfbook.hidden.shouldResetPeekOnStop
 import org.parkjw.apps.pdfbook.hidden.visibleFolders
 import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.SettingsRepository
@@ -122,7 +124,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) {
+        if (shouldResetPeekOnStop(isChangingConfigurations)) {
             HiddenPeek.reset()
         }
     }
@@ -369,15 +371,7 @@ private fun App(
     }
 
     val shelfUi = remember(displayFolders, resumeFolders, resumeListings, states, peekHiddenFolderIds) {
-        val built = buildFolderShelfUi(displayFolders, resumeListings, states)
-        val resumeOnly = buildFolderShelfUi(resumeFolders, resumeListings, states)
-        FolderShelfUi(
-            cards = built.cards.map { card ->
-                val hidden = card.uri in peekHiddenFolderIds
-                card.copy(isHidden = hidden, resume = if (hidden) null else card.resume)
-            },
-            globalResume = resumeOnly.globalResume,
-        )
+        buildPeekShelfUi(displayFolders, resumeFolders, peekHiddenFolderIds, resumeListings, states)
     }
     var shelfCovers by remember { mutableStateOf<Map<String, Bitmap?>>(emptyMap()) }
     LaunchedEffect(shelfUi, resumeListings) {

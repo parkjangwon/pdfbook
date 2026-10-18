@@ -1,7 +1,11 @@
 package org.parkjw.apps.pdfbook.hidden
 
 import org.parkjw.apps.pdfbook.BookInfo
+import org.parkjw.apps.pdfbook.BookState
+import org.parkjw.apps.pdfbook.FolderShelfUi
 import org.parkjw.apps.pdfbook.Listing
+import org.parkjw.apps.pdfbook.bookKey
+import org.parkjw.apps.pdfbook.buildFolderShelfUi
 import org.parkjw.apps.pdfbook.folders.Folder
 
 data class ShelfFolderItem(
@@ -70,6 +74,33 @@ fun libraryBooks(
             peek -> LibraryBookItem(book, isHidden = true)
             else -> null
         }
+    }
+
+fun buildPeekShelfUi(
+    displayFolders: List<Folder>,
+    resumeFolders: List<Folder>,
+    peekHiddenFolderIds: Set<String>,
+    listings: Map<String, Listing?>,
+    states: Map<String, BookState>,
+): FolderShelfUi {
+    val built = buildFolderShelfUi(displayFolders, listings, states)
+    val resumeOnly = buildFolderShelfUi(resumeFolders, listings, states)
+    return FolderShelfUi(
+        cards = built.cards.map { card ->
+            val hidden = card.uri in peekHiddenFolderIds
+            card.copy(isHidden = hidden, resume = if (hidden) null else card.resume)
+        },
+        globalResume = resumeOnly.globalResume,
+    )
+}
+
+fun findLibraryResumeBook(
+    sortedBooks: List<BookInfo>,
+    states: Map<String, BookState>,
+    hiddenBookIds: Set<String>,
+): BookInfo? =
+    sortedBooks.firstOrNull { book ->
+        book.uri !in hiddenBookIds && (states[bookKey(book.uri, book.size)]?.openedAt ?: 0L) > 0L
     }
 
 fun peekMenuEnabled(hiddenCount: Int): Boolean = hiddenCount > 0

@@ -3,13 +3,18 @@ package org.parkjw.apps.pdfbook.settings
 import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,8 +33,8 @@ class StorageSettingsTest {
     @Test
     fun showDotFilesToggleFlipsOnSettingsChange() {
         val label = ApplicationProvider.getApplicationContext<Context>().getString(R.string.show_dot_files)
-        var settings = AppSettings()
         composeRule.setContent {
+            var settings by remember { mutableStateOf(AppSettings()) }
             PdfBookTheme(themeMode = ThemeMode.Light) {
                 Column(Modifier.fillMaxSize()) {
                     StorageSettings(
@@ -43,7 +48,12 @@ class StorageSettingsTest {
                 }
             }
         }
+        composeRule.onNodeWithText(label).assertIsOff()
         composeRule.onNodeWithText(label).performClick()
-        assertEquals(true, settings.showDotFiles)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(label).assertIsOn()
+        composeRule.onNodeWithText(label).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(label).assertIsOff()
     }
 }

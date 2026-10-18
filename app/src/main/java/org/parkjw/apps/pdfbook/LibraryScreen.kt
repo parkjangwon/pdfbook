@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.hidden.HiddenBadge
 import org.parkjw.apps.pdfbook.hidden.PeekHiddenBanner
+import org.parkjw.apps.pdfbook.hidden.findLibraryResumeBook
 import org.parkjw.apps.pdfbook.hidden.shouldUnhideOnLongPress
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.safeDrawingGridContentPadding
@@ -147,14 +148,13 @@ fun LibraryScreen(
     val resume = if (byName) {
         null
     } else {
-        sorted.firstOrNull { book ->
-            book.uri !in peekHiddenBookIds && (states[bookKey(book.uri, book.size)]?.openedAt ?: 0L) > 0L
-        }
+        findLibraryResumeBook(sorted, states, peekHiddenBookIds)
     }
     val currentOnSnackbarAction by rememberUpdatedState(onSnackbarAction)
     val currentOnSnackbarShown by rememberUpdatedState(onSnackbarShown)
     LaunchedEffect(snackbarMessage, snackbarActionLabel) {
         val message = snackbarMessage ?: return@LaunchedEffect
+        snackbarHostState.currentSnackbarData?.dismiss()
         val result = snackbarHostState.showSnackbar(message = message, actionLabel = snackbarActionLabel)
         if (result == SnackbarResult.ActionPerformed) currentOnSnackbarAction()
         currentOnSnackbarShown()

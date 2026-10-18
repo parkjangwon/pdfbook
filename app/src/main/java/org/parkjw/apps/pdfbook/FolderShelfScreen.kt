@@ -126,12 +126,14 @@ fun FolderShelfScreen(
     val currentOnSnackbarShown by rememberUpdatedState(onSnackbarShown)
     LaunchedEffect(snackbarMessage, snackbarActionLabel) {
         val message = snackbarMessage ?: return@LaunchedEffect
+        snackbarHostState.currentSnackbarData?.dismiss()
         val result = snackbarHostState.showSnackbar(message = message, actionLabel = snackbarActionLabel)
         if (result == SnackbarResult.ActionPerformed) currentOnSnackbarAction()
         currentOnSnackbarShown()
     }
     LaunchedEffect(exitHintToken) {
         if (exitHintToken == 0) return@LaunchedEffect
+        snackbarHostState.currentSnackbarData?.dismiss()
         val shown = launch {
             snackbarHostState.showSnackbar(
                 message = exitConfirm,

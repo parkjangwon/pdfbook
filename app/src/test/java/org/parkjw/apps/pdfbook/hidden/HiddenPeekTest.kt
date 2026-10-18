@@ -1,56 +1,66 @@
 package org.parkjw.apps.pdfbook.hidden
 
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
-import org.parkjw.apps.pdfbook.settings.AppSettings
-import org.parkjw.apps.pdfbook.settings.SettingsRepository
+import org.junit.runner.RunWith
+import org.parkjw.apps.pdfbook.MainActivity
+import org.robolectric.annotation.Config
 import java.io.File
 
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [37])
 class HiddenPeekTest {
-    @get:Rule
-    val tmp = TemporaryFolder()
-
     @Before
     fun resetPeek() {
         HiddenPeek.reset()
     }
 
     @Test
-    fun h10_peekIsMemoryOnlyAndResets() = runBlocking {
-        val hiddenFile = File(tmp.root, "hidden.preferences_pb")
-        val settingsFile = File(tmp.root, "settings.preferences_pb")
-        val hidden = HiddenRepository(PreferenceDataStoreFactory.create { hiddenFile })
-        val settings = SettingsRepository(PreferenceDataStoreFactory.create { settingsFile })
-        hidden.hide(HiddenItem(HiddenKind.Book, "content://b", "Book", null))
-        settings.update { AppSettings(showDotFiles = true) }
-        settings.settings.first()
-        val beforeHidden = hiddenFile.readBytes()
-        val beforeSettings = settingsFile.readBytes()
+    fun h10_peekIsMemoryOnlyAndResets() {
+        assertFalse(HiddenPeek.enabled.value)
         HiddenPeek.set(true)
         assertTrue(HiddenPeek.enabled.value)
-        assertTrue(hiddenFile.readBytes().contentEquals(beforeHidden))
-        assertTrue(settingsFile.readBytes().contentEquals(beforeSettings))
         HiddenPeek.reset()
         assertFalse(HiddenPeek.enabled.value)
         val root = generateSequence(File("").absoluteFile) { it.parentFile }
             .first { File(it, "settings.gradle.kts").exists() || File(it, "settings.gradle").exists() }
-        val text = File(root, "app/src/main/java/org/parkjw/apps/pdfbook/hidden/HiddenPeek.kt").readText()
-        assertFalse(text.contains("DataStore"))
-        assertFalse(text.contains("rememberSaveable"))
-        assertFalse(text.contains("SharedPreferences"))
+        val peekText = File(root, "app/src/main/java/org/parkjw/apps/pdfbook/hidden/HiddenPeek.kt").readText()
+        val mainLines = File(root, "app/src/main/java/org/parkjw/apps/pdfbook/MainActivity.kt").readLines()
+            .filter { line ->
+                line.contains("HiddenPeek") || line.contains("shouldResetPeekOnStop")
+            }
+        val forbidden = listOf(
+            "DataStore",
+            "SharedPreferences",
+            "rememberSaveable",
+            "savedInstanceState",
+            "onSaveInstanceState",
+        )
+        for (token in forbidden) {
+            assertFalse(peekText.contains(token))
+            assertTrue(mainLines.none { it.contains(token) })
+        }
     }
 
     @Test
-    fun h11_onStopStyleResetTurnsPeekOff() {
-        HiddenPeek.set(true)
-        HiddenPeek.reset()
-        assertFalse(HiddenPeek.enabled.value)
+    fun h11_onStopResetsPeekButRecreateKeepsIt() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            HiddenPeek.set(true)
+            scenario.recreate()
+            assertTrue(HiddenPeek.enabled.value)
+            scenario.moveToState(Lifecycle.State.CREATED)
+            assertFalse(HiddenPeek.enabled.value)
+        }
+    }
+
+    @Test
+    fun h11_shouldResetPeekOnStopOnlyWhenLeaving() {
+        assertTrue(shouldResetPeekOnStop(false))
+        assertFalse(shouldResetPeekOnStop(true))
     }
 }

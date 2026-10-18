@@ -16,3 +16,6 @@ object HiddenPeek {
         _enabled.value = false
     }
 }
+
+fun shouldResetPeekOnStop(isChangingConfigurations: Boolean): Boolean =
+    !isChangingConfigurations

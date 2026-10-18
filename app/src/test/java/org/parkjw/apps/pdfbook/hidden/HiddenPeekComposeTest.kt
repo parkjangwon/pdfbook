@@ -164,21 +164,33 @@ class HiddenPeekComposeTest {
     @Test
     fun h8_libraryPeekMenuLabelFollowsState() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        composeRule.setContent {
-            PdfBookTheme(themeMode = ThemeMode.Light) {
-                LibraryScreen(
-                    listing = Listing("Shelf", listOf(BookInfo("content://a", "A.pdf", 1))),
-                    states = emptyMap(),
-                    onOpen = {},
-                    onSettings = {},
-                    peekEnabled = true,
-                    peekMenuEnabled = true,
-                    showPeekMenu = true,
-                    peekHiddenBookIds = emptySet(),
-                )
+        val onLabel = context.getString(R.string.peek_hidden_on)
+        val offLabel = context.getString(R.string.peek_hidden_off)
+        val peekState = mutableStateOf(false)
+        fun setLibrary(showMenu: Boolean) {
+            composeRule.setContent {
+                var peek by peekState
+                PdfBookTheme(themeMode = ThemeMode.Light) {
+                    LibraryScreen(
+                        listing = Listing("Shelf", listOf(BookInfo("content://a", "A.pdf", 1))),
+                        states = emptyMap(),
+                        onOpen = {},
+                        onSettings = {},
+                        peekEnabled = peek,
+                        peekMenuEnabled = true,
+                        onPeekToggle = { peek = !peek },
+                        showPeekMenu = showMenu,
+                        peekHiddenBookIds = emptySet(),
+                    )
+                }
             }
         }
-        composeRule.onNodeWithText(context.getString(R.string.peek_hidden_off)).assertExists()
-        composeRule.onNodeWithText(context.getString(R.string.peek_hidden_banner)).assertExists()
+        setLibrary(showMenu = true)
+        composeRule.onNodeWithText(onLabel).assertExists()
+        composeRule.onNodeWithText(onLabel).performClick()
+        composeRule.waitForIdle()
+        assertEquals(true, peekState.value)
+        setLibrary(showMenu = true)
+        composeRule.onNodeWithText(offLabel).assertExists()
     }
 }
