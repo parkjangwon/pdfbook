@@ -7,12 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assertDoesNotExist
-import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -123,7 +121,7 @@ class SettingsBUiTest {
             }
         }
         composeRule.onNodeWithText(text(R.string.settings_theme)).assertIsDisplayed()
-        composeRule.onNodeWithText(text(R.string.settings_theme_system)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(text(R.string.settings_theme_system))[0].assertIsDisplayed()
         composeRule.onNodeWithText(text(R.string.settings_theme_light)).assertIsDisplayed()
         composeRule.onNodeWithText(text(R.string.settings_theme_dark)).assertIsDisplayed()
     }
@@ -212,8 +210,8 @@ class SettingsBUiTest {
         }
         composeRule.onAllNodesWithText(text(R.string.oss_androidx_license)).fetchSemanticsNodes()
             .let { assertTrue(it.isNotEmpty()) }
-        composeRule.onNodeWithText(text(R.string.oss_jetbrains_mono_license)).assertExists()
-        composeRule.onNodeWithText(text(R.string.oss_pdfbook_sans_name)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(text(R.string.oss_jetbrains_mono_license)).assertCountEquals(2)
+        composeRule.onNodeWithText(text(R.string.oss_pdfbook_sans_name)).performScrollTo().assertIsDisplayed()
     }
 
     @Test

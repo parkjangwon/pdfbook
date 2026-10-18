@@ -5,7 +5,6 @@
     <string name="settings_github">GitHub</string>
     <string name="settings_version">버전</string>
     <string name="settings_version_value">v%1$s (%2$d)</string>
-    <string name="settings_github_url">https://github.com/parkjangwon/pdfbook</string>
     <string name="oss_androidx_name">AndroidX / Jetpack Compose</string>
     <string name="oss_androidx_license">Apache License 2.0</string>
     <string name="oss_androidx_copyright">Copyright The Android Open Source Project</string>

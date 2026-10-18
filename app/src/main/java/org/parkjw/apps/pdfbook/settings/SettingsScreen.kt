@@ -295,7 +295,7 @@ private fun SettingsMainScreen(
                         .selectable(
                             selected = false,
                             onClick = {
-                                context.openBrowsableUrl(context.getString(R.string.settings_github_url))
+                                context.openBrowsableUrl(GITHUB_REPO_URL)
                             },
                         ),
                 )
@@ -702,3 +702,5 @@ internal fun SwitchRow(
             ),
     )
 }
+
+internal const val GITHUB_REPO_URL = "https://github.com/parkjangwon/pdfbook"
