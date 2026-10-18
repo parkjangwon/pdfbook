@@ -171,14 +171,14 @@ fun SettingsScreen(
 
             SettingsSection(stringResource(R.string.settings_section_update))
             SettingsGroup {
+                UpdateCheckBlock(state = updateState, currentVersion = versionName, onAction = onUpdateAction)
+                GroupDivider()
                 SwitchRow(
                     title = stringResource(R.string.update_auto),
                     supporting = stringResource(R.string.update_auto_desc),
                     checked = settings.autoUpdateCheck,
                     onCheckedChange = { checked -> onSettingsChange { it.copy(autoUpdateCheck = checked) } },
                 )
-                GroupDivider()
-                UpdateCheckBlock(state = updateState, onAction = onUpdateAction)
             }
 
             SettingsSection(stringResource(R.string.settings_section_about))

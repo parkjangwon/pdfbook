@@ -94,19 +94,39 @@ class UpdateFlowTest {
     }
 
     @Test
-    fun autoCheckFailureAndUpToDateStaySilent() = runBlocking {
+    fun autoCheckFailureStaysSilentAndRetriesOnNextLaunch() = runBlocking {
         response = { throw IOException("offline") }
         val failing = flow().also { it.autoCheckOnLaunch(enabled = true) }
         assertEquals(UpdateUiState.Idle, failing.state.value)
         assertEquals(1, fetches)
-        assertEquals(100L, store.day)
+        assertEquals(null, store.day)
+        response = { ReleaseResponse(503, "") }
         flow().autoCheckOnLaunch(enabled = true)
-        assertEquals(1, fetches)
-        today = 101
+        assertEquals(2, fetches)
+        assertEquals(null, store.day)
         response = { ReleaseResponse(200, ReleaseFixtures.list(ReleaseFixtures.release("v0.3.0"))) }
         val latest = flow().also { it.autoCheckOnLaunch(enabled = true) }
         assertEquals(UpdateUiState.Idle, latest.state.value)
-        assertEquals(2, fetches)
+        assertEquals(3, fetches)
+        assertEquals(100L, store.day)
+        flow().autoCheckOnLaunch(enabled = true)
+        assertEquals(3, fetches)
+    }
+
+    @Test
+    fun unknownCurrentVersionDoesNotCountAsSuccess() = runBlocking {
+        val f = UpdateFlow(
+            checker = UpdateChecker { ReleaseResponse(200, "[]") },
+            downloader = { _, _ -> throw IOException() },
+            verifier = { false },
+            permission = { true },
+            store = store,
+            currentVersionName = { "" },
+            today = { today },
+        )
+        f.autoCheckOnLaunch(enabled = true)
+        assertEquals(null, store.day)
+        assertEquals(UpdateUiState.Idle, f.state.value)
     }
 
     @Test
@@ -143,10 +163,10 @@ class UpdateFlowTest {
         signatureOk = false
         val f = flow().also { it.manualCheck() }
         f.downloadAndInstall()
-        assertEquals(
-            UpdateUiState.Failed(UpdateProblem.Verify, "https://github.com/parkjangwon/pdfbook/releases/tag/v0.3.1"),
-            f.state.value,
-        )
+        val failed = f.state.value as UpdateUiState.Failed
+        assertEquals(UpdateProblem.Verify, failed.problem)
+        assertEquals("https://github.com/parkjangwon/pdfbook/releases/tag/v0.3.1", failed.releasePageUrl)
+        assertEquals("v0.3.1", failed.release?.tagName)
         assertFalse(File(tmp.root, "pdfbook-0.3.1.apk").exists())
     }
 
@@ -163,10 +183,9 @@ class UpdateFlowTest {
         }
         val noApk = flow().also { it.manualCheck() }
         noApk.downloadAndInstall()
-        assertEquals(
-            UpdateUiState.Failed(UpdateProblem.Download, "https://github.com/parkjangwon/pdfbook/releases/tag/v0.3.1"),
-            noApk.state.value,
-        )
+        val failed = noApk.state.value as UpdateUiState.Failed
+        assertEquals(UpdateProblem.Download, failed.problem)
+        assertEquals("https://github.com/parkjangwon/pdfbook/releases/tag/v0.3.1", failed.releasePageUrl)
     }
 
     @Test
@@ -188,7 +207,7 @@ class UpdateFlowTest {
         val f = flow().also { it.manualCheck() }
         f.downloadAndInstall()
         f.installerLaunched(false)
-        assertEquals(UpdateProblem.Verify, (f.state.value as UpdateUiState.Failed).problem)
+        assertEquals(UpdateProblem.Install, (f.state.value as UpdateUiState.Failed).problem)
     }
 
     @Test
@@ -202,7 +221,9 @@ class UpdateFlowTest {
         }
         val f = flow().also { it.manualCheck() }
         f.downloadAndInstall()
-        assertEquals(UpdateUiState.Failed(UpdateProblem.Verify, RELEASES_PAGE_URL), f.state.value)
+        val failed = f.state.value as UpdateUiState.Failed
+        assertEquals(UpdateProblem.Verify, failed.problem)
+        assertEquals(RELEASES_PAGE_URL, failed.releasePageUrl)
     }
 
     @Test

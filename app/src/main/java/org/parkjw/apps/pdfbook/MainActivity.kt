@@ -49,7 +49,8 @@ import org.parkjw.apps.pdfbook.settings.StartScreen
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
 import org.parkjw.apps.pdfbook.update.RELEASES_PAGE_URL
 import org.parkjw.apps.pdfbook.update.UpdateAction
-import org.parkjw.apps.pdfbook.update.UpdatePromptDialog
+import org.parkjw.apps.pdfbook.update.UpdateBanner
+import org.parkjw.apps.pdfbook.update.displayVersion
 import org.parkjw.apps.pdfbook.update.UpdateUiState
 import org.parkjw.apps.pdfbook.update.UpdateViewModel
 import org.parkjw.apps.pdfbook.update.installedVersionName
@@ -372,16 +373,19 @@ private fun App(
         }
     }
 
-    (updateState as? UpdateUiState.Available)?.takeIf { it.prompt && book == null }?.let { available ->
-        UpdatePromptDialog(
-            state = available,
-            onDownload = {
-                showSettings = true
-                onUpdateAction(UpdateAction.Download)
-            },
-            onLater = { onUpdateAction(UpdateAction.Later) },
-        )
-    }
+    val updateBanner: (@Composable () -> Unit)? =
+        (updateState as? UpdateUiState.Available)?.takeIf { it.prompt }?.let { available ->
+            {
+                UpdateBanner(
+                    version = displayVersion(available.release),
+                    onLater = { onUpdateAction(UpdateAction.Later) },
+                    onDownload = {
+                        showSettings = true
+                        onUpdateAction(UpdateAction.Download)
+                    },
+                )
+            }
+        }
 
     when {
         showSettings -> SettingsScreen(
@@ -496,6 +500,7 @@ private fun App(
             },
             onRemove = { uri -> scope.launch { folderRepo.remove(uri) } },
             onLostFolder = { uri -> showLostForUri = uri },
+            updateBanner = updateBanner,
             exitHintToken = exitHintToken,
         )
     }

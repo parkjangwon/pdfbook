@@ -100,6 +100,7 @@ fun FolderShelfScreen(
     showMenuFor: String? = null,
     showRemoveConfirmFor: String? = null,
     exitHintToken: Int = 0,
+    updateBanner: (@Composable () -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val gridState = rememberLazyGridState()
@@ -175,11 +176,13 @@ fun FolderShelfScreen(
             }
         },
     ) { padding ->
-        BoxWithConstraints(
+        Column(
             Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
+        updateBanner?.invoke()
+        BoxWithConstraints(Modifier.fillMaxSize()) {
             val columns = folderShelfColumns(maxWidth.value.toInt())
             LaunchedEffect(scrollToUri, shelf.cards, hasResume, columns) {
                 val uri = scrollToUri ?: return@LaunchedEffect
@@ -240,6 +243,7 @@ fun FolderShelfScreen(
                     }
                 }
             }
+        }
         }
     }
 

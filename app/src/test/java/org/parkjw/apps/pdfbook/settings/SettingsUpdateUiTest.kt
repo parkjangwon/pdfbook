@@ -95,7 +95,8 @@ class SettingsUpdateUiTest {
                 )
             }
         }
-        composeRule.onNodeWithText("업데이트 확인").performScrollTo().performClick()
+        composeRule.onNodeWithText("v0.3.0").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("확인").performScrollTo().performClick()
         assertEquals(listOf(UpdateAction.Check), actions)
     }
 
@@ -114,9 +115,10 @@ class SettingsUpdateUiTest {
                 )
             }
         }
-        composeRule.onNodeWithText("최신 버전이에요").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("v0.3.0 · 최신 버전이에요").performScrollTo().assertIsDisplayed()
         state = UpdateUiState.Available(release, null, prompt = false)
-        composeRule.onNodeWithText("새 버전이 있어요 (0.3.1)").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("새 버전이 있어요 (v0.3.1)").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("지금 버전 v0.3.0").assertIsDisplayed()
         composeRule.onNodeWithText("받고 설치하기").performScrollTo().performClick()
         state = UpdateUiState.Downloading(release, 42)
         composeRule.onNodeWithText("받는 중 42%").performScrollTo().assertIsDisplayed()
@@ -139,15 +141,20 @@ class SettingsUpdateUiTest {
             }
         }
         composeRule.onNodeWithText("업데이트를 확인하지 못했어요. 인터넷 연결을 확인해 주세요.").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("릴리스 페이지 열기").performScrollTo().performClick()
-        state = UpdateUiState.Failed(UpdateProblem.Download, RELEASES_PAGE_URL)
+        composeRule.onNodeWithText("확인").assertIsDisplayed()
+        state = UpdateUiState.Failed(UpdateProblem.Download, RELEASES_PAGE_URL, release)
         composeRule.onNodeWithText("파일을 받지 못했어요").performScrollTo().assertIsDisplayed()
-        state = UpdateUiState.Failed(UpdateProblem.Verify, RELEASES_PAGE_URL)
+        state = UpdateUiState.Failed(UpdateProblem.Verify, RELEASES_PAGE_URL, release)
         composeRule.onNodeWithText("파일을 확인하지 못해 설치하지 않았어요. 릴리스 페이지에서 받아 주세요.")
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText("릴리스 페이지 열기").performScrollTo().performClick()
-        assertEquals(listOf(UpdateAction.OpenReleasePage, UpdateAction.OpenReleasePage), actions)
+        state = UpdateUiState.Failed(UpdateProblem.Install, RELEASES_PAGE_URL, release)
+        composeRule.onNodeWithText("설치 화면을 열지 못했어요. 릴리스 페이지에서 받아 주세요.")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("새 버전이 있어요 (v0.3.1)").assertIsDisplayed()
+        assertEquals(listOf(UpdateAction.OpenReleasePage), actions)
     }
 
     @Test

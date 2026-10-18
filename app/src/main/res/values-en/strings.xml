@@ -79,4 +79,8 @@
     <string name="update_download_failed">Couldn\'t download the file</string>
     <string name="update_verify_failed">Couldn\'t verify the file, so it wasn\'t installed. Please get it from the release page.</string>
     <string name="update_open_release">Open release page</string>
+    <string name="update_install_failed">Couldn\'t open the installer. Please get it from the release page.</string>
+    <string name="update_check_action">Check</string>
+    <string name="update_current_version">Current version %1$s</string>
+    <string name="update_download_hint">Opens the installer once the download finishes</string>
 </resources>

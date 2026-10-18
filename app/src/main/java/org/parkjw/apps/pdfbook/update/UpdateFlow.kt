@@ -11,6 +11,7 @@ enum class UpdateProblem {
     Check,
     Download,
     Verify,
+    Install,
 }
 
 sealed interface UpdateUiState {
@@ -21,7 +22,11 @@ sealed interface UpdateUiState {
     data class NeedsInstallPermission(val release: Release, val apk: ReleaseAsset) : UpdateUiState
     data class Downloading(val release: Release, val percent: Int) : UpdateUiState
     data class ReadyToInstall(val release: Release, val apk: File) : UpdateUiState
-    data class Failed(val problem: UpdateProblem, val releasePageUrl: String) : UpdateUiState
+    data class Failed(
+        val problem: UpdateProblem,
+        val releasePageUrl: String,
+        val release: Release? = null,
+    ) : UpdateUiState
 }
 
 val UpdateUiState.isBusy: Boolean
@@ -51,8 +56,7 @@ class UpdateFlow(
         if (state.value != UpdateUiState.Idle) return
         val day = today()
         if (!UpdatePolicy.shouldAutoCheck(enabled, store.lastAutoCheckDay(), day)) return
-        store.setLastAutoCheckDay(day)
-        check(manual = false)
+        if (check(manual = false)) store.setLastAutoCheckDay(day)
     }
 
     suspend fun manualCheck() {
@@ -64,9 +68,10 @@ class UpdateFlow(
         }
     }
 
-    private suspend fun check(manual: Boolean) {
+    private suspend fun check(manual: Boolean): Boolean {
         if (manual) mutableState.value = UpdateUiState.Checking
-        val next = when (val result = checker.check(currentVersionName())) {
+        val result = checker.check(currentVersionName())
+        val next = when (result) {
             is UpdateCheckResult.UpToDate -> if (manual) UpdateUiState.UpToDate else UpdateUiState.Idle
             is UpdateCheckResult.Available -> {
                 val prompt = !manual && UpdatePolicy.shouldPromptAfterAutoCheck(
@@ -88,6 +93,7 @@ class UpdateFlow(
         } else {
             mutableState.compareAndSet(UpdateUiState.Idle, next)
         }
+        return result !is UpdateCheckResult.Failed
     }
 
     suspend fun later() {
@@ -113,7 +119,7 @@ class UpdateFlow(
         }
         val (target, apk) = release
         if (apk == null) {
-            mutableState.value = UpdateUiState.Failed(UpdateProblem.Download, releasePage(target))
+            mutableState.value = UpdateUiState.Failed(UpdateProblem.Download, releasePage(target), target)
             return
         }
         if (!permission.canRequestPackageInstalls()) {
@@ -126,14 +132,14 @@ class UpdateFlow(
                 mutableState.value = UpdateUiState.Downloading(target, percent)
             }
         } catch (e: IOException) {
-            mutableState.value = UpdateUiState.Failed(UpdateProblem.Download, releasePage(target))
+            mutableState.value = UpdateUiState.Failed(UpdateProblem.Download, releasePage(target), target)
             return
         }
         mutableState.value = if (verifier.matchesInstalledApp(file)) {
             UpdateUiState.ReadyToInstall(target, file)
         } else {
             file.delete()
-            UpdateUiState.Failed(UpdateProblem.Verify, releasePage(target))
+            UpdateUiState.Failed(UpdateProblem.Verify, releasePage(target), target)
         }
     }
 
@@ -149,7 +155,7 @@ class UpdateFlow(
         mutableState.value = if (launched) {
             UpdateUiState.Available(current.release, current.release.apkAsset(), prompt = false)
         } else {
-            UpdateUiState.Failed(UpdateProblem.Verify, releasePage(current.release))
+            UpdateUiState.Failed(UpdateProblem.Install, releasePage(current.release), current.release)
         }
     }
 
