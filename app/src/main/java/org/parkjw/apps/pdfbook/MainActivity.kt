@@ -479,6 +479,7 @@ private fun App(
     }
 
     val book = openUri?.let { uri -> treeRoot?.findBook(uri) ?: listing?.books?.firstOrNull { it.uri == uri } }
+    val readerOrderStates = remember(openUri != null) { states }
     LaunchedEffect(openUri, treeRoot) {
         val uri = openUri ?: return@LaunchedEffect
         val path = treeRoot?.pathOfBook(uri) ?: return@LaunchedEffect
@@ -665,9 +666,10 @@ private fun App(
         book != null -> {
             val bookPath = treeRoot?.pathOfBook(book.uri)
             val bookFolder = bookPath?.let { treeRoot.nodeAt(it) }
-            val folderBooks = bookFolder?.books ?: listing?.books.orEmpty()
-            val volumes = volumeList(folderBooks, shownBookIds, settings.showDotFiles)
-            val adjacent = adjacentVolumes(volumes, book)
+            val folderBooks = folderBooksOf(treeRoot, book.uri, listing?.books.orEmpty())
+            val order = volumeOrder(sortFor(sorts, selectedFolderUri, bookPath.orEmpty()), readerOrderStates)
+            val volumes = volumeList(folderBooks, shownBookIds, settings.showDotFiles, order)
+            val adjacent = adjacentVolumes(volumes, book, order)
             val switchTo: (BookInfo) -> Unit = { next ->
                 switchedToUri = next.uri
                 openUri = next.uri
@@ -689,7 +691,8 @@ private fun App(
                 volumes = ReaderVolumes(
                     onPrevious = adjacent.previous?.let { { switchTo(it) } },
                     onNext = adjacent.next?.let { { switchTo(it) } },
-                    bookList = BookListUi(bookListName, bookListEntries(volumes, book, states)),
+                    nextBook = adjacent.next,
+                    bookList = BookListUi(bookListName, bookListEntries(volumes, book, states, order)),
                     onPick = switchTo,
                 ),
                 showTitleToast = switchedToUri == book.uri,

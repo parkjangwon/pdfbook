@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="reader_prev_book">Previous book</string>
-    <string name="reader_next_book">Next book</string>
+    <string name="reader_next_volume">Next book</string>
+    <string name="reader_next_book">Next book: %1$s</string>
+    <string name="reader_next_book_open">Open</string>
+    <string name="reader_next_book_open_description">Open next book: %1$s</string>
+    <string name="reader_no_next_book">No next book</string>
     <string name="reader_book_changed">%1$s</string>
     <string name="reader_book_list">Book list</string>
     <plurals name="book_list_count">
