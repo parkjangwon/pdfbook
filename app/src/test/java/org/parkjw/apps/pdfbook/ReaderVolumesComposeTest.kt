@@ -75,6 +75,15 @@ class ReaderVolumesComposeTest {
     }
 
     @Test
+    fun nb3LastBookDimsNextAndPreviousMoves() {
+        var previous = 0
+        setReader(ReaderVolumes(onPrevious = { previous++ }, onNext = null))
+        composeRule.onNodeWithContentDescription("다음 권").assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription("이전 권").assertIsEnabled().performClick()
+        assertEquals(1, previous)
+    }
+
+    @Test
     fun nb3SingleBookDimsBoth() {
         setReader(ReaderVolumes())
         composeRule.onNodeWithContentDescription("이전 권").assertIsNotEnabled()

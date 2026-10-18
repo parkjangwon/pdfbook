@@ -50,6 +50,10 @@ class SubfolderScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun subfoldersPeekLightFolded() = capturePeek(dark = false, file = "library-subfolders-peek-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun subfolderInsideLightFolded() = captureInside(dark = false, file = "library-subfolder-inside-light-folded.png")
 
     @Test
@@ -68,6 +72,25 @@ class SubfolderScreenshotsTest {
                 covers = treeCovers(root),
                 modifier = Modifier.fillMaxSize(),
                 subfolders = subfolderItems(root, emptyList(), rules, peek = false),
+                resumeBooks = visibleBooksUnder(root, rules),
+            )
+        }
+    }
+
+    private fun capturePeek(dark: Boolean, file: String) {
+        val root = sampleTree()
+        val rules = VisibilityRules(hiddenFolderIds = setOf("content://shot/essays"))
+        capture(file, dark) {
+            LibraryScreen(
+                listing = Listing("내 서고", root.books, root),
+                states = treeStates(root),
+                onOpen = {},
+                onSettings = {},
+                covers = treeCovers(root),
+                modifier = Modifier.fillMaxSize(),
+                peekEnabled = true,
+                peekMenuEnabled = true,
+                subfolders = subfolderItems(root, emptyList(), rules, peek = true),
                 resumeBooks = visibleBooksUnder(root, rules),
             )
         }
