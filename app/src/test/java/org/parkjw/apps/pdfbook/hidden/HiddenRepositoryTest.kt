@@ -2,27 +2,36 @@ package org.parkjw.apps.pdfbook.hidden
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
+import java.io.File
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
 
 class HiddenRepositoryTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private fun repository(): HiddenRepository {
-        val file = File(tmp.root, "hidden.preferences_pb")
-        return HiddenRepository(PreferenceDataStoreFactory.create(produceFile = { file }))
+    private fun TestScope.repository(fileName: String = "hidden.preferences_pb"): HiddenRepository {
+        val file = File(tmp.root, fileName)
+        return HiddenRepository(
+            PreferenceDataStoreFactory.create(
+                scope = backgroundScope,
+                produceFile = { file },
+            ),
+        )
     }
 
     @Test
-    fun hideUnhideKeepsNewestFirstAndDropsBrokenRows() = runBlocking {
+    fun hideUnhideKeepsNewestFirstAndDropsBrokenRows() = runTest {
         val file = File(tmp.root, "broken.preferences_pb")
-        val store = PreferenceDataStoreFactory.create(produceFile = { file })
+        val store = PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = { file },
+        )
         val repo = HiddenRepository(store)
         val first = HiddenItem(HiddenKind.Folder, "content://f", "Folder", "content://f")
         val second = HiddenItem(HiddenKind.Book, "content://b", "Book", "content://f")
@@ -39,7 +48,7 @@ class HiddenRepositoryTest {
     }
 
     @Test
-    fun namesWithTabNewlineAndPercentRoundTrip() = runBlocking {
+    fun namesWithTabNewlineAndPercentRoundTrip() = runTest {
         val repo = repository()
         val item = HiddenItem(
             kind = HiddenKind.Book,

@@ -3,6 +3,7 @@ package org.parkjw.apps.pdfbook.hidden
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -77,7 +78,7 @@ class HiddenVisibilityTest {
     }
 
     @Test
-    fun h6_showDotFilesFalseDropsDotPdfAndDefaultsOff() = runBlocking {
+    fun h6_showDotFilesFalseDropsDotPdfAndDefaultsOff() = runTest {
         val dot = BookInfo("content://dot", ".secret.pdf", 1)
         val plain = BookInfo("content://plain", "Visible.pdf", 2)
         val listing = Listing("Shelf", listOf(dot, plain))
@@ -89,7 +90,10 @@ class HiddenVisibilityTest {
         assertEquals(registered, visibleFolders(registered, emptyList()))
         assertFalse(AppSettings().showDotFiles)
         val settings = SettingsRepository(
-            PreferenceDataStoreFactory.create { File(tmp.root, "settings.preferences_pb") },
+            PreferenceDataStoreFactory.create(
+                scope = backgroundScope,
+                produceFile = { File(tmp.root, "settings.preferences_pb") },
+            ),
         )
         assertFalse(settings.settings.first().showDotFiles)
     }

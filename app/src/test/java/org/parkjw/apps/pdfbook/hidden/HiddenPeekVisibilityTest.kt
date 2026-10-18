@@ -3,6 +3,7 @@ package org.parkjw.apps.pdfbook.hidden
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -97,9 +98,12 @@ class HiddenPeekVisibilityTest {
     }
 
     @Test
-    fun h9_unhideThenUndoHideRoundTrip() = runBlocking {
+    fun h9_unhideThenUndoHideRoundTrip() = runTest {
         val repo = HiddenRepository(
-            PreferenceDataStoreFactory.create { File(tmp.root, "hidden.preferences_pb") },
+            PreferenceDataStoreFactory.create(
+                scope = backgroundScope,
+                produceFile = { File(tmp.root, "hidden.preferences_pb") },
+            ),
         )
         val item = HiddenItem(HiddenKind.Book, "content://b", "B", "f")
         repo.hide(item)

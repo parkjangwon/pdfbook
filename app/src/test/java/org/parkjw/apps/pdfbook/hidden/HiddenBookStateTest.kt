@@ -2,7 +2,7 @@ package org.parkjw.apps.pdfbook.hidden
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -23,10 +23,10 @@ class HiddenBookStateTest {
     val tmp = TemporaryFolder()
 
     @Test
-    fun h3_hideUnhideKeepsPageDirectionAndCoverAloneIsGlobal() = runBlocking {
-        val books = BookStore(PreferenceDataStoreFactory.create { File(tmp.root, "pdfbook.preferences_pb") })
-        val hidden = HiddenRepository(PreferenceDataStoreFactory.create { File(tmp.root, "hidden.preferences_pb") })
-        val settings = SettingsRepository(PreferenceDataStoreFactory.create { File(tmp.root, "settings.preferences_pb") })
+    fun h3_hideUnhideKeepsPageDirectionAndCoverAloneIsGlobal() = runTest {
+        val books = BookStore(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "pdfbook.preferences_pb") })
+        val hidden = HiddenRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "hidden.preferences_pb") })
+        val settings = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "settings.preferences_pb") })
         settings.update { it.copy(coverAlone = false) }
         val info = BookInfo("content://book", "Test Book 01.pdf", 20)
         val state = BookState(page = 4, pageCount = 20, direction = ReadingDirection.LTR, openedAt = 9)
@@ -46,11 +46,11 @@ class HiddenBookStateTest {
     }
 
     @Test
-    fun h7_hideWritesOnlyHiddenStoreAndKeepsBookIdentity() = runBlocking {
+    fun h7_hideWritesOnlyHiddenStoreAndKeepsBookIdentity() = runTest {
         val bookFile = File(tmp.root, "pdfbook.preferences_pb")
         val hiddenFile = File(tmp.root, "hidden.preferences_pb")
-        val books = BookStore(PreferenceDataStoreFactory.create { bookFile })
-        val hidden = HiddenRepository(PreferenceDataStoreFactory.create { hiddenFile })
+        val books = BookStore(PreferenceDataStoreFactory.create(scope = backgroundScope) { bookFile })
+        val hidden = HiddenRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { hiddenFile })
         val info = BookInfo("content://books/a.pdf", "Same Name.pdf", 42)
         val state = BookState(page = 3, pageCount = 9, direction = ReadingDirection.RTL, openedAt = 8)
         val key = bookKey(info.uri, info.size)

@@ -1,32 +1,36 @@
 package org.parkjw.apps.pdfbook.settings
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import java.io.File
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
 
 class SettingsRepositoryTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private fun repository(): SettingsRepository {
-        val file = File(tmp.root, "settings.preferences_pb")
-        val store = PreferenceDataStoreFactory.create(produceFile = { file })
+    private fun TestScope.repository(fileName: String = "settings.preferences_pb"): SettingsRepository {
+        val file = File(tmp.root, fileName)
+        val store = PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = { file },
+        )
         return SettingsRepository(store)
     }
 
     @Test
-    fun emptyStoreYieldsDefaults() = runBlocking {
+    fun emptyStoreYieldsDefaults() = runTest {
         assertEquals(AppSettings(), repository().settings.first())
     }
 
     @Test
-    fun updatePersistsAndReplays() = runBlocking {
+    fun updatePersistsAndReplays() = runTest {
         val repo = repository()
         repo.update {
             it.copy(
