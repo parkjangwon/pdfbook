@@ -3,6 +3,7 @@ package org.parkjw.apps.pdfbook.hidden
 import android.content.Context
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -167,9 +168,10 @@ class HiddenPeekComposeTest {
         val onLabel = context.getString(R.string.peek_hidden_on)
         val offLabel = context.getString(R.string.peek_hidden_off)
         val peekState = mutableStateOf(false)
-        fun setLibrary(showMenu: Boolean) {
-            composeRule.setContent {
-                var peek by peekState
+        val reopen = mutableStateOf(0)
+        composeRule.setContent {
+            var peek by peekState
+            key(reopen.value) {
                 PdfBookTheme(themeMode = ThemeMode.Light) {
                     LibraryScreen(
                         listing = Listing("Shelf", listOf(BookInfo("content://a", "A.pdf", 1))),
@@ -179,18 +181,18 @@ class HiddenPeekComposeTest {
                         peekEnabled = peek,
                         peekMenuEnabled = true,
                         onPeekToggle = { peek = !peek },
-                        showPeekMenu = showMenu,
+                        showPeekMenu = true,
                         peekHiddenBookIds = emptySet(),
                     )
                 }
             }
         }
-        setLibrary(showMenu = true)
         composeRule.onNodeWithText(onLabel).assertExists()
         composeRule.onNodeWithText(onLabel).performClick()
         composeRule.waitForIdle()
         assertEquals(true, peekState.value)
-        setLibrary(showMenu = true)
+        reopen.value += 1
+        composeRule.waitForIdle()
         composeRule.onNodeWithText(offLabel).assertExists()
     }
 }
