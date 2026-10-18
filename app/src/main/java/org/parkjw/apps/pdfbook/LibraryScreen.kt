@@ -141,16 +141,24 @@ fun LibraryScreen(
     showPeekMenu: Boolean = false,
     sort: BookSort = BookSort.Recent,
     onSortChange: (BookSort) -> Unit = {},
+    subfolders: List<SubfolderItem> = emptyList(),
+    onOpenSubfolder: (SubfolderItem) -> Unit = {},
+    onHideSubfolder: (SubfolderItem) -> Unit = {},
+    onUnhideSubfolder: (SubfolderItem) -> Unit = {},
+    pathLine: String? = null,
+    resumeBooks: List<BookInfo>? = null,
 ) {
     val byName = sort == BookSort.Name
     var menuBookUri by remember { mutableStateOf<String?>(null) }
     var peekMenuOpen by remember { mutableStateOf(showPeekMenu) }
     val snackbarHostState = remember { SnackbarHostState() }
     val sorted = remember(listing, states, byName) { sortBooks(listing.books, states, byName) }
-    val resume = if (byName) {
-        null
-    } else {
-        findLibraryResumeBook(sorted, states, peekHiddenBookIds)
+    val resume = remember(byName, resumeBooks, sorted, states, peekHiddenBookIds) {
+        when {
+            byName -> null
+            resumeBooks != null -> findLibraryResumeBook(sortBooks(resumeBooks, states, false), states, peekHiddenBookIds)
+            else -> findLibraryResumeBook(sorted, states, peekHiddenBookIds)
+        }
     }
     val currentOnSnackbarAction by rememberUpdatedState(onSnackbarAction)
     val currentOnSnackbarShown by rememberUpdatedState(onSnackbarShown)
@@ -179,12 +187,23 @@ fun LibraryScreen(
                         )
                     }
                 }
-                Text(
-                    listing.folderName,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Column {
+                    Text(
+                        listing.folderName,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (pathLine != null) {
+                        Text(
+                            pathLine,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.StartEllipsis,
+                        )
+                    }
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(
@@ -267,6 +286,24 @@ fun LibraryScreen(
                             },
                         )
                     }
+                }
+                items(subfolders, key = { "folder:" + it.node.uri }) { item ->
+                    SubfolderCell(
+                        item = item,
+                        covers = covers,
+                        onOpen = { onOpenSubfolder(item) },
+                        menuExpanded = menuBookUri == "folder:" + item.node.uri,
+                        onMenuExpand = { menuBookUri = "folder:" + item.node.uri },
+                        onMenuDismiss = { menuBookUri = null },
+                        onHide = {
+                            menuBookUri = null
+                            onHideSubfolder(item)
+                        },
+                        onUnhide = {
+                            menuBookUri = null
+                            onUnhideSubfolder(item)
+                        },
+                    )
                 }
                 items(sorted, key = { it.uri }) { book ->
                     val isHidden = book.uri in peekHiddenBookIds

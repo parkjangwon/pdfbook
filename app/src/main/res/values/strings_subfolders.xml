@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="library_subfolder_count">
+        <item quantity="other">책 %1$d권</item>
+    </plurals>
+</resources>
