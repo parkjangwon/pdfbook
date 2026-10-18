@@ -141,7 +141,7 @@ class SettingsUpdateUiTest {
             }
         }
         composeRule.onNodeWithText("업데이트를 확인하지 못했어요. 인터넷 연결을 확인해 주세요.").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("확인").assertIsDisplayed()
+        composeRule.onNodeWithText("확인").performClick()
         state = UpdateUiState.Failed(UpdateProblem.Download, RELEASES_PAGE_URL, release)
         composeRule.onNodeWithText("파일을 받지 못했어요").performScrollTo().assertIsDisplayed()
         state = UpdateUiState.Failed(UpdateProblem.Verify, RELEASES_PAGE_URL, release)
@@ -154,7 +154,7 @@ class SettingsUpdateUiTest {
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText("새 버전이 있어요 (v0.3.1)").assertIsDisplayed()
-        assertEquals(listOf(UpdateAction.OpenReleasePage), actions)
+        assertEquals(listOf(UpdateAction.Check, UpdateAction.OpenReleasePage), actions)
     }
 
     @Test

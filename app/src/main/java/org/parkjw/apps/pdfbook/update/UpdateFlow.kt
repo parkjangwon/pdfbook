@@ -51,12 +51,17 @@ class UpdateFlow(
     val state: StateFlow<UpdateUiState> = mutableState.asStateFlow()
     private val downloading = AtomicBoolean(false)
     private val checking = AtomicBoolean(false)
+    private val autoChecking = AtomicBoolean(false)
 
     suspend fun autoCheckOnLaunch(enabled: Boolean) {
-        if (state.value != UpdateUiState.Idle) return
-        val day = today()
-        if (!UpdatePolicy.shouldAutoCheck(enabled, store.lastAutoCheckDay(), day)) return
-        if (check(manual = false)) store.setLastAutoCheckDay(day)
+        if (state.value != UpdateUiState.Idle || !autoChecking.compareAndSet(false, true)) return
+        try {
+            val day = today()
+            if (!UpdatePolicy.shouldAutoCheck(enabled, store.lastAutoCheckDay(), day)) return
+            if (check(manual = false)) store.setLastAutoCheckDay(day)
+        } finally {
+            autoChecking.set(false)
+        }
     }
 
     suspend fun manualCheck() {

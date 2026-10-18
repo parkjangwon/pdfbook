@@ -102,7 +102,7 @@ fun updateRow(state: UpdateUiState): UpdateRow = when (state) {
                 when (state.problem) {
                     UpdateProblem.Download -> R.string.update_download_failed
                     UpdateProblem.Verify -> R.string.update_verify_failed
-                    else -> R.string.update_install_failed
+                    UpdateProblem.Install, UpdateProblem.Check -> R.string.update_install_failed
                 },
             ),
             bottomAction = UpdateAction.OpenReleasePage,
@@ -122,7 +122,9 @@ private fun UpdateText.render(currentVersion: String): String = when (this) {
     is UpdateText.Res -> if (arg == null) stringResource(res) else stringResource(res, arg)
     is UpdateText.WithCurrentVersion ->
         if (res == null) displayVersion(currentVersion) else stringResource(res, displayVersion(currentVersion))
-    UpdateText.CurrentVersionLatest -> displayVersion(currentVersion) + " · " + stringResource(R.string.update_latest)
+    UpdateText.CurrentVersionLatest -> listOf(displayVersion(currentVersion), stringResource(R.string.update_latest))
+        .filter { it.isNotEmpty() }
+        .joinToString(" · ")
 }
 
 private fun numeric(size: Int) = SpanStyle(
@@ -144,16 +146,19 @@ fun UpdateCheckBlock(
             .padding(horizontal = PdfBookSpacing.md, vertical = PdfBookSpacing.sm),
         verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.xs),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(PdfBookSpacing.sm),
+        ) {
             Column(Modifier.weight(1f)) {
                 Text(
                     text = withNumericSpans(row.title.render(currentVersion), numeric(15)),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                row.subtitle?.let { subtitle ->
+                row.subtitle?.render(currentVersion)?.takeIf { it.isNotEmpty() }?.let { subtitle ->
                     Text(
-                        text = withNumericSpans(subtitle.render(currentVersion), numeric(12)),
+                        text = withNumericSpans(subtitle, numeric(12)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

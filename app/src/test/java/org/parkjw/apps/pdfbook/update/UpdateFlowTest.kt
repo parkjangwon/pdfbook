@@ -116,7 +116,9 @@ class UpdateFlowTest {
     @Test
     fun unknownCurrentVersionDoesNotCountAsSuccess() = runBlocking {
         val f = UpdateFlow(
-            checker = UpdateChecker { ReleaseResponse(200, "[]") },
+            checker = UpdateChecker {
+                ReleaseResponse(200, ReleaseFixtures.list(ReleaseFixtures.release("v0.3.1")))
+            },
             downloader = { _, _ -> throw IOException() },
             verifier = { false },
             permission = { true },
