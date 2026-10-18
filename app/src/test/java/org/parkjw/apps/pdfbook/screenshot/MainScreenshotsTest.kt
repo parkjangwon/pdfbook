@@ -23,6 +23,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import android.graphics.Bitmap
+import org.parkjw.apps.pdfbook.DEFAULT_TAP_ZONE_SIDE_PERCENT
 import org.parkjw.apps.pdfbook.FolderCardUi
 import org.parkjw.apps.pdfbook.FolderPickScreen
 import org.parkjw.apps.pdfbook.FolderShelfScreen
@@ -33,6 +34,13 @@ import org.parkjw.apps.pdfbook.ReaderScreen
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode
+import org.parkjw.apps.pdfbook.update.AppVersion
+import org.parkjw.apps.pdfbook.update.RELEASES_PAGE_URL
+import org.parkjw.apps.pdfbook.update.Release
+import org.parkjw.apps.pdfbook.update.ReleaseAsset
+import org.parkjw.apps.pdfbook.update.UpdateBanner
+import org.parkjw.apps.pdfbook.update.UpdateProblem
+import org.parkjw.apps.pdfbook.update.UpdateUiState
 import org.parkjw.apps.pdfbook.spreads
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSnackbar
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
@@ -120,6 +128,22 @@ class MainScreenshotsTest {
     @Test
     @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
     fun shelfDarkUnfolded() = captureShelf(dark = true, file = "shelf-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun shelfExitLightFolded() = captureShelfExit(dark = false, file = "shelf-exit-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun shelfExitDarkFolded() = captureShelfExit(dark = true, file = "shelf-exit-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun shelfExitLightUnfolded() = captureShelfExit(dark = false, file = "shelf-exit-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun shelfExitDarkUnfolded() = captureShelfExit(dark = true, file = "shelf-exit-dark-unfolded.png")
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
@@ -235,6 +259,140 @@ class MainScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdateLatestLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-latest-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.UpToDate,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdateAvailableLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-available-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Available(sampleRelease, null, prompt = false),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdatePermissionLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-permission-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.NeedsInstallPermission(sampleRelease, sampleApk),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdateDownloadingLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-downloading-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Downloading(sampleRelease, 62),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdateCheckFailedLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-check-failed-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Failed(UpdateProblem.Check, RELEASES_PAGE_URL),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdateVerifyFailedLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-verify-failed-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Failed(UpdateProblem.Verify, RELEASES_PAGE_URL, sampleRelease),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdateDownloadFailedLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-download-failed-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Failed(UpdateProblem.Download, RELEASES_PAGE_URL, sampleRelease),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsUpdateInstallFailedLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-update-install-failed-light-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Failed(UpdateProblem.Install, RELEASES_PAGE_URL, sampleRelease),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun settingsUpdateAvailableDarkFolded() = captureSettings(
+        dark = true,
+        file = "settings-update-available-dark-folded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Available(sampleRelease, null, prompt = false),
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun settingsUpdateDownloadingLightUnfolded() = captureSettings(
+        dark = false,
+        file = "settings-update-downloading-light-unfolded.png",
+        scrollToEnd = true,
+        updateState = UpdateUiState.Downloading(sampleRelease, 62),
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun updateBannerLightFolded() = captureUpdateBanner(dark = false, file = "update-banner-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun updateBannerDarkFolded() = captureUpdateBanner(dark = true, file = "update-banner-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun updateBannerLightUnfolded() = captureUpdateBanner(dark = false, file = "update-banner-light-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsAboutLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-about-light-folded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun settingsAboutDarkFolded() = captureSettings(
+        dark = true,
+        file = "settings-about-dark-folded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun settingsAboutLightUnfolded() = captureSettings(
+        dark = false,
+        file = "settings-about-light-unfolded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun settingsAboutDarkUnfolded() = captureSettings(
+        dark = true,
+        file = "settings-about-dark-unfolded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun dialogLightFolded() = capture("dialog-light-folded.png", dark = false) {
         AlertDialog(
             onDismissRequest = {},
@@ -284,6 +442,85 @@ class MainScreenshotsTest {
     @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
     fun readerDarkUnfolded() = captureReader(dark = true, file = "reader-dark-unfolded.png")
 
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun readerGuideLightFolded() = captureReader(dark = false, file = "reader-guide-light-folded.png", showTapZoneGuide = true)
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun readerGuideDarkFolded() = captureReader(dark = true, file = "reader-guide-dark-folded.png", showTapZoneGuide = true)
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun readerGuideLightUnfolded() = captureReader(dark = false, file = "reader-guide-light-unfolded.png", showTapZoneGuide = true)
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun readerGuideDarkUnfolded() = captureReader(dark = true, file = "reader-guide-dark-unfolded.png", showTapZoneGuide = true)
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun readerGuideLtrLightFolded() = captureReader(
+        dark = false,
+        file = "reader-guide-ltr-light-folded.png",
+        showTapZoneGuide = true,
+        direction = ReadingDirection.LTR,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_EN_QUALIFIERS)
+    fun readerGuideLightFoldedEn() = captureReader(dark = false, file = "reader-guide-light-folded-en.png", showTapZoneGuide = true)
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun readerTapWidthLightFolded() = captureReader(
+        dark = false,
+        file = "reader-tapwidth-light-folded.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun readerTapWidthDarkFolded() = captureReader(
+        dark = true,
+        file = "reader-tapwidth-dark-folded.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun readerTapWidthLightUnfolded() = captureReader(
+        dark = false,
+        file = "reader-tapwidth-light-unfolded.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun readerTapWidthDarkUnfolded() = captureReader(
+        dark = true,
+        file = "reader-tapwidth-dark-unfolded.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_EN_QUALIFIERS)
+    fun readerTapWidthLightFoldedEn() = captureReader(
+        dark = false,
+        file = "reader-tapwidth-light-folded-en.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
     private fun captureLibrary(dark: Boolean, file: String) {
         val listing = sampleListing()
         capture(file, dark) {
@@ -321,6 +558,8 @@ class MainScreenshotsTest {
         showRenameFor: FolderCardUi? = null,
         showMenuFor: String? = null,
         showRemoveConfirmFor: String? = null,
+        exitHintToken: Int = 0,
+        updateBanner: (@Composable () -> Unit)? = null,
     ) {
         capture(file, dark) {
             FolderShelfScreen(
@@ -344,6 +583,8 @@ class MainScreenshotsTest {
                 modifier = Modifier.fillMaxSize(),
                 showMenuFor = showMenuFor,
                 showRemoveConfirmFor = showRemoveConfirmFor,
+                exitHintToken = exitHintToken,
+                updateBanner = updateBanner,
             )
         }
     }
@@ -356,6 +597,18 @@ class MainScreenshotsTest {
             file = file,
             shelf = shelf,
             covers = sampleShelfCovers(listings),
+        )
+    }
+
+    private fun captureShelfExit(dark: Boolean, file: String) {
+        val listings = sampleShelfListings()
+        val shelf = sampleShelfUi()
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = shelf,
+            covers = sampleShelfCovers(listings),
+            exitHintToken = 1,
         )
     }
 
@@ -443,19 +696,64 @@ class MainScreenshotsTest {
         )
     }
 
-    private fun captureSettings(dark: Boolean, file: String) {
+    private fun captureSettings(
+        dark: Boolean,
+        file: String,
+        scrollToEnd: Boolean = false,
+        updateState: UpdateUiState = UpdateUiState.Idle,
+    ) {
         capture(file, dark) {
             SettingsScreen(
                 settings = sampleSettings().copy(
                     themeMode = if (dark) ThemeMode.Dark else ThemeMode.Light,
                 ),
                 onSettingsChange = {},
+                versionName = "0.3.0",
                 modifier = Modifier.fillMaxSize(),
+                scrollToEnd = scrollToEnd,
+                updateState = updateState,
             )
         }
     }
 
-    private fun captureReader(dark: Boolean, file: String) {
+    private fun captureUpdateBanner(dark: Boolean, file: String) {
+        val listings = sampleShelfListings()
+        captureShelfScreen(
+            dark = dark,
+            file = file,
+            shelf = sampleShelfUi(),
+            covers = sampleShelfCovers(listings),
+            updateBanner = { UpdateBanner(version = "v0.3.1", onLater = {}, onDownload = {}) },
+        )
+    }
+
+    private val sampleRelease = Release(
+        tagName = "v0.3.1",
+        version = AppVersion(0, 3, 1),
+        name = "v0.3.1",
+        htmlUrl = "https://github.com/parkjangwon/pdfbook/releases/tag/v0.3.1",
+        notes = "",
+        publishedAt = null,
+        draft = false,
+        prerelease = false,
+        assets = emptyList(),
+    )
+
+    private val sampleApk = ReleaseAsset(
+        "pdfbook-0.3.1.apk",
+        "https://github.com/parkjangwon/pdfbook/releases/download/v0.3.1/pdfbook-0.3.1.apk",
+        1,
+        "",
+    )
+
+    private fun captureReader(
+        dark: Boolean,
+        file: String,
+        showTapZoneGuide: Boolean = false,
+        direction: ReadingDirection = ReadingDirection.RTL,
+        tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
+        tapZoneWidthSheetVisible: Boolean = false,
+    ) {
         val pageCount = 12
         val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
         capture(file, dark, systemBarsColor = ReaderBackground) {
@@ -474,8 +772,11 @@ class MainScreenshotsTest {
                 twoPage = false,
                 onBack = {},
                 onDirectionChange = {},
-                direction = ReadingDirection.RTL,
+                direction = direction,
                 overlayVisible = true,
+                showTapZoneGuide = showTapZoneGuide,
+                tapZoneSidePercent = tapZoneSidePercent,
+                tapZoneWidthSheetVisible = tapZoneWidthSheetVisible,
                 modifier = Modifier.fillMaxSize(),
             )
         }

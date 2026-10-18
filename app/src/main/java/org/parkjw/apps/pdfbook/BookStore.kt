@@ -1,6 +1,7 @@
 package org.parkjw.apps.pdfbook
 
 import android.content.Context
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -10,8 +11,8 @@ import kotlinx.coroutines.flow.map
 
 private const val BOOK_PREFIX = "book:"
 
-class BookStore(context: Context) {
-    private val store = context.applicationContext.pdfbookDataStore
+class BookStore(private val store: DataStore<Preferences>) {
+    constructor(context: Context) : this(context.applicationContext.pdfbookDataStore)
 
     val states: Flow<Map<String, BookState>> = store.data.map(::decodeAll)
 

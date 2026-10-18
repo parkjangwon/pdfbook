@@ -8,12 +8,14 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import org.parkjw.apps.pdfbook.normalizeTapZoneSidePercent
 
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
 
@@ -44,6 +46,9 @@ class SettingsRepository(
         val ShowTapZoneGuideKey = booleanPreferencesKey("show_tap_zone_guide")
         val PageTurnAnimationKey = stringPreferencesKey("page_turn_animation")
         val DoubleTapZoomScaleKey = floatPreferencesKey("double_tap_zoom_scale")
+        val AutoUpdateCheckKey = booleanPreferencesKey("auto_update_check")
+        val TapZoneSidePercentKey = intPreferencesKey("tap_zone_side_percent")
+        val ShowDotFilesKey = booleanPreferencesKey("show_dot_files")
     }
 }
 
@@ -68,6 +73,11 @@ internal fun Preferences.toAppSettings(): AppSettings {
         ),
         doubleTapZoomScale = this[SettingsRepository.DoubleTapZoomScaleKey]
             ?: defaults.doubleTapZoomScale,
+        autoUpdateCheck = this[SettingsRepository.AutoUpdateCheckKey] ?: defaults.autoUpdateCheck,
+        tapZoneSidePercent = normalizeTapZoneSidePercent(
+            this[SettingsRepository.TapZoneSidePercentKey] ?: defaults.tapZoneSidePercent,
+        ),
+        showDotFiles = this[SettingsRepository.ShowDotFilesKey] ?: defaults.showDotFiles,
     )
 }
 
@@ -83,6 +93,9 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.ShowTapZoneGuideKey] = settings.showTapZoneGuide
     this[SettingsRepository.PageTurnAnimationKey] = settings.pageTurnAnimation.name
     this[SettingsRepository.DoubleTapZoomScaleKey] = settings.doubleTapZoomScale
+    this[SettingsRepository.AutoUpdateCheckKey] = settings.autoUpdateCheck
+    this[SettingsRepository.TapZoneSidePercentKey] = normalizeTapZoneSidePercent(settings.tapZoneSidePercent)
+    this[SettingsRepository.ShowDotFilesKey] = settings.showDotFiles
 }
 
 private inline fun <reified T : Enum<T>> enumOrDefault(raw: String?, default: T): T {

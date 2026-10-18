@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import org.parkjw.apps.pdfbook.hidden.HiddenPeek
 
 class AppLockState {
     var unlocked by mutableStateOf(false)
@@ -88,6 +89,7 @@ class AppLockState {
     fun pendingExempt(): Boolean = exemptPending
 
     internal fun coldLock() {
+        HiddenPeek.reset()
         unlocked = false
         everUnlocked = false
         preferKeypad = false
@@ -105,6 +107,7 @@ class AppLockState {
     }
 
     private fun lockNow() {
+        HiddenPeek.reset()
         unlocked = false
         preferKeypad = false
         promptConsumed = false

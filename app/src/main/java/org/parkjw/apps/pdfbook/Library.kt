@@ -41,7 +41,7 @@ fun sortBooks(
     states: Map<String, BookState>,
     byName: Boolean,
 ): List<BookInfo> {
-    val byTitle = compareBy<BookInfo, String>(String.CASE_INSENSITIVE_ORDER) { titleOf(it.name) }
+    val byTitle = compareBy<BookInfo, String>(NaturalOrder) { titleOf(it.name) }
     if (byName) return books.sortedWith(byTitle)
     return books.sortedWith(
         compareByDescending<BookInfo> { states[bookKey(it.uri, it.size)]?.openedAt ?: 0L }.then(byTitle),

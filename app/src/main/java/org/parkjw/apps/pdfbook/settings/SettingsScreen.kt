@@ -31,15 +31,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.lock.AppLockMode
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.theme.CardCorner
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.extendedColors
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookRadioButtonColors
+import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
+import org.parkjw.apps.pdfbook.update.UpdateAction
+import org.parkjw.apps.pdfbook.update.UpdateCheckBlock
+import org.parkjw.apps.pdfbook.update.UpdateUiState
 
 @Composable
 fun SettingsScreen(
@@ -47,7 +54,13 @@ fun SettingsScreen(
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     appLockMode: AppLockMode = AppLockMode.None,
     onOpenAppLock: () -> Unit = {},
+    versionName: String,
     modifier: Modifier = Modifier,
+    hiddenCount: Int = 0,
+    onOpenHiddenItems: () -> Unit = {},
+    scrollToEnd: Boolean = false,
+    updateState: UpdateUiState = UpdateUiState.Idle,
+    onUpdateAction: (UpdateAction) -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -71,7 +84,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState(if (scrollToEnd) Int.MAX_VALUE else 0))
                 .padding(bottom = PdfBookSpacing.lg),
         ) {
             SettingsSection(stringResource(R.string.settings_section_general))
@@ -160,10 +173,49 @@ fun SettingsScreen(
                     onCheckedChange = { checked -> onSettingsChange { it.copy(showTapZoneGuide = checked) } },
                 )
             }
+
+            StorageSettings(
+                hiddenCount = hiddenCount,
+                showDotFiles = settings.showDotFiles,
+                onOpenHiddenItems = onOpenHiddenItems,
+                onShowDotFilesChange = { checked -> onSettingsChange { it.copy(showDotFiles = checked) } },
+            )
             SecuritySettingsSection(
                 appLockMode = appLockMode,
                 onOpenAppLock = onOpenAppLock,
             )
+            SettingsSection(stringResource(R.string.settings_section_update))
+            SettingsGroup {
+                UpdateCheckBlock(state = updateState, currentVersion = versionName, onAction = onUpdateAction)
+                GroupDivider()
+                SwitchRow(
+                    title = stringResource(R.string.update_auto),
+                    supporting = stringResource(R.string.update_auto_desc),
+                    checked = settings.autoUpdateCheck,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(autoUpdateCheck = checked) } },
+                )
+            }
+
+            SettingsSection(stringResource(R.string.settings_section_about))
+            SettingsGroup {
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = withNumericSpans(
+                                stringResource(R.string.about_version, versionName),
+                                SpanStyle(
+                                    fontFamily = PdfBookNumeric.fontFamily,
+                                    fontSize = 15.sp,
+                                    letterSpacing = (-0.2).sp,
+                                ),
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
@@ -304,10 +356,20 @@ private fun SwitchRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    supporting: String? = null,
 ) {
     ListItem(
         headlineContent = {
             Text(title, style = MaterialTheme.typography.bodyLarge)
+        },
+        supportingContent = supporting?.let {
+            {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         trailingContent = {
             Switch(

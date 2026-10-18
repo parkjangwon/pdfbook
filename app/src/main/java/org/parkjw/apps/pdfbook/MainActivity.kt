@@ -8,9 +8,11 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -20,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
@@ -45,18 +50,43 @@ import org.parkjw.apps.pdfbook.folders.Folder
 import org.parkjw.apps.pdfbook.folders.FolderAccess
 import org.parkjw.apps.pdfbook.folders.FolderRepository
 import org.parkjw.apps.pdfbook.folders.displayNameForUri
+import org.parkjw.apps.pdfbook.hidden.HiddenItem
+import org.parkjw.apps.pdfbook.hidden.HiddenItemsScreen
+import org.parkjw.apps.pdfbook.hidden.HiddenKind
+import org.parkjw.apps.pdfbook.hidden.HiddenPeek
+import org.parkjw.apps.pdfbook.hidden.HiddenRepository
+import org.parkjw.apps.pdfbook.hidden.buildPeekShelfUi
+import org.parkjw.apps.pdfbook.hidden.filterListing
+import org.parkjw.apps.pdfbook.hidden.hiddenBookIds
+import org.parkjw.apps.pdfbook.hidden.libraryBooks
+import org.parkjw.apps.pdfbook.hidden.peekMenuEnabled
+import org.parkjw.apps.pdfbook.hidden.shelfFolders
+import org.parkjw.apps.pdfbook.hidden.shouldResetPeekOnStop
+import org.parkjw.apps.pdfbook.hidden.visibleFolders
 import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.SettingsRepository
 import org.parkjw.apps.pdfbook.lock.AppLockSettingsScreen
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
+import org.parkjw.apps.pdfbook.settings.SyncAppLanguage
 import org.parkjw.apps.pdfbook.settings.StartScreen
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
+import org.parkjw.apps.pdfbook.update.RELEASES_PAGE_URL
+import org.parkjw.apps.pdfbook.update.UpdateAction
+import org.parkjw.apps.pdfbook.update.UpdateBanner
+import org.parkjw.apps.pdfbook.update.displayVersion
+import org.parkjw.apps.pdfbook.update.UpdateUiState
+import org.parkjw.apps.pdfbook.update.UpdateViewModel
+import org.parkjw.apps.pdfbook.update.installedVersionName
+import org.parkjw.apps.pdfbook.update.launchApkInstaller
+import org.parkjw.apps.pdfbook.update.openInstallPermissionSettings
+import org.parkjw.apps.pdfbook.update.openReleasePage
 
 class MainActivity : ComponentActivity() {
     private val volumeDeltas = MutableSharedFlow<Int>(extraBufferCapacity = 1)
     private val volumeDeltaFlow: SharedFlow<Int> = volumeDeltas
     @Volatile private var documentOpen = false
     @Volatile private var volumeKeyPaging = true
+    private val updates: UpdateViewModel by viewModels()
     @Volatile private var lockBlocksInput = true
 
     override fun onStart() {
@@ -66,6 +96,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         AppLockProcess.state.onStop(isChangingConfigurations, SystemClock.elapsedRealtime())
+        if (shouldResetPeekOnStop(isChangingConfigurations)) {
+            HiddenPeek.reset()
+        }
         super.onStop()
     }
 
@@ -98,8 +131,23 @@ class MainActivity : ComponentActivity() {
             val lockConfig = lockRepo.config.collectAsState(initial = null).value
             val biometricAvailable = remember { canAuthenticateBiometric(context) }
             val session = AppLockProcess.state
+            SyncAppLanguage(
+                ready = settingsState.value != null,
+                language = settings.language,
+            ) { language ->
+                scope.launch { settingsRepo.update { it.copy(language = language) } }
+            }
             LaunchedEffect(settings.volumeKeyPaging) {
                 volumeKeyPaging = settings.volumeKeyPaging
+            }
+            val updateState by updates.state.collectAsState()
+            LaunchedEffect(settingsState.value != null) {
+                if (settingsState.value != null) updates.autoCheckOnLaunch(settings.autoUpdateCheck)
+            }
+            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { updates.onResumed() }
+            LaunchedEffect(updateState) {
+                val ready = updateState as? UpdateUiState.ReadyToInstall ?: return@LaunchedEffect
+                updates.installerLaunched(context.launchApkInstaller(ready.apk))
             }
             PdfBookTheme(themeMode = settings.themeMode) {
                 Surface(
@@ -129,6 +177,18 @@ class MainActivity : ComponentActivity() {
                             lockConfig = lockConfig ?: LockConfig(),
                             biometricAvailable = biometricAvailable,
                             lockRepository = lockRepo,
+                            updateState = updateState,
+                            onUpdateAction = { action ->
+                                when (action) {
+                                    UpdateAction.Check -> updates.manualCheck()
+                                    UpdateAction.Download -> updates.downloadAndInstall()
+                                    UpdateAction.Later -> updates.later()
+                                    UpdateAction.OpenSettings -> context.openInstallPermissionSettings()
+                                    UpdateAction.OpenReleasePage -> context.openReleasePage(
+                                        (updateState as? UpdateUiState.Failed)?.releasePageUrl ?: RELEASES_PAGE_URL,
+                                    )
+                                }
+                            },
                         )
                     }
                 }
@@ -190,12 +250,17 @@ private fun App(
     lockConfig: LockConfig,
     biometricAvailable: Boolean,
     lockRepository: LockRepository,
+    updateState: UpdateUiState,
+    onUpdateAction: (UpdateAction) -> Unit,
 ) {
     val context = LocalContext.current
     val store = remember { BookStore(context) }
     val folderRepo = remember {
         FolderRepository(context, ContentResolverUriPermissions(context.contentResolver))
     }
+    val hiddenRepo = remember { HiddenRepository(context) }
+    val hiddenState = hiddenRepo.items.collectAsState(initial = null)
+    val hiddenItems = hiddenState.value.orEmpty()
     val scope = rememberCoroutineScope()
     var loaded by remember { mutableStateOf(false) }
     var folders by remember { mutableStateOf<List<Folder>?>(null) }
@@ -206,6 +271,10 @@ private fun App(
     var shelfListings by remember { mutableStateOf<Map<String, Listing?>>(emptyMap()) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showAppLock by rememberSaveable { mutableStateOf(false) }
+    var showHiddenItems by rememberSaveable { mutableStateOf(false) }
+    var undoItem by remember { mutableStateOf<HiddenItem?>(null) }
+    var undoWasUnhide by remember { mutableStateOf(false) }
+    val peekEnabled by HiddenPeek.enabled.collectAsState()
     var startApplied by rememberSaveable { mutableStateOf(false) }
     var pickTarget by rememberSaveable(stateSaver = FolderPickTargetSaver) {
         mutableStateOf<FolderPickTarget>(FolderPickTarget.Add)
@@ -221,6 +290,9 @@ private fun App(
     val selectedFolder = folderList.find { it.uri == selectedFolderUri }
     val duplicateMessage = stringResource(R.string.folder_duplicate)
     val lastBookUnavailable = stringResource(R.string.last_book_unavailable)
+    val hiddenSnackbar = stringResource(R.string.hidden_snackbar)
+    val unhiddenSnackbar = stringResource(R.string.unhidden_snackbar)
+    val undoLabel = stringResource(R.string.action_undo)
 
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -233,10 +305,16 @@ private fun App(
                 FolderPickTarget.Add -> {
                     when (folderRepo.add(uriString, name)) {
                         AddKind.Duplicate -> {
+                            hiddenRepo.unhide(HiddenKind.Folder, uriString)
+                            undoItem = null
                             snackbarMessage = duplicateMessage
                             scrollToUri = uriString
                         }
-                        AddKind.Created, AddKind.Restored -> Unit
+                        AddKind.Restored -> {
+                            hiddenRepo.unhide(HiddenKind.Folder, uriString)
+                            undoItem = null
+                        }
+                        AddKind.Created -> Unit
                     }
                 }
                 is FolderPickTarget.Repick -> {
@@ -288,7 +366,23 @@ private fun App(
         scanned = true
     }
 
-    LaunchedEffect(loaded, settingsReady, settings.startScreen, statesState.value, shelfListings) {
+    val resumeFolders = visibleFolders(folderList, hiddenItems)
+    val shownBookIds = hiddenBookIds(hiddenItems)
+    val resumeListings = shelfListings.mapValues { (_, value) ->
+        value?.let { filterListing(it, shownBookIds, settings.showDotFiles) }
+    }
+    val shelfFolderItems = shelfFolders(folderList, hiddenItems, peekEnabled)
+    val displayFolders = shelfFolderItems.map { it.folder }
+    val peekHiddenFolderIds = shelfFolderItems.filter { it.isHidden }.map { it.folder.uri }.toSet()
+    val libraryItems = listing?.let {
+        libraryBooks(it.books, shownBookIds, peekEnabled, settings.showDotFiles)
+    }.orEmpty()
+    val displayListing = listing?.copy(books = libraryItems.map { it.book })
+    val peekHiddenBookIds = libraryItems.filter { it.isHidden }.map { it.book.uri }.toSet()
+    val canPeek = peekMenuEnabled(hiddenItems.size)
+
+    LaunchedEffect(loaded, settingsReady, settings.startScreen, statesState.value, shelfListings, hiddenState.value, settings.showDotFiles) {
+        if (hiddenState.value == null) return@LaunchedEffect
         if (!canApplyStartScreen(
                 startApplied = startApplied,
                 loaded = loaded,
@@ -304,7 +398,7 @@ private fun App(
             startApplied = true
             return@LaunchedEffect
         }
-        val target = findLastBookTarget(folderList, shelfListings, states)
+        val target = findLastBookTarget(resumeFolders, resumeListings, states)
         if (target != null) {
             folderRepo.markOpened(target.folderUri)
             openUri = target.bookUri
@@ -312,6 +406,7 @@ private fun App(
             scanned = false
             folderScanToken++
         } else {
+            undoItem = null
             snackbarMessage = lastBookUnavailable
         }
         startApplied = true
@@ -348,13 +443,36 @@ private fun App(
         }
     }
 
-    val contentPhase = folderContentPhase(selectedFolderUri, scanned, listing)
+    val contentPhase = folderContentPhase(selectedFolderUri, scanned, displayListing)
+    val rootFolderList = showsRootFolderList(
+        showSettings = showSettings,
+        showLost = showLostForUri != null,
+        loaded = loaded,
+        readerOpen = book != null,
+        contentPhase = contentPhase,
+        folderCount = folderList.size,
+    )
+    val activity = LocalActivity.current
+    val exitGate = remember { DoubleBackExit() }
+    var exitHintToken by remember { mutableIntStateOf(0) }
+    LaunchedEffect(rootFolderList) {
+        if (!rootFolderList) {
+            exitGate.reset()
+            exitHintToken = 0
+        }
+    }
+    BackHandler(enabled = rootFolderList) {
+        when (exitGate.onBack(SystemClock.elapsedRealtime())) {
+            DoubleBackDecision.ShowHint -> exitHintToken += 1
+            DoubleBackDecision.Exit -> activity?.finish()
+        }
+    }
 
-    val shelfUi = remember(folderList, shelfListings, states) {
-        buildFolderShelfUi(folderList, shelfListings, states)
+    val shelfUi = remember(displayFolders, resumeFolders, resumeListings, states, peekHiddenFolderIds) {
+        buildPeekShelfUi(displayFolders, resumeFolders, peekHiddenFolderIds, resumeListings, states)
     }
     var shelfCovers by remember { mutableStateOf<Map<String, Bitmap?>>(emptyMap()) }
-    LaunchedEffect(shelfUi, shelfListings) {
+    LaunchedEffect(shelfUi, resumeListings) {
         val needed = buildSet {
             shelfUi.globalResume?.let { add(bookKey(it.book.uri, it.book.size)) }
             shelfUi.cards.forEach { addAll(it.coverKeys) }
@@ -363,13 +481,57 @@ private fun App(
             shelfCovers = emptyMap()
             return@LaunchedEffect
         }
-        val books = shelfListings.values.filterNotNull().flatMap { it.books }
+        val books = resumeListings.values.filterNotNull().flatMap { it.books }
             .associateBy { bookKey(it.uri, it.size) }
         shelfCovers = needed.associateWith { key ->
             books[key]?.let { loadCover(context, it) }
         }
     }
 
+    val updateBanner: (@Composable () -> Unit)? =
+        (updateState as? UpdateUiState.Available)?.takeIf { it.prompt }?.let { available ->
+            {
+                UpdateBanner(
+                    version = displayVersion(available.release),
+                    onLater = { onUpdateAction(UpdateAction.Later) },
+                    onDownload = {
+                        showSettings = true
+                        onUpdateAction(UpdateAction.Download)
+                    },
+                )
+            }
+        }
+
+    val undoHidden = {
+        val item = undoItem
+        val wasUnhide = undoWasUnhide
+        undoItem = null
+        undoWasUnhide = false
+        if (item != null) {
+            scope.launch {
+                if (wasUnhide) hiddenRepo.hide(item) else hiddenRepo.unhide(item.kind, item.id)
+            }
+        }
+    }
+    fun hideItem(item: HiddenItem) {
+        scope.launch {
+            hiddenRepo.hide(item)
+            undoItem = item
+            undoWasUnhide = false
+            snackbarMessage = hiddenSnackbar
+        }
+    }
+    fun unhideItem(item: HiddenItem) {
+        scope.launch {
+            hiddenRepo.unhide(item.kind, item.id)
+            undoItem = item
+            undoWasUnhide = true
+            snackbarMessage = unhiddenSnackbar
+        }
+    }
+    val togglePeek = {
+        HiddenPeek.set(!HiddenPeek.enabled.value)
+    }
     when {
         showSettings && showAppLock -> AppLockSettingsScreen(
             config = lockConfig,
@@ -382,11 +544,21 @@ private fun App(
             onSetMode = { mode -> lockRepository.setMode(mode) },
             onSetHideInRecents = { hide -> lockRepository.setHideInRecents(hide) },
         )
+        showHiddenItems -> HiddenItemsScreen(
+            items = hiddenItems,
+            onBack = { showHiddenItems = false },
+            onUnhide = { item -> scope.launch { hiddenRepo.unhide(item.kind, item.id) } },
+        )
         showSettings -> SettingsScreen(
             settings = settings,
             onSettingsChange = onSettingsChange,
             appLockMode = lockConfig.mode,
             onOpenAppLock = { showAppLock = true },
+            versionName = remember(context) { context.installedVersionName() },
+            updateState = updateState,
+            onUpdateAction = onUpdateAction,
+            hiddenCount = hiddenItems.size,
+            onOpenHiddenItems = { showHiddenItems = true },
         )
         showLostForUri != null -> FolderPickScreen(
             illustration = R.drawable.es_permission_lost,
@@ -405,6 +577,9 @@ private fun App(
             volumeDelta,
             defaultReadingDirection = settings.defaultReadingDirection,
             onBack = { openUri = null },
+            showTapZoneGuide = settings.showTapZoneGuide,
+            tapZoneSidePercent = settings.tapZoneSidePercent,
+            onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
         )
         contentPhase == FolderContentPhase.Loading -> Unit
         contentPhase == FolderContentPhase.AccessLost -> FolderPickScreen(
@@ -429,7 +604,7 @@ private fun App(
             },
         )
         contentPhase == FolderContentPhase.Ready -> LibraryScreen(
-            listing = listing!!,
+            listing = displayListing!!,
             states = states,
             onOpen = { openUri = it.uri },
             onSettings = { showSettings = true },
@@ -438,6 +613,34 @@ private fun App(
                 listing = null
                 openUri = null
             },
+            snackbarMessage = snackbarMessage,
+            snackbarActionLabel = if (undoItem != null) undoLabel else null,
+            onSnackbarShown = { snackbarMessage = null; undoItem = null; undoWasUnhide = false },
+            onSnackbarAction = undoHidden,
+            onHideBook = { bookInfo ->
+                hideItem(
+                    HiddenItem(
+                        kind = HiddenKind.Book,
+                        id = bookInfo.uri,
+                        name = titleOf(bookInfo.name),
+                        folderUri = selectedFolderUri,
+                    ),
+                )
+            },
+            onUnhideBook = { bookInfo ->
+                unhideItem(
+                    HiddenItem(
+                        kind = HiddenKind.Book,
+                        id = bookInfo.uri,
+                        name = titleOf(bookInfo.name),
+                        folderUri = selectedFolderUri,
+                    ),
+                )
+            },
+            peekEnabled = peekEnabled,
+            peekMenuEnabled = canPeek,
+            onPeekToggle = togglePeek,
+            peekHiddenBookIds = peekHiddenBookIds,
         )
         folderList.isEmpty() -> FolderPickScreen(
             illustration = R.drawable.es_pick_folder,
@@ -455,7 +658,7 @@ private fun App(
             snackbarMessage = snackbarMessage,
             scrollToUri = scrollToUri,
             showRenameFor = renameCard,
-            onSnackbarShown = { snackbarMessage = null },
+            onSnackbarShown = { snackbarMessage = null; undoItem = null; undoWasUnhide = false },
             onScrollHandled = { scrollToUri = null },
             onOpenFolder = { uri ->
                 scope.launch {
@@ -493,6 +696,25 @@ private fun App(
             },
             onRemove = { uri -> scope.launch { folderRepo.remove(uri) } },
             onLostFolder = { uri -> showLostForUri = uri },
+            updateBanner = updateBanner,
+            snackbarActionLabel = if (undoItem != null) undoLabel else null,
+            onSnackbarAction = undoHidden,
+            onHide = { uri ->
+                val card = shelfUi.cards.find { it.uri == uri }
+                if (card != null) {
+                    hideItem(HiddenItem(HiddenKind.Folder, uri, card.displayName, uri))
+                }
+            },
+            peekEnabled = peekEnabled,
+            peekMenuEnabled = canPeek,
+            onPeekToggle = togglePeek,
+            onUnhide = { uri ->
+                val card = shelfUi.cards.find { it.uri == uri }
+                if (card != null) {
+                    unhideItem(HiddenItem(HiddenKind.Folder, uri, card.displayName, uri))
+                }
+            },
+            exitHintToken = exitHintToken,
         )
     }
 }

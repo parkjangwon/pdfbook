@@ -22,6 +22,7 @@ data class FolderCardUi(
     val coverKeys: List<String>,
     val resume: FolderResumeSummary?,
     val access: FolderAccess,
+    val isHidden: Boolean = false,
 )
 
 data class GlobalResumeUi(
@@ -99,7 +100,7 @@ fun buildFolderShelfUi(
             displayName = folder.displayName,
             pathTail = pathTailForUri(folder.uri),
             bookCount = books.size,
-            coverKeys = books.take(4).map { bookKey(it.uri, it.size) },
+            coverKeys = sortBooks(books, emptyMap(), byName = true).take(4).map { bookKey(it.uri, it.size) },
             resume = resume,
             access = folder.access,
         )
