@@ -45,6 +45,17 @@ class FolderShelfTest {
     }
 
     @Test
+    fun coverKeysFollowNaturalNameOrder() {
+        val books = listOf("10화.pdf", "1화.pdf", "100화.pdf", "2화.pdf", "3화.pdf")
+            .map { BookInfo("content://$it", it, 1L) }
+        val ui = buildFolderShelfUi(listOf(folder("f")), mapOf("f" to Listing("F", books)), emptyMap())
+        assertEquals(
+            listOf("1화.pdf", "2화.pdf", "3화.pdf", "10화.pdf").map { bookKey("content://$it", 1L) },
+            ui.cards.single().coverKeys,
+        )
+    }
+
+    @Test
     fun buildFolderShelfUiSummarizesCardsAndPicksGlobalResume() {
         val folders = listOf(
             folder("fa", "Alpha", 0, lastOpenedAt = 2L),
