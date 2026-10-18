@@ -17,3 +17,5 @@ jobs:
           cache: gradle
       - name: Build, test, lint
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --console=plain
+      - name: Release version rules
+        run: bash scripts/test-release-version.sh
