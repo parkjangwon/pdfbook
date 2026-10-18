@@ -22,10 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
+import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 
 data class OpenSourceEntry(
     @StringRes val name: Int,
@@ -124,24 +128,24 @@ fun OpenSourceLicensesScreen(
                     ListItem(
                         headlineContent = {
                             Text(
-                                text = stringResource(entry.name),
+                                text = withNumericSpans(stringResource(entry.name), ossNumericStyle),
                                 style = MaterialTheme.typography.bodyLarge,
                             )
                         },
                         supportingContent = {
                             Column {
                                 Text(
-                                    text = stringResource(entry.license),
+                                    text = withNumericSpans(stringResource(entry.license), ossNumericStyle),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Text(
-                                    text = stringResource(entry.copyright),
+                                    text = withNumericSpans(stringResource(entry.copyright), ossNumericStyle),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Text(
-                                    text = stringResource(entry.url),
+                                    text = withNumericSpans(stringResource(entry.url), ossNumericStyle),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -155,3 +159,8 @@ fun OpenSourceLicensesScreen(
         }
     }
 }
+
+private val ossNumericStyle = SpanStyle(
+    fontFamily = PdfBookNumeric.fontFamily,
+    letterSpacing = (-0.2).sp,
+)
