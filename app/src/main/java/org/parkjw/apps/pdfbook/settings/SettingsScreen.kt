@@ -45,6 +45,8 @@ fun SettingsScreen(
     settings: AppSettings,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     modifier: Modifier = Modifier,
+    hiddenCount: Int = 0,
+    onOpenHiddenItems: () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -157,12 +159,19 @@ fun SettingsScreen(
                     onCheckedChange = { checked -> onSettingsChange { it.copy(showTapZoneGuide = checked) } },
                 )
             }
+
+            StorageSettings(
+                hiddenCount = hiddenCount,
+                showDotFiles = settings.showDotFiles,
+                onOpenHiddenItems = onOpenHiddenItems,
+                onShowDotFilesChange = { checked -> onSettingsChange { it.copy(showDotFiles = checked) } },
+            )
         }
     }
 }
 
 @Composable
-private fun SettingsSection(title: String) {
+internal fun SettingsSection(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.labelSmall,
@@ -177,7 +186,7 @@ private fun SettingsSection(title: String) {
 }
 
 @Composable
-private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape = CardCorner,
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -191,7 +200,7 @@ private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun GroupDivider() {
+internal fun GroupDivider() {
     HorizontalDivider(color = MaterialTheme.extendedColors.hairline)
 }
 

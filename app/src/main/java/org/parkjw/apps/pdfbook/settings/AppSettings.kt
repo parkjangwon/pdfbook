@@ -42,4 +42,5 @@ data class AppSettings(
     val showTapZoneGuide: Boolean = true,
     val pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
     val doubleTapZoomScale: Float = 2f,
+    val showDotFiles: Boolean = false,
 )

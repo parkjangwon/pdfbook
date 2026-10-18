@@ -36,6 +36,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -96,6 +97,9 @@ fun FolderShelfScreen(
     modifier: Modifier = Modifier,
     showMenuFor: String? = null,
     showRemoveConfirmFor: String? = null,
+    snackbarActionLabel: String? = null,
+    onSnackbarAction: () -> Unit = {},
+    onHide: (String) -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val gridState = rememberLazyGridState()
@@ -103,9 +107,10 @@ fun FolderShelfScreen(
     var confirmRemoveUri by remember { mutableStateOf(showRemoveConfirmFor) }
     val hasResume = shelf.globalResume != null
 
-    LaunchedEffect(snackbarMessage) {
+    LaunchedEffect(snackbarMessage, snackbarActionLabel) {
         val message = snackbarMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
+        val result = snackbarHostState.showSnackbar(message = message, actionLabel = snackbarActionLabel)
+        if (result == SnackbarResult.ActionPerformed) onSnackbarAction()
         onSnackbarShown()
     }
 
@@ -220,6 +225,10 @@ fun FolderShelfScreen(
                                 menuUri = null
                                 confirmRemoveUri = card.uri
                             },
+                            onHide = {
+                                menuUri = null
+                                onHide(card.uri)
+                            },
                         )
                     }
                 }
@@ -318,6 +327,7 @@ private fun FolderCard(
     onRename: () -> Unit,
     onRepick: () -> Unit,
     onRemove: () -> Unit,
+    onHide: () -> Unit,
 ) {
     val lost = card.access == FolderAccess.Lost
     Surface(
@@ -404,6 +414,10 @@ private fun FolderCard(
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.folder_repick)) },
                             onClick = onRepick,
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.hide_item)) },
+                            onClick = onHide,
                         )
                         DropdownMenuItem(
                             text = {
