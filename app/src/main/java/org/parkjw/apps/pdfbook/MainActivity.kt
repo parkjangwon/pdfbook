@@ -1,11 +1,14 @@
 package org.parkjw.apps.pdfbook
 
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,6 +20,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -289,6 +293,29 @@ private fun App(
     }
 
     val contentPhase = folderContentPhase(selectedFolderUri, scanned, listing)
+    val rootFolderList = showsRootFolderList(
+        showSettings = showSettings,
+        showLost = showLostForUri != null,
+        loaded = loaded,
+        readerOpen = book != null,
+        contentPhase = contentPhase,
+        folderCount = folderList.size,
+    )
+    val activity = LocalActivity.current
+    val exitGate = remember { DoubleBackExit() }
+    var exitHintToken by remember { mutableIntStateOf(0) }
+    LaunchedEffect(rootFolderList) {
+        if (!rootFolderList) {
+            exitGate.reset()
+            exitHintToken = 0
+        }
+    }
+    BackHandler(enabled = rootFolderList) {
+        when (exitGate.onBack(SystemClock.elapsedRealtime())) {
+            DoubleBackDecision.ShowHint -> exitHintToken += 1
+            DoubleBackDecision.Exit -> activity?.finish()
+        }
+    }
 
     val shelfUi = remember(folderList, shelfListings, states) {
         buildFolderShelfUi(folderList, shelfListings, states)
@@ -314,6 +341,11 @@ private fun App(
         showSettings -> SettingsScreen(
             settings = settings,
             onSettingsChange = onSettingsChange,
+            versionName = remember(context) {
+                context.packageManager
+                    .getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
+                    .versionName.orEmpty()
+            },
         )
         showLostForUri != null -> FolderPickScreen(
             illustration = R.drawable.es_permission_lost,
@@ -420,6 +452,7 @@ private fun App(
             },
             onRemove = { uri -> scope.launch { folderRepo.remove(uri) } },
             onLostFolder = { uri -> showLostForUri = uri },
+            exitHintToken = exitHintToken,
         )
     }
 }
