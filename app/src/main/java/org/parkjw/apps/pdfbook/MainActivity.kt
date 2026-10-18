@@ -331,12 +331,17 @@ private fun App(
         folderPathState = FolderPath(selectedFolderUri, path)
     }
     val currentNode = treeRoot?.nodeAt(folderPath)
+    val insideHiddenFolder = folderPath.indices.any { i ->
+        treeRoot?.nodeAt(folderPath.take(i + 1))?.uri in rules.hiddenFolderIds
+    }
     val subfolders = currentNode?.let { subfolderItems(it, folderPath, rules, peekEnabled) }.orEmpty()
+        .map { if (insideHiddenFolder) it.copy(isHidden = true) else it }
     val currentBooks = currentNode?.books ?: listing?.books.orEmpty()
+    val libraryHiddenIds = if (insideHiddenFolder) shownBookIds + currentBooks.map { it.uri } else shownBookIds
     val shelfFolderItems = shelfFolders(folderList, hiddenItems, peekEnabled)
     val displayFolders = shelfFolderItems.map { it.folder }
     val peekHiddenFolderIds = shelfFolderItems.filter { it.isHidden }.map { it.folder.uri }.toSet()
-    val libraryItems = libraryBooks(currentBooks, shownBookIds, peekEnabled, settings.showDotFiles)
+    val libraryItems = libraryBooks(currentBooks, libraryHiddenIds, peekEnabled, settings.showDotFiles)
     val displayListing = listing?.copy(
         folderName = if (folderPath.isEmpty() || currentNode == null) listing!!.folderName else currentNode.name,
         books = libraryItems.map { it.book },
@@ -625,7 +630,8 @@ private fun App(
                 hideItem(HiddenItem(HiddenKind.Folder, item.node.uri, item.node.name, selectedFolderUri))
             },
             onUnhideSubfolder = { item ->
-                val under = hiddenItemsUnder(item.node, hiddenItems)
+                val own = hiddenItems.firstOrNull { it.kind == HiddenKind.Folder && it.id == item.node.uri }
+                val under = if (own != null) listOf(own) else hiddenItemsUnder(item.node, hiddenItems)
                 if (under.size == 1) {
                     unhideItem(under.single())
                 } else if (under.isNotEmpty()) {
