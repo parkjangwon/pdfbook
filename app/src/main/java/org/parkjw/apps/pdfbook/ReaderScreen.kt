@@ -61,6 +61,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookReaderSlider
 import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
@@ -100,6 +102,7 @@ fun ReaderScreen(
     bookListVisible: Boolean = false,
     showTitleToast: Boolean = false,
     onTitleToastShown: () -> Unit = {},
+    endNotice: EndNotice? = null,
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -124,6 +127,7 @@ fun ReaderScreen(
             initialBookListVisible = bookListVisible,
             showTitleToast = showTitleToast,
             onTitleToastShown = onTitleToastShown,
+            initialEndNotice = endNotice,
         )
     }
 }
@@ -151,6 +155,7 @@ private fun ReaderScreenContent(
     initialBookListVisible: Boolean,
     showTitleToast: Boolean,
     onTitleToastShown: () -> Unit,
+    initialEndNotice: EndNotice?,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -166,24 +171,53 @@ private fun ReaderScreenContent(
     val zoomRef = rememberUpdatedState(zoom)
     val zoomed = !zoom.allowsPageTurn
 
+    var endNotice by remember { mutableStateOf(initialEndNotice) }
+    var endNoticeToken by remember { mutableIntStateOf(0) }
+    val currentVolumes by rememberUpdatedState(volumes)
+    var bottomBarHeight by remember { mutableIntStateOf(0) }
+
     LaunchedEffect(pagerState.settledPage) {
         zoom = ZoomState()
+    }
+
+    LaunchedEffect(endNotice, endNoticeToken) {
+        val notice = endNotice ?: return@LaunchedEffect
+        delay(endNoticeMillis(notice))
+        endNotice = null
+    }
+
+    fun nextAtEnd() {
+        when (val step = endStep(endNotice, currentVolumes.nextBook)) {
+            is EndStep.Show -> {
+                endNotice = step.notice
+                endNoticeToken++
+            }
+            is EndStep.Open -> {
+                endNotice = null
+                currentVolumes.onNext?.invoke()
+            }
+        }
+    }
+
+    fun openNextBook() {
+        endNotice = null
+        currentVolumes.onNext?.invoke()
+    }
+
+    fun goTo(delta: Int) {
+        if (delta < 0) endNotice = null
+        val target = pagerTargetIndex(pagerState.targetPage, delta, pagerState.pageCount)
+        if (target != pagerState.targetPage) {
+            scope.launch { pagerState.animateScrollToPage(target) }
+        } else if (isTurnPastEnd(pagerState.targetPage, delta, pagerState.pageCount)) {
+            nextAtEnd()
+        }
     }
 
     LaunchedEffect(volumeDelta, pagerState) {
         volumeDelta?.collect { delta ->
             if (!zoomRef.value.allowsPageTurn) return@collect
-            val target = pagerTargetIndex(pagerState.targetPage, delta, pagerState.pageCount)
-            if (target != pagerState.targetPage) {
-                pagerState.animateScrollToPage(target)
-            }
-        }
-    }
-
-    fun goTo(delta: Int) {
-        val target = pagerTargetIndex(pagerState.targetPage, delta, pagerState.pageCount)
-        if (target != pagerState.targetPage) {
-            scope.launch { pagerState.animateScrollToPage(target) }
+            goTo(delta)
         }
     }
 
@@ -222,6 +256,7 @@ private fun ReaderScreenContent(
                 val spread = currentSpreads.getOrNull(pageIndex) ?: return@HorizontalPager
                 val layout = spreadLayout(spread, direction)
                 val activePage = pageIndex == pagerState.settledPage
+                val lastActive = activePage && pageIndex == currentSpreads.lastIndex
                 BoxWithConstraints(
                     Modifier
                         .fillMaxSize()
@@ -240,6 +275,14 @@ private fun ReaderScreenContent(
                                         viewportHeight,
                                     )
                                 },
+                            )
+                        }
+                        .pointerInput(lastActive, direction) {
+                            if (!lastActive) return@pointerInput
+                            detectSwipePastEnd(
+                                direction = direction,
+                                isZoomed = { !zoomRef.value.allowsPageTurn },
+                                onSwipe = { if (pagerState.targetPage == pageIndex) nextAtEnd() },
                             )
                         }
                         .clipToBounds()
@@ -387,9 +430,23 @@ private fun ReaderScreenContent(
                 },
                 onPreviousBook = volumes.onPrevious,
                 onNextBook = volumes.onNext,
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .onSizeChanged { bottomBarHeight = it.height },
             )
         }
+        val bottomBarShown = overlayVisible && !widthSheetVisible && !(bookListVisible && volumes.bookList != null)
+        EndNoticeHost(
+            notice = endNotice,
+            twoPage = twoPage,
+            direction = direction,
+            bottomInset = if (bottomBarShown) {
+                with(LocalDensity.current) { bottomBarHeight.toDp() } + END_NOTICE_ABOVE_BAR
+            } else {
+                END_NOTICE_BOTTOM
+            },
+            onOpen = ::openNextBook,
+        )
         if (showTitleToast) {
             BookChangedToast(
                 title = title,
@@ -649,6 +706,27 @@ private fun PageBitmap(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+    }
+}
+
+private suspend fun PointerInputScope.detectSwipePastEnd(
+    direction: ReadingDirection,
+    isZoomed: () -> Boolean,
+    onSwipe: () -> Unit,
+) {
+    val threshold = END_SWIPE_THRESHOLD.toPx()
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        var multiTouch = false
+        var last = down.position
+        do {
+            val event = awaitPointerEvent()
+            if (event.changes.count { it.pressed } > 1) multiTouch = true
+            event.changes.firstOrNull { it.id == down.id }?.let { last = it.position }
+        } while (event.changes.any { it.pressed })
+        if (multiTouch || isZoomed()) return@awaitEachGesture
+        val delta = last - down.position
+        if (isSwipeTowardNext(delta.x, delta.y, threshold, direction)) onSwipe()
     }
 }
 

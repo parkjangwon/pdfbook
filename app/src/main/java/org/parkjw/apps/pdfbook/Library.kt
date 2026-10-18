@@ -36,14 +36,14 @@ fun decodeState(raw: String): BookState? {
     return BookState(page, count, direction, openedAt)
 }
 
+fun bookOrder(states: Map<String, BookState>, byName: Boolean): Comparator<BookInfo> {
+    val byTitle = compareBy<BookInfo, String>(NaturalOrder) { titleOf(it.name) }
+    if (byName) return byTitle
+    return compareByDescending<BookInfo> { states[bookKey(it.uri, it.size)]?.openedAt ?: 0L }.then(byTitle)
+}
+
 fun sortBooks(
     books: List<BookInfo>,
     states: Map<String, BookState>,
     byName: Boolean,
-): List<BookInfo> {
-    val byTitle = compareBy<BookInfo, String>(NaturalOrder) { titleOf(it.name) }
-    if (byName) return books.sortedWith(byTitle)
-    return books.sortedWith(
-        compareByDescending<BookInfo> { states[bookKey(it.uri, it.size)]?.openedAt ?: 0L }.then(byTitle),
-    )
-}
+): List<BookInfo> = books.sortedWith(bookOrder(states, byName))

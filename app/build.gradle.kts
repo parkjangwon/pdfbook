@@ -22,10 +22,10 @@ android {
         targetSdk = 37
         versionCode = findProperty("versionCode")?.toString()?.toIntOrNull()
             ?: System.getenv("PDFBOOK_VERSION_CODE")?.toIntOrNull()
-            ?: 1
+            ?: 302
         versionName = findProperty("versionName")?.toString()
             ?: System.getenv("PDFBOOK_VERSION_NAME")
-            ?: "0.0.1"
+            ?: "0.3.2"
     }
 
     signingConfigs {

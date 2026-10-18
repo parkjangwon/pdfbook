@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="reader_prev_book">이전 권</string>
-    <string name="reader_next_book">다음 권</string>
+    <string name="reader_next_volume">다음 권</string>
+    <string name="reader_next_book">다음 책: %1$s</string>
+    <string name="reader_next_book_open">열기</string>
+    <string name="reader_next_book_open_description">다음 책 열기: %1$s</string>
+    <string name="reader_no_next_book">다음 책이 없어요</string>
     <string name="reader_book_changed">%1$s</string>
     <string name="reader_book_list">책 목록</string>
     <plurals name="book_list_count">

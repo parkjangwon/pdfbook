@@ -11,21 +11,28 @@ data class BookListEntry(
     val percent: Int?,
 )
 
-val VolumeOrder: Comparator<BookInfo> =
-    compareBy<BookInfo, String>(NaturalOrder) { titleOf(it.name) }.thenBy { it.uri }
+fun volumeOrder(sort: BookSort, states: Map<String, BookState>): Comparator<BookInfo> =
+    bookOrder(states, byName = sort == BookSort.Name).thenBy { it.uri }
+
+val VolumeOrder: Comparator<BookInfo> = volumeOrder(BookSort.Name, emptyMap())
 
 fun volumeList(
     books: List<BookInfo>,
     hiddenBookIds: Set<String>,
     showDotFiles: Boolean,
+    order: Comparator<BookInfo> = VolumeOrder,
 ): List<BookInfo> =
     books
         .filter { it.uri !in hiddenBookIds && (showDotFiles || !isDotName(it.name)) }
-        .sortedWith(VolumeOrder)
+        .sortedWith(order)
 
-fun adjacentVolumes(volumes: List<BookInfo>, current: BookInfo): AdjacentVolumes {
-    val previous = volumes.lastOrNull { it.uri != current.uri && VolumeOrder.compare(it, current) < 0 }
-    val next = volumes.firstOrNull { it.uri != current.uri && VolumeOrder.compare(it, current) > 0 }
+fun adjacentVolumes(
+    volumes: List<BookInfo>,
+    current: BookInfo,
+    order: Comparator<BookInfo> = VolumeOrder,
+): AdjacentVolumes {
+    val previous = volumes.lastOrNull { it.uri != current.uri && order.compare(it, current) < 0 }
+    val next = volumes.firstOrNull { it.uri != current.uri && order.compare(it, current) > 0 }
     return AdjacentVolumes(previous, next)
 }
 
@@ -33,8 +40,9 @@ fun bookListEntries(
     volumes: List<BookInfo>,
     current: BookInfo,
     states: Map<String, BookState>,
+    order: Comparator<BookInfo> = VolumeOrder,
 ): List<BookListEntry> {
-    val books = if (volumes.any { it.uri == current.uri }) volumes else (volumes + current).sortedWith(VolumeOrder)
+    val books = if (volumes.any { it.uri == current.uri }) volumes else (volumes + current).sortedWith(order)
     return books.map { book ->
         val state = states[bookKey(book.uri, book.size)]
         BookListEntry(
@@ -61,6 +69,7 @@ data class BookListUi(
 data class ReaderVolumes(
     val onPrevious: (() -> Unit)? = null,
     val onNext: (() -> Unit)? = null,
+    val nextBook: BookInfo? = null,
     val bookList: BookListUi? = null,
     val onPick: (BookInfo) -> Unit = {},
 )
@@ -69,7 +78,7 @@ enum class VolumeEnd { Left, Right }
 
 enum class VolumeStep(val labelRes: Int) {
     Previous(R.string.reader_prev_book),
-    Next(R.string.reader_next_book),
+    Next(R.string.reader_next_volume),
 }
 
 fun volumeButtonAt(end: VolumeEnd, rightToLeft: Boolean): VolumeStep =
