@@ -215,6 +215,7 @@ private fun App(
     var folders by remember { mutableStateOf<List<Folder>?>(null) }
     var selectedFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
     var openUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var switchedToUri by remember { mutableStateOf<String?>(null) }
     var folderPathState by rememberSaveable(stateSaver = FolderPathSaver) { mutableStateOf(FolderPath()) }
     var listing by remember { mutableStateOf<Listing?>(null) }
     var scanned by remember { mutableStateOf(false) }
@@ -560,16 +561,40 @@ private fun App(
             },
         )
         !loaded -> Unit
-        book != null -> ReaderRoute(
-            book,
-            store,
-            volumeDelta,
-            defaultReadingDirection = settings.defaultReadingDirection,
-            onBack = { openUri = null },
-            showTapZoneGuide = settings.showTapZoneGuide,
-            tapZoneSidePercent = settings.tapZoneSidePercent,
-            onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
-        )
+        book != null -> {
+            val bookPath = treeRoot?.pathOfBook(book.uri)
+            val bookFolder = bookPath?.let { treeRoot.nodeAt(it) }
+            val folderBooks = bookFolder?.books ?: listing?.books.orEmpty()
+            val volumes = volumeList(folderBooks, shownBookIds, settings.showDotFiles)
+            val adjacent = adjacentVolumes(volumes, book)
+            val switchTo: (BookInfo) -> Unit = { next ->
+                switchedToUri = next.uri
+                openUri = next.uri
+            }
+            val bookListName = if (bookPath.isNullOrEmpty() || bookFolder == null) {
+                listing?.folderName.orEmpty()
+            } else {
+                bookFolder.name
+            }
+            ReaderRoute(
+                book,
+                store,
+                volumeDelta,
+                defaultReadingDirection = settings.defaultReadingDirection,
+                onBack = { openUri = null },
+                showTapZoneGuide = settings.showTapZoneGuide,
+                tapZoneSidePercent = settings.tapZoneSidePercent,
+                onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
+                volumes = ReaderVolumes(
+                    onPrevious = adjacent.previous?.let { { switchTo(it) } },
+                    onNext = adjacent.next?.let { { switchTo(it) } },
+                    bookList = BookListUi(bookListName, bookListEntries(volumes, book, states)),
+                    onPick = switchTo,
+                ),
+                showTitleToast = switchedToUri == book.uri,
+                onTitleToastShown = { switchedToUri = null },
+            )
+        }
         contentPhase == FolderContentPhase.Loading -> Unit
         contentPhase == FolderContentPhase.AccessLost -> FolderPickScreen(
             illustration = R.drawable.es_permission_lost,

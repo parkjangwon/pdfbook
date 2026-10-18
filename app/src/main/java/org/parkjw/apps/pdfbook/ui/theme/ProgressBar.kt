@@ -27,6 +27,22 @@ fun PdfBookProgressBar(
     )
 }
 
+@Composable
+fun PdfBookReaderProgressBar(
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    LinearProgressIndicator(
+        progress = { progress },
+        modifier = modifier,
+        color = ReaderAccent,
+        trackColor = ReaderTrack,
+        strokeCap = StrokeCap.Butt,
+        gapSize = 0.dp,
+        drawStopIndicator = {},
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfBookReaderSlider(
