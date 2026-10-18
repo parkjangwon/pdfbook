@@ -23,6 +23,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import android.graphics.Bitmap
+import org.parkjw.apps.pdfbook.BookSort
 import org.parkjw.apps.pdfbook.DEFAULT_TAP_ZONE_SIDE_PERCENT
 import org.parkjw.apps.pdfbook.FolderCardUi
 import org.parkjw.apps.pdfbook.FolderPickScreen
@@ -81,6 +82,33 @@ class MainScreenshotsTest {
     @Test
     @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
     fun libraryDarkUnfolded() = captureLibrary(dark = true, file = "library-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun librarySortMenuLightFolded() = captureLibrary(
+        dark = false,
+        file = "library-sort-menu-light-folded.png",
+        sort = BookSort.Name,
+        showSortMenu = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun librarySortMenuDarkFolded() = captureLibrary(
+        dark = true,
+        file = "library-sort-menu-dark-folded.png",
+        sort = BookSort.Name,
+        showSortMenu = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_EN_QUALIFIERS)
+    fun librarySortMenuLightFoldedEn() = captureLibrary(
+        dark = false,
+        file = "library-sort-menu-light-folded-en.png",
+        sort = BookSort.Recent,
+        showSortMenu = true,
+    )
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
@@ -618,7 +646,12 @@ class MainScreenshotsTest {
         tapZoneWidthSheetVisible = true,
     )
 
-    private fun captureLibrary(dark: Boolean, file: String) {
+    private fun captureLibrary(
+        dark: Boolean,
+        file: String,
+        sort: BookSort = BookSort.Recent,
+        showSortMenu: Boolean = false,
+    ) {
         val listing = sampleListing()
         capture(file, dark) {
             LibraryScreen(
@@ -628,6 +661,8 @@ class MainScreenshotsTest {
                 onSettings = {},
                 covers = sampleCovers(listing),
                 modifier = Modifier.fillMaxSize(),
+                sort = sort,
+                showSortMenu = showSortMenu,
             )
         }
     }
