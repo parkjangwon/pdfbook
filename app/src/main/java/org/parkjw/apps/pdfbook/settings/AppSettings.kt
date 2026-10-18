@@ -44,4 +44,5 @@ data class AppSettings(
     val pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
     val doubleTapZoomScale: Float = 2f,
     val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
+    val showDotFiles: Boolean = false,
 )

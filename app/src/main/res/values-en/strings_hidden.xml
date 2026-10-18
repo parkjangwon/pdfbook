@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_section_storage">Library</string>
+    <string name="hide_item">Hide</string>
+    <string name="hidden_snackbar">Hidden</string>
+    <string name="action_undo">Undo</string>
+    <string name="hidden_items_title">Hidden items</string>
+    <string name="hidden_items_desc">Hidden only in this app. Files stay where they are.</string>
+    <string name="hidden_items_empty">No hidden items</string>
+    <string name="unhide_item">Show again</string>
+    <string name="show_dot_files">Show dot files</string>
+    <string name="show_dot_files_desc">Show folders and files whose names start with a dot</string>
+    <string name="hidden_kind_folder">Folder</string>
+    <string name="hidden_kind_book">Book</string>
+    <string name="peek_hidden_on">Peek at hidden items</string>
+    <string name="peek_hidden_off">Hide them again</string>
+    <string name="peek_hidden_hint">Long-press to unhide</string>
+    <string name="peek_hidden_stop">Turn off</string>
+    <string name="hidden_badge">Hidden</string>
+    <string name="peek_hidden_banner">Showing hidden items for now</string>
+    <string name="unhidden_snackbar">Unhidden</string>
+    <plurals name="hidden_items_count">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+</resources>

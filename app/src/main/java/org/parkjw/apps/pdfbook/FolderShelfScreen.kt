@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +62,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.folders.FolderAccess
+import org.parkjw.apps.pdfbook.hidden.HiddenBadge
+import org.parkjw.apps.pdfbook.hidden.PeekHiddenBanner
+import org.parkjw.apps.pdfbook.hidden.shouldUnhideOnLongPress
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.safeDrawingGridContentPadding
 import org.parkjw.apps.pdfbook.ui.theme.ButtonCorner
@@ -99,22 +104,36 @@ fun FolderShelfScreen(
     modifier: Modifier = Modifier,
     showMenuFor: String? = null,
     showRemoveConfirmFor: String? = null,
+    snackbarActionLabel: String? = null,
+    onSnackbarAction: () -> Unit = {},
+    onHide: (String) -> Unit = {},
+    peekEnabled: Boolean = false,
+    peekMenuEnabled: Boolean = false,
+    onPeekToggle: () -> Unit = {},
+    onUnhide: (String) -> Unit = {},
+    showPeekMenu: Boolean = false,
     exitHintToken: Int = 0,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val gridState = rememberLazyGridState()
     var menuUri by remember { mutableStateOf(showMenuFor) }
+    var peekMenuOpen by remember { mutableStateOf(showPeekMenu) }
     var confirmRemoveUri by remember { mutableStateOf(showRemoveConfirmFor) }
     val hasResume = shelf.globalResume != null
 
     val exitConfirm = stringResource(R.string.exit_confirm)
-    LaunchedEffect(snackbarMessage) {
+    val currentOnSnackbarAction by rememberUpdatedState(onSnackbarAction)
+    val currentOnSnackbarShown by rememberUpdatedState(onSnackbarShown)
+    LaunchedEffect(snackbarMessage, snackbarActionLabel) {
         val message = snackbarMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
-        onSnackbarShown()
+        snackbarHostState.currentSnackbarData?.dismiss()
+        val result = snackbarHostState.showSnackbar(message = message, actionLabel = snackbarActionLabel)
+        if (result == SnackbarResult.ActionPerformed) currentOnSnackbarAction()
+        currentOnSnackbarShown()
     }
     LaunchedEffect(exitHintToken) {
         if (exitHintToken == 0) return@LaunchedEffect
+        snackbarHostState.currentSnackbarData?.dismiss()
         val shown = launch {
             snackbarHostState.showSnackbar(
                 message = exitConfirm,
@@ -166,20 +185,62 @@ fun FolderShelfScreen(
                     text = stringResource(R.string.folders_title),
                     style = MaterialTheme.typography.headlineSmall,
                 )
-                IconButton(onClick = onSettings, colors = pdfBookIconButtonColors()) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_settings),
-                        contentDescription = stringResource(R.string.settings_title),
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onSettings, colors = pdfBookIconButtonColors()) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_settings),
+                            contentDescription = stringResource(R.string.settings_title),
+                        )
+                    }
+                    Box {
+                        IconButton(
+                            onClick = { peekMenuOpen = true },
+                            colors = pdfBookIconButtonColors(),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_more),
+                                contentDescription = null,
+                            )
+                        }
+                        PdfBookDropdownMenu(
+                            expanded = peekMenuOpen,
+                            onDismissRequest = { peekMenuOpen = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            if (peekEnabled) R.string.peek_hidden_off else R.string.peek_hidden_on,
+                                        ),
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_eye),
+                                        contentDescription = null,
+                                    )
+                                },
+                                enabled = peekMenuEnabled,
+                                onClick = {
+                                    peekMenuOpen = false
+                                    onPeekToggle()
+                                },
+                            )
+                        }
+                    }
                 }
             }
         },
     ) { padding ->
-        BoxWithConstraints(
+        Column(
             Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            if (peekEnabled) {
+                PeekHiddenBanner(onStop = onPeekToggle)
+            }
+            BoxWithConstraints(Modifier.fillMaxSize()) {
             val columns = folderShelfColumns(maxWidth.value.toInt())
             LaunchedEffect(scrollToUri, shelf.cards, hasResume, columns) {
                 val uri = scrollToUri ?: return@LaunchedEffect
@@ -236,9 +297,15 @@ fun FolderShelfScreen(
                                 menuUri = null
                                 confirmRemoveUri = card.uri
                             },
+                            onHide = {
+                                menuUri = null
+                                onHide(card.uri)
+                            },
+                            onUnhide = { onUnhide(card.uri) },
                         )
                     }
                 }
+            }
             }
         }
     }
@@ -334,15 +401,24 @@ private fun FolderCard(
     onRename: () -> Unit,
     onRepick: () -> Unit,
     onRemove: () -> Unit,
+    onHide: () -> Unit,
+    onUnhide: () -> Unit = {},
 ) {
     val lost = card.access == FolderAccess.Lost
+    val contentAlpha = if (card.isHidden) 0.4f else 1f
     Surface(
         shape = CardCorner,
         color = MaterialTheme.colorScheme.surfaceContainer,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onOpen, onLongClick = onMenuExpand),
+            .combinedClickable(
+                onClick = onOpen,
+                onLongClick = {
+                    if (shouldUnhideOnLongPress(card.isHidden)) onUnhide()
+                    else onMenuExpand()
+                },
+            ),
     ) {
         Column(Modifier.padding(PdfBookSpacing.md)) {
             Row(
@@ -351,7 +427,9 @@ private fun FolderCard(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(
-                    Modifier.weight(1f),
+                    Modifier
+                        .weight(1f)
+                        .alpha(contentAlpha),
                     verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.xxs),
                 ) {
                     Text(
@@ -405,6 +483,9 @@ private fun FolderCard(
                         )
                     }
                 }
+                if (card.isHidden) {
+                    HiddenBadge(Modifier.padding(top = PdfBookSpacing.xxs))
+                }
                 Box {
                     IconButton(onClick = onMenuExpand, colors = pdfBookIconButtonColors()) {
                         Icon(
@@ -421,6 +502,12 @@ private fun FolderCard(
                             text = { Text(stringResource(R.string.folder_repick)) },
                             onClick = onRepick,
                         )
+                        if (!card.isHidden) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.hide_item)) },
+                                onClick = onHide,
+                            )
+                        }
                         DropdownMenuItem(
                             text = {
                                 Text(
@@ -434,7 +521,7 @@ private fun FolderCard(
                 }
             }
             Spacer(Modifier.height(PdfBookSpacing.sm))
-            CoverStrip(card.coverKeys, covers, dimmed = lost)
+            CoverStrip(card.coverKeys, covers, dimmed = lost || card.isHidden)
             if (lost) {
                 Spacer(Modifier.height(PdfBookSpacing.sm))
                 val ink = MaterialTheme.extendedColors
@@ -449,13 +536,15 @@ private fun FolderCard(
                 }
             } else if (card.resume != null) {
                 Spacer(Modifier.height(PdfBookSpacing.sm))
-                Text(
-                    text = card.resume.title,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                ResumeProgress(card.resume.percent, card.resume.progress)
+                Column(Modifier.alpha(contentAlpha)) {
+                    Text(
+                        text = card.resume.title,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    ResumeProgress(card.resume.percent, card.resume.progress)
+                }
             }
         }
     }
