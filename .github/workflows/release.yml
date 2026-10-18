@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check tag matches app version
+        run: bash scripts/check-release-tag.sh "$GITHUB_REF_NAME"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -43,16 +45,25 @@ jobs:
           PDFBOOK_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           PDFBOOK_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           PDFBOOK_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-          PDFBOOK_VERSION_CODE: ${{ github.run_number }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          ./gradlew assembleRelease -PversionName="$VERSION" --console=plain
+          ./gradlew printVersion assembleRelease --console=plain
           cp app/build/outputs/apk/release/app-release.apk "pdfbook-${VERSION}.apk"
       - name: Upload GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" "pdfbook-${VERSION}.apk" \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+          awk -v v="$VERSION" '
+            /^## / { inside = (index($0, "## [" v "]") == 1); next }
+            inside { print }
+          ' CHANGELOG.md > release-notes.md
+          if grep -q '[^[:space:]]' release-notes.md; then
+            gh release create "$GITHUB_REF_NAME" "pdfbook-${VERSION}.apk" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" "pdfbook-${VERSION}.apk" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi
