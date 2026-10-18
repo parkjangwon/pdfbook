@@ -50,6 +50,26 @@ class SortStore(private val store: DataStore<Preferences>) {
         }
     }
 
+    suspend fun moveRoot(fromUri: String, toUri: String) {
+        if (fromUri == toUri) return
+        store.edit { prefs ->
+            val names = prefs.asMap().keys.map { it.name }
+            val target = names.any {
+                it.startsWith(SORT_PREFIX) && belongsToRoot(it.removePrefix(SORT_PREFIX), toUri)
+            }
+            for (name in names) {
+                if (!name.startsWith(SORT_PREFIX)) continue
+                val key = name.removePrefix(SORT_PREFIX)
+                if (!belongsToRoot(key, fromUri)) continue
+                val value = prefs[stringPreferencesKey(name)]
+                prefs.remove(stringPreferencesKey(name))
+                if (!target && value != null) {
+                    prefs[stringPreferencesKey(SORT_PREFIX + toUri + key.removePrefix(fromUri))] = value
+                }
+            }
+        }
+    }
+
     private fun decodeAll(prefs: Preferences): Map<String, BookSort> =
         buildMap {
             for ((k, v) in prefs.asMap()) {

@@ -102,4 +102,28 @@ class SortStoreTest {
         )
         assertEquals(listOf("r"), sortKeyChain("r"))
     }
+
+    @Test
+    fun repickMovesSortsToNewFolderUri() = runBlocking {
+        val store = SortStore(dataStore())
+        store.save(sortKey("content://old"), BookSort.Name)
+        store.save(sortKey("content://old", listOf("s1")), BookSort.Recent)
+        store.save(sortKey("content://other"), BookSort.Name)
+        store.moveRoot("content://old", "content://new")
+        val sorts = store.sorts.first()
+        assertEquals(BookSort.Name, sortFor(sorts, "content://new"))
+        assertEquals(BookSort.Recent, sortFor(sorts, "content://new", listOf("s1")))
+        assertEquals(BookSort.Recent, sortFor(sorts, "content://old"))
+        assertEquals(BookSort.Name, sortFor(sorts, "content://other"))
+    }
+
+    @Test
+    fun repickOntoFolderWithOwnSortKeepsThatSort() = runBlocking {
+        val store = SortStore(dataStore())
+        store.save(sortKey("content://old"), BookSort.Name)
+        store.save(sortKey("content://new"), BookSort.Recent)
+        store.moveRoot("content://old", "content://new")
+        val sorts = store.sorts.first()
+        assertEquals(mapOf(sortKey("content://new") to BookSort.Recent), sorts)
+    }
 }

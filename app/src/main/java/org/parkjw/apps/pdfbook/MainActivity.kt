@@ -261,6 +261,7 @@ private fun App(
                 }
                 is FolderPickTarget.Repick -> {
                     folderRepo.repick(target.targetUri, uriString)
+                    sortStore.moveRoot(target.targetUri, uriString)
                     showLostForUri = null
                     if (selectedFolderUri == target.targetUri) {
                         selectedFolderUri = uriString
