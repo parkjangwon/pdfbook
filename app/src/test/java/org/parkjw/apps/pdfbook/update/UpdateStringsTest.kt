@@ -24,6 +24,7 @@ class UpdateStringsTest {
         "update_verify_failed" to "파일을 확인하지 못해 설치하지 않았어요. 릴리스 페이지에서 받아 주세요.",
         "update_open_release" to "릴리스 페이지 열기",
         "update_install_failed" to "설치 화면을 열지 못했어요. 릴리스 페이지에서 받아 주세요.",
+        "update_ok" to "확인",
     )
     private val en = mapOf(
         "settings_section_update" to "Updates",
@@ -43,11 +44,12 @@ class UpdateStringsTest {
         "update_verify_failed" to "Couldn't verify the file, so it wasn't installed. Please get it from the release page.",
         "update_open_release" to "Open release page",
         "update_install_failed" to "Couldn't open the installer. Please get it from the release page.",
+        "update_ok" to "OK",
     )
 
     @Test
     fun updateCopyMatchesScopeDocument() {
-        assertEquals(17, ko.size)
+        assertEquals(18, ko.size)
         val root = projectRoot()
         for ((dir, expected) in listOf("values" to ko, "values-ko" to ko, "values-en" to en)) {
             val values = loadStrings(File(root, "app/src/main/res/$dir/strings.xml"))

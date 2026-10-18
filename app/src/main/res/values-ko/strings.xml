@@ -79,7 +79,7 @@
     <string name="update_verify_failed">파일을 확인하지 못해 설치하지 않았어요. 릴리스 페이지에서 받아 주세요.</string>
     <string name="update_open_release">릴리스 페이지 열기</string>
     <string name="update_install_failed">설치 화면을 열지 못했어요. 릴리스 페이지에서 받아 주세요.</string>
-    <string name="update_check_action">확인</string>
+    <string name="update_ok">확인</string>
     <string name="update_current_version">지금 버전 %1$s</string>
     <string name="update_download_hint">다 받으면 설치 화면으로 넘어가요</string>
     <string name="reader_zone_previous">이전</string>

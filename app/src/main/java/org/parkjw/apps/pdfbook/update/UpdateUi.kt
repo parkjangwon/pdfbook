@@ -41,7 +41,7 @@ import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 private val UpdateBannerCorner = RoundedCornerShape(10.dp)
 
 enum class UpdateAction(@StringRes val label: Int) {
-    Check(R.string.update_check_action),
+    Check(R.string.update_ok),
     Download(R.string.update_download),
     Later(R.string.update_later),
     OpenSettings(R.string.update_open_settings),
