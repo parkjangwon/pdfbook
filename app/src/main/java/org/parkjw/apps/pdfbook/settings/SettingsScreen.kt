@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReadingDirection
+import org.parkjw.apps.pdfbook.lock.AppLockMode
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.theme.CardCorner
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
@@ -44,6 +45,8 @@ import org.parkjw.apps.pdfbook.ui.theme.pdfBookRadioButtonColors
 fun SettingsScreen(
     settings: AppSettings,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
+    appLockMode: AppLockMode = AppLockMode.None,
+    onOpenAppLock: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -157,12 +160,16 @@ fun SettingsScreen(
                     onCheckedChange = { checked -> onSettingsChange { it.copy(showTapZoneGuide = checked) } },
                 )
             }
+            SecuritySettingsSection(
+                appLockMode = appLockMode,
+                onOpenAppLock = onOpenAppLock,
+            )
         }
     }
 }
 
 @Composable
-private fun SettingsSection(title: String) {
+internal fun SettingsSection(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.labelSmall,
@@ -177,7 +184,7 @@ private fun SettingsSection(title: String) {
 }
 
 @Composable
-private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape = CardCorner,
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -191,7 +198,7 @@ private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun GroupDivider() {
+internal fun GroupDivider() {
     HorizontalDivider(color = MaterialTheme.extendedColors.hairline)
 }
 
