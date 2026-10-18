@@ -20,7 +20,9 @@ class AppLockState {
         private set
 
     private var exemptPending = false
+    private var exemptStopped = false
     private var exemptStopElapsedMs = 0L
+    private var handledPromptNonce = 0
     private var promptConsumed = false
     private var promptGeneration = 0
     private var signal: CancellationSignal? = null
@@ -34,16 +36,28 @@ class AppLockState {
         exemptPending = true
     }
 
+    fun cancelSystemReturn() {
+        exemptPending = false
+        exemptStopped = false
+    }
+
+    fun onResume() {
+        if (exemptPending && !exemptStopped) cancelSystemReturn()
+    }
+
     fun onStop(isChangingConfigurations: Boolean, nowElapsedMs: Long) {
         cancelPrompt()
-        if (exemptPending) exemptStopElapsedMs = nowElapsedMs
+        if (exemptPending && !isChangingConfigurations) {
+            exemptStopped = true
+            exemptStopElapsedMs = nowElapsedMs
+        }
         if (shouldLockOnStop(isChangingConfigurations, exemptPending)) lockNow()
     }
 
     fun onStart(nowElapsedMs: Long) {
-        if (!exemptPending) return
+        if (!exemptPending || !exemptStopped) return
         val elapsed = (nowElapsedMs - exemptStopElapsedMs).coerceAtLeast(0L)
-        exemptPending = false
+        cancelSystemReturn()
         if (shouldLockOnReturn(elapsed)) lockNow()
     }
 
@@ -63,6 +77,12 @@ class AppLockState {
         promptNonce++
     }
 
+    fun consumePromptRequest(nonce: Int): Boolean {
+        if (nonce == 0 || nonce <= handledPromptNonce) return false
+        handledPromptNonce = nonce
+        return true
+    }
+
     fun nextPromptGeneration(): Int {
         promptGeneration += 1
         return promptGeneration
@@ -71,7 +91,9 @@ class AppLockState {
     fun isPromptCurrent(generation: Int): Boolean = generation == promptGeneration
 
     fun bindSignal(cancellation: CancellationSignal) {
+        val previous = signal
         signal = cancellation
+        if (previous != null && previous !== cancellation) previous.cancel()
     }
 
     fun cancelPrompt() {
@@ -90,6 +112,8 @@ class AppLockState {
 
     internal fun coldLock() {
         HiddenPeek.reset()
+        cancelPrompt()
+        cancelSystemReturn()
         unlocked = false
         everUnlocked = false
         preferKeypad = false
@@ -98,8 +122,8 @@ class AppLockState {
 
     fun resetForTest() {
         coldLock()
-        exemptPending = false
         exemptStopElapsedMs = 0L
+        handledPromptNonce = 0
         promptGeneration = 0
         lockEpoch = 0
         promptNonce = 0

@@ -94,6 +94,11 @@ class MainActivity : ComponentActivity() {
         AppLockProcess.state.onStart(SystemClock.elapsedRealtime())
     }
 
+    override fun onResume() {
+        super.onResume()
+        AppLockProcess.state.onResume()
+    }
+
     override fun onStop() {
         AppLockProcess.state.onStop(isChangingConfigurations, SystemClock.elapsedRealtime())
         if (shouldResetPeekOnStop(isChangingConfigurations)) {
@@ -103,20 +108,30 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun startActivity(intent: Intent, options: Bundle?) {
-        noteExempt(intent)
-        super.startActivity(intent, options)
+        val exempt = noteExempt(intent)
+        try {
+            super.startActivity(intent, options)
+        } catch (error: RuntimeException) {
+            if (exempt) AppLockProcess.state.cancelSystemReturn()
+            throw error
+        }
     }
 
     @Suppress("DEPRECATION")
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
-        noteExempt(intent)
-        super.startActivityForResult(intent, requestCode, options)
+        val exempt = noteExempt(intent)
+        try {
+            super.startActivityForResult(intent, requestCode, options)
+        } catch (error: RuntimeException) {
+            if (exempt) AppLockProcess.state.cancelSystemReturn()
+            throw error
+        }
     }
 
-    private fun noteExempt(intent: Intent?) {
-        if (isExemptSystemIntent(intent?.action, intent?.type)) {
-            AppLockProcess.state.expectSystemReturn()
-        }
+    private fun noteExempt(intent: Intent?): Boolean {
+        if (!isExemptSystemIntent(intent?.action, intent?.type)) return false
+        AppLockProcess.state.expectSystemReturn()
+        return true
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -129,7 +144,10 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             val lockRepo = remember { LockRepository(context) }
             val lockConfig = lockRepo.config.collectAsState(initial = null).value
-            val biometricAvailable = remember { canAuthenticateBiometric(context) }
+            var biometricAvailable by remember { mutableStateOf(canAuthenticateBiometric(context)) }
+            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+                biometricAvailable = canAuthenticateBiometric(context)
+            }
             val session = AppLockProcess.state
             SyncAppLanguage(
                 ready = settingsState.value != null,
@@ -155,7 +173,9 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     SideEffect {
-                        if (lockConfig != null) {
+                        if (lockConfig == null) {
+                            setRecentsScreenshotEnabled(false)
+                        } else {
                             applyRecentsScreenshot(lockConfig) { setRecentsScreenshotEnabled(it) }
                         }
                     }

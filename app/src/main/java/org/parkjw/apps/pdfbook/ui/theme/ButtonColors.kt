@@ -26,6 +26,8 @@ fun pdfBookIconButtonColors(
 fun pdfBookInkButtonColors() = ButtonDefaults.buttonColors(
     containerColor = MaterialTheme.extendedColors.inkButton,
     contentColor = MaterialTheme.extendedColors.onInkButton,
+    disabledContainerColor = MaterialTheme.extendedColors.inkButton,
+    disabledContentColor = MaterialTheme.extendedColors.onInkButton,
 )
 
 @Composable

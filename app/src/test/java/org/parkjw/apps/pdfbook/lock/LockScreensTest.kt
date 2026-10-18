@@ -1,10 +1,12 @@
 package org.parkjw.apps.pdfbook.lock
 
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -95,6 +97,57 @@ class LockScreensTest {
         session.unlock()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("book-uri").assertExists()
+    }
+
+    @Test
+    fun l2_relockRemovesAppFromCompositionAndRestoresSaveable() {
+        val session = AppLockState()
+        session.unlock()
+        val config = LockConfig(mode = AppLockMode.Pin, pinHash = "h", pinSalt = "s", pinLength = 4)
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                LockGate(
+                    config = config,
+                    session = session,
+                    canAuthenticate = false,
+                    verify = { pin, _ -> pin.fill('\u0000'); PinVerify.Wrong },
+                    onUnlocked = { session.unlock() },
+                    onBack = {},
+                    onBlockedChange = {},
+                ) {
+                    var uri by rememberSaveable { mutableStateOf("first") }
+                    Text(uri, Modifier.clickable { uri = "kept" })
+                }
+            }
+        }
+        composeRule.onNodeWithText("first").performClick()
+        composeRule.onNodeWithText("kept").assertExists()
+        session.onStop(isChangingConfigurations = false, nowElapsedMs = 0L)
+        composeRule.waitForIdle()
+        assertTrue(session.everUnlocked)
+        composeRule.onNodeWithText("kept").assertDoesNotExist()
+        composeRule.onNodeWithText(text(R.string.lock_title)).assertExists()
+        session.unlock()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("kept").assertExists()
+    }
+
+    @Test
+    fun l4_fingerprintKeyHiddenWhenBiometricUnavailable() {
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                LockScreen(
+                    config = LockConfig(mode = AppLockMode.Biometric, pinHash = "h", pinSalt = "s", pinLength = 4),
+                    session = AppLockState(),
+                    canAuthenticate = false,
+                    verify = { pin, _ -> pin.fill('\u0000'); PinVerify.Wrong },
+                    onUnlocked = {},
+                    onBack = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText(text(R.string.lock_title)).assertExists()
+        composeRule.onNodeWithContentDescription(text(R.string.app_lock_biometric)).assertDoesNotExist()
     }
 
     @Test

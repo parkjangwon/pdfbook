@@ -64,7 +64,7 @@ fun LockScreen(
         awaitBiometricPrompt(activity, session, promptTitle, usePin, onUnlocked) { session.showKeypad() }
     }
     LaunchedEffect(nonce) {
-        if (nonce == 0 || activity == null) return@LaunchedEffect
+        if (activity == null || !session.consumePromptRequest(nonce)) return@LaunchedEffect
         awaitBiometricPrompt(activity, session, promptTitle, usePin, onUnlocked) { session.showKeypad() }
     }
     PinEntry(
@@ -74,7 +74,7 @@ fun LockScreen(
         failedAttempts = config.failedAttempts,
         lockoutUntilEpochMs = config.lockoutUntilEpochMs,
         showLockIcon = true,
-        showFingerprint = mode == AppLockMode.Biometric,
+        showFingerprint = mode == AppLockMode.Biometric && canAuthenticate,
         onFingerprint = { session.requestPrompt() },
         verify = verify,
         onSuccess = onUnlocked,
@@ -110,7 +110,7 @@ fun ConfirmPinScreen(
             failedAttempts = config.failedAttempts,
             lockoutUntilEpochMs = config.lockoutUntilEpochMs,
             showLockIcon = true,
-            showFingerprint = config.mode == AppLockMode.Biometric,
+            showFingerprint = config.mode == AppLockMode.Biometric && canAuthenticate,
             onFingerprint = onRequestBiometric,
             verify = verify,
             onSuccess = onSuccess,
@@ -159,18 +159,22 @@ private fun PinEntry(
         buffer.clear()
         busy = true
         scope.launch {
-            when (verify(pin, now())) {
-                PinVerify.Success -> onSuccess()
-                PinVerify.Wrong -> {
-                    wrong = true
-                    clock = now()
+            try {
+                when (verify(pin, now())) {
+                    PinVerify.Success -> onSuccess()
+                    PinVerify.Wrong -> {
+                        wrong = true
+                        clock = now()
+                    }
+                    is PinVerify.Waiting -> {
+                        wrong = false
+                        clock = now()
+                    }
                 }
-                is PinVerify.Waiting -> {
-                    wrong = false
-                    clock = now()
-                }
+            } finally {
+                pin.fill('\u0000')
+                busy = false
             }
-            busy = false
         }
     }
     PinPadScreen(

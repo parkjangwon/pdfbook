@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 
 @Composable
 fun LockGate(
@@ -25,14 +25,11 @@ fun LockGate(
     SideEffect { onBlockedChange(config == null || locked) }
     if (config == null) return
     val showApp = !locking || everUnlocked
+    val saveable = rememberSaveableStateHolder()
     Box(Modifier.fillMaxSize()) {
-        if (showApp) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .then(if (locked) Modifier.clearAndSetSemantics {} else Modifier),
-            ) {
-                app()
+        if (showApp && !locked) {
+            Box(Modifier.fillMaxSize()) {
+                saveable.SaveableStateProvider(APP_STATE_KEY) { app() }
             }
         }
         if (locked) {
@@ -47,3 +44,5 @@ fun LockGate(
         }
     }
 }
+
+private const val APP_STATE_KEY = "app"

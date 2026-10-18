@@ -96,6 +96,50 @@ class LockPolicyTest {
     }
 
     @Test
+    fun l3_exemptCancelledWhenResumedWithoutStop() {
+        val state = AppLockState()
+        state.unlock()
+        state.expectSystemReturn()
+        state.onResume()
+        assertFalse(state.pendingExempt())
+        state.onStop(isChangingConfigurations = false, nowElapsedMs = 0L)
+        assertFalse(state.unlocked)
+    }
+
+    @Test
+    fun l3_failedLaunchCancelsExempt() {
+        val state = AppLockState()
+        state.unlock()
+        state.expectSystemReturn()
+        state.cancelSystemReturn()
+        state.onStop(isChangingConfigurations = false, nowElapsedMs = 0L)
+        assertFalse(state.unlocked)
+    }
+
+    @Test
+    fun l3_configChangeKeepsExemptUntilRealReturn() {
+        val state = AppLockState()
+        state.unlock()
+        state.expectSystemReturn()
+        state.onStop(isChangingConfigurations = true, nowElapsedMs = 0L)
+        state.onStart(1_000L)
+        assertTrue(state.pendingExempt())
+        state.onStop(isChangingConfigurations = false, nowElapsedMs = 2_000L)
+        state.onStart(2_000L + SYSTEM_RETURN_GRACE_MS)
+        assertTrue(state.unlocked)
+        assertFalse(state.pendingExempt())
+    }
+
+    @Test
+    fun l4_promptRequestIsConsumedOnce() {
+        val state = AppLockState()
+        assertFalse(state.consumePromptRequest(state.promptNonce))
+        state.requestPrompt()
+        assertTrue(state.consumePromptRequest(state.promptNonce))
+        assertFalse(state.consumePromptRequest(state.promptNonce))
+    }
+
+    @Test
     fun l3_configChangeDoesNotLock() {
         val state = AppLockState()
         state.unlock()
