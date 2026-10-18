@@ -23,6 +23,14 @@ fun pdfBookIconButtonColors(
 ) = IconButtonDefaults.iconButtonColors(contentColor = contentColor)
 
 @Composable
+fun pdfBookInkButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = MaterialTheme.extendedColors.inkButton,
+    contentColor = MaterialTheme.extendedColors.onInkButton,
+    disabledContainerColor = MaterialTheme.extendedColors.inkButton,
+    disabledContentColor = MaterialTheme.extendedColors.onInkButton,
+)
+
+@Composable
 fun pdfBookRadioButtonColors() = RadioButtonDefaults.colors(
     selectedColor = MaterialTheme.colorScheme.onSurface,
     unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,

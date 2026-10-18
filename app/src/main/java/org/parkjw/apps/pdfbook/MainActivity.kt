@@ -1,5 +1,6 @@
 package org.parkjw.apps.pdfbook
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
@@ -18,6 +19,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -36,6 +38,13 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.folders.AddKind
+import org.parkjw.apps.pdfbook.lock.AppLockProcess
+import org.parkjw.apps.pdfbook.lock.LockConfig
+import org.parkjw.apps.pdfbook.lock.LockGate
+import org.parkjw.apps.pdfbook.lock.LockRepository
+import org.parkjw.apps.pdfbook.lock.applyRecentsScreenshot
+import org.parkjw.apps.pdfbook.lock.canAuthenticateBiometric
+import org.parkjw.apps.pdfbook.lock.isExemptSystemIntent
 import org.parkjw.apps.pdfbook.folders.ContentResolverUriPermissions
 import org.parkjw.apps.pdfbook.folders.Folder
 import org.parkjw.apps.pdfbook.folders.FolderAccess
@@ -57,6 +66,7 @@ import org.parkjw.apps.pdfbook.hidden.shouldResetPeekOnStop
 import org.parkjw.apps.pdfbook.hidden.visibleFolders
 import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.SettingsRepository
+import org.parkjw.apps.pdfbook.lock.AppLockSettingsScreen
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.SyncAppLanguage
 import org.parkjw.apps.pdfbook.settings.StartScreen
@@ -78,6 +88,52 @@ class MainActivity : ComponentActivity() {
     @Volatile private var documentOpen = false
     @Volatile private var volumeKeyPaging = true
     private val updates: UpdateViewModel by viewModels()
+    @Volatile private var lockBlocksInput = true
+
+    override fun onStart() {
+        super.onStart()
+        AppLockProcess.state.onStart(SystemClock.elapsedRealtime())
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AppLockProcess.state.onResume()
+    }
+
+    override fun onStop() {
+        AppLockProcess.state.onStop(isChangingConfigurations, SystemClock.elapsedRealtime())
+        if (shouldResetPeekOnStop(isChangingConfigurations)) {
+            HiddenPeek.reset()
+        }
+        super.onStop()
+    }
+
+    override fun startActivity(intent: Intent, options: Bundle?) {
+        val exempt = noteExempt(intent)
+        try {
+            super.startActivity(intent, options)
+        } catch (error: RuntimeException) {
+            if (exempt) AppLockProcess.state.cancelSystemReturn()
+            throw error
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        val exempt = noteExempt(intent)
+        try {
+            super.startActivityForResult(intent, requestCode, options)
+        } catch (error: RuntimeException) {
+            if (exempt) AppLockProcess.state.cancelSystemReturn()
+            throw error
+        }
+    }
+
+    private fun noteExempt(intent: Intent?): Boolean {
+        if (!isExemptSystemIntent(intent?.action, intent?.type)) return false
+        AppLockProcess.state.expectSystemReturn()
+        return true
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,6 +143,13 @@ class MainActivity : ComponentActivity() {
             val settingsState = settingsRepo.settings.collectAsState(initial = null)
             val settings = settingsState.value ?: AppSettings()
             val scope = rememberCoroutineScope()
+            val lockRepo = remember { LockRepository(context) }
+            val lockConfig = lockRepo.config.collectAsState(initial = null).value
+            var biometricAvailable by remember { mutableStateOf(canAuthenticateBiometric(context)) }
+            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+                biometricAvailable = canAuthenticateBiometric(context)
+            }
+            val session = AppLockProcess.state
             SyncAppLanguage(
                 ready = settingsState.value != null,
                 language = settings.language,
@@ -110,32 +173,52 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    App(
-                        volumeDelta = volumeDeltaFlow,
-                        settings = settings,
-                        settingsReady = settingsState.value != null,
-                        onSettingsChange = { transform -> scope.launch { settingsRepo.update(transform) } },
-                        onDocumentOpenChange = { open -> documentOpen = open },
-                        updateState = updateState,
-                        onUpdateAction = { action ->
-                            when (action) {
-                                UpdateAction.Check -> updates.manualCheck()
-                                UpdateAction.Download -> updates.downloadAndInstall()
-                                UpdateAction.Later -> updates.later()
-                                UpdateAction.OpenSettings -> context.openInstallPermissionSettings()
-                                UpdateAction.OpenReleasePage -> context.openReleasePage(
-                                    (updateState as? UpdateUiState.Failed)?.releasePageUrl ?: RELEASES_PAGE_URL,
-                                )
-                            }
-                        },
-                    )
+                    SideEffect {
+                        if (lockConfig == null) {
+                            setRecentsScreenshotEnabled(false)
+                        } else {
+                            applyRecentsScreenshot(lockConfig) { setRecentsScreenshotEnabled(it) }
+                        }
+                    }
+                    LockGate(
+                        config = lockConfig,
+                        session = session,
+                        canAuthenticate = biometricAvailable,
+                        verify = { pin, now -> lockRepo.verifyPin(pin, now) },
+                        onUnlocked = { session.unlock() },
+                        onBack = { moveTaskToBack(true) },
+                        onBlockedChange = { lockBlocksInput = it },
+                    ) {
+                        App(
+                            volumeDelta = volumeDeltaFlow,
+                            settings = settings,
+                            settingsReady = settingsState.value != null,
+                            onSettingsChange = { transform -> scope.launch { settingsRepo.update(transform) } },
+                            onDocumentOpenChange = { open -> documentOpen = open },
+                            lockConfig = lockConfig ?: LockConfig(),
+                            biometricAvailable = biometricAvailable,
+                            lockRepository = lockRepo,
+                            updateState = updateState,
+                            onUpdateAction = { action ->
+                                when (action) {
+                                    UpdateAction.Check -> updates.manualCheck()
+                                    UpdateAction.Download -> updates.downloadAndInstall()
+                                    UpdateAction.Later -> updates.later()
+                                    UpdateAction.OpenSettings -> context.openInstallPermissionSettings()
+                                    UpdateAction.OpenReleasePage -> context.openReleasePage(
+                                        (updateState as? UpdateUiState.Failed)?.releasePageUrl ?: RELEASES_PAGE_URL,
+                                    )
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (!documentOpen || !volumeKeyPaging) return super.onKeyDown(keyCode, event)
+        if (lockBlocksInput || !documentOpen || !volumeKeyPaging) return super.onKeyDown(keyCode, event)
         return when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
                 volumeDeltas.tryEmit(1)
@@ -150,17 +233,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        if (!documentOpen || !volumeKeyPaging) return super.onKeyUp(keyCode, event)
+        if (lockBlocksInput || !documentOpen || !volumeKeyPaging) return super.onKeyUp(keyCode, event)
         return when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN -> true
             else -> super.onKeyUp(keyCode, event)
-        }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        if (shouldResetPeekOnStop(isChangingConfigurations)) {
-            HiddenPeek.reset()
         }
     }
 }
@@ -197,6 +273,9 @@ private fun App(
     settingsReady: Boolean,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     onDocumentOpenChange: (Boolean) -> Unit,
+    lockConfig: LockConfig,
+    biometricAvailable: Boolean,
+    lockRepository: LockRepository,
     updateState: UpdateUiState,
     onUpdateAction: (UpdateAction) -> Unit,
 ) {
@@ -221,6 +300,7 @@ private fun App(
     var scanned by remember { mutableStateOf(false) }
     var shelfListings by remember { mutableStateOf<Map<String, Listing?>>(emptyMap()) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showAppLock by rememberSaveable { mutableStateOf(false) }
     var showHiddenItems by rememberSaveable { mutableStateOf(false) }
     var undoItem by remember { mutableStateOf<HiddenItem?>(null) }
     var undoWasUnhide by remember { mutableStateOf(false) }
@@ -417,7 +497,9 @@ private fun App(
     BackHandler(enabled = backAction == FolderBackAction.UpFolder) {
         parentPath(folderPath)?.let { setFolderPath(it) }
     }
-    BackHandler(enabled = backAction == FolderBackAction.CloseSettings) { showSettings = false }
+    BackHandler(enabled = backAction == FolderBackAction.CloseSettings) {
+        if (showAppLock) showAppLock = false else showSettings = false
+    }
     BackHandler(enabled = backAction == FolderBackAction.CloseReader) { openUri = null }
     BackHandler(enabled = backAction == FolderBackAction.CloseLibrary) {
         selectedFolderUri = null
@@ -536,6 +618,17 @@ private fun App(
         HiddenPeek.set(!HiddenPeek.enabled.value)
     }
     when {
+        showSettings && showAppLock -> AppLockSettingsScreen(
+            config = lockConfig,
+            session = AppLockProcess.state,
+            biometricAvailable = biometricAvailable,
+            onBack = { showAppLock = false },
+            onAuthenticated = { AppLockProcess.state.unlock() },
+            onVerify = { pin, now -> lockRepository.verifyPin(pin, now) },
+            onSavePin = { pin, mode -> lockRepository.saveNewPin(pin, mode) },
+            onSetMode = { mode -> lockRepository.setMode(mode) },
+            onSetHideInRecents = { hide -> lockRepository.setHideInRecents(hide) },
+        )
         showHiddenItems -> HiddenItemsScreen(
             items = hiddenItems,
             onBack = { showHiddenItems = false },
@@ -544,6 +637,8 @@ private fun App(
         showSettings -> SettingsScreen(
             settings = settings,
             onSettingsChange = onSettingsChange,
+            appLockMode = lockConfig.mode,
+            onOpenAppLock = { showAppLock = true },
             versionName = remember(context) { context.installedVersionName() },
             updateState = updateState,
             onUpdateAction = onUpdateAction,

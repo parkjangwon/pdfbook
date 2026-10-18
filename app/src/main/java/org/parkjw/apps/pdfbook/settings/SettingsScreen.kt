@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReadingDirection
+import org.parkjw.apps.pdfbook.lock.AppLockMode
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.theme.CardCorner
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
@@ -51,6 +52,8 @@ import org.parkjw.apps.pdfbook.update.UpdateUiState
 fun SettingsScreen(
     settings: AppSettings,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
+    appLockMode: AppLockMode = AppLockMode.None,
+    onOpenAppLock: () -> Unit = {},
     versionName: String,
     modifier: Modifier = Modifier,
     hiddenCount: Int = 0,
@@ -176,6 +179,10 @@ fun SettingsScreen(
                 showDotFiles = settings.showDotFiles,
                 onOpenHiddenItems = onOpenHiddenItems,
                 onShowDotFilesChange = { checked -> onSettingsChange { it.copy(showDotFiles = checked) } },
+            )
+            SecuritySettingsSection(
+                appLockMode = appLockMode,
+                onOpenAppLock = onOpenAppLock,
             )
             SettingsSection(stringResource(R.string.settings_section_update))
             SettingsGroup {

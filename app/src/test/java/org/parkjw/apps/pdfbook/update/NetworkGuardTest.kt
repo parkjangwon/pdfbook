@@ -49,7 +49,11 @@ class NetworkGuardTest {
             .map { it.groupValues[1] }
             .toSet()
         assertEquals(
-            setOf("android.permission.INTERNET", "android.permission.REQUEST_INSTALL_PACKAGES"),
+            setOf(
+                "android.permission.INTERNET",
+                "android.permission.REQUEST_INSTALL_PACKAGES",
+                "android.permission.USE_BIOMETRIC",
+            ),
             permissions,
         )
     }

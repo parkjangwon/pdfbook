@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_section_security">Security</string>
+    <string name="app_lock">App lock</string>
+    <string name="app_lock_none">None</string>
+    <string name="app_lock_pin">PIN</string>
+    <string name="app_lock_biometric">Biometrics</string>
+    <string name="app_lock_biometric_needs_pin">Set a PIN first to use biometrics</string>
+    <string name="pin_create_title">Create PIN</string>
+    <string name="pin_create_hint">4 to 8 digits</string>
+    <string name="pin_confirm_title">Enter PIN again</string>
+    <string name="pin_mismatch">PINs don\'t match</string>
+    <string name="pin_next">Next</string>
+    <string name="pin_forget_warning">A forgotten PIN can\'t be recovered. You\'d have to clear app data, which also removes your folders and reading progress.</string>
+    <string name="lock_title">PDFBook is locked</string>
+    <string name="lock_enter_pin">Enter your PIN</string>
+    <string name="lock_wrong_pin">Wrong PIN</string>
+    <string name="lock_wait">Try again in %1$d seconds</string>
+    <string name="lock_use_pin">Use PIN</string>
+    <string name="biometric_prompt_title">Unlock PDFBook</string>
+    <string name="hide_in_recents">Hide in recent apps</string>
+    <string name="hide_in_recents_desc">Hides app content in the recent apps list</string>
+    <string name="confirm_identity">Confirm it\'s you</string>
+    <string name="pin_change">Change PIN</string>
+    <string name="pin_delete">Delete</string>
+    <string name="app_lock_none_desc">Anyone can open the app</string>
+    <string name="app_lock_pin_desc">Enter your PIN to open the app</string>
+    <string name="app_lock_biometric_desc">Unlock with fingerprint or face, or use your PIN</string>
+</resources>
