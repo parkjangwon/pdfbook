@@ -53,6 +53,8 @@ fun SettingsScreen(
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     versionName: String,
     modifier: Modifier = Modifier,
+    hiddenCount: Int = 0,
+    onOpenHiddenItems: () -> Unit = {},
     scrollToEnd: Boolean = false,
     updateState: UpdateUiState = UpdateUiState.Idle,
     onUpdateAction: (UpdateAction) -> Unit = {},
@@ -169,6 +171,12 @@ fun SettingsScreen(
                 )
             }
 
+            StorageSettings(
+                hiddenCount = hiddenCount,
+                showDotFiles = settings.showDotFiles,
+                onOpenHiddenItems = onOpenHiddenItems,
+                onShowDotFilesChange = { checked -> onSettingsChange { it.copy(showDotFiles = checked) } },
+            )
             SettingsSection(stringResource(R.string.settings_section_update))
             SettingsGroup {
                 UpdateCheckBlock(state = updateState, currentVersion = versionName, onAction = onUpdateAction)
@@ -206,7 +214,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsSection(title: String) {
+internal fun SettingsSection(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.labelSmall,
@@ -221,7 +229,7 @@ private fun SettingsSection(title: String) {
 }
 
 @Composable
-private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape = CardCorner,
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -235,7 +243,7 @@ private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun GroupDivider() {
+internal fun GroupDivider() {
     HorizontalDivider(color = MaterialTheme.extendedColors.hairline)
 }
 

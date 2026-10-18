@@ -45,4 +45,5 @@ data class AppSettings(
     val doubleTapZoomScale: Float = 2f,
     val autoUpdateCheck: Boolean = true,
     val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
+    val showDotFiles: Boolean = false,
 )

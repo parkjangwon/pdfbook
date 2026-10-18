@@ -22,6 +22,7 @@ data class FolderCardUi(
     val coverKeys: List<String>,
     val resume: FolderResumeSummary?,
     val access: FolderAccess,
+    val isHidden: Boolean = false,
 )
 
 data class GlobalResumeUi(
