@@ -64,3 +64,16 @@ data class ReaderVolumes(
     val bookList: BookListUi? = null,
     val onPick: (BookInfo) -> Unit = {},
 )
+
+enum class VolumeEnd { Left, Right }
+
+enum class VolumeStep(val labelRes: Int) {
+    Previous(R.string.reader_prev_book),
+    Next(R.string.reader_next_book),
+}
+
+fun volumeButtonAt(end: VolumeEnd, rightToLeft: Boolean): VolumeStep =
+    when (end) {
+        VolumeEnd.Left -> if (rightToLeft) VolumeStep.Next else VolumeStep.Previous
+        VolumeEnd.Right -> if (rightToLeft) VolumeStep.Previous else VolumeStep.Next
+    }

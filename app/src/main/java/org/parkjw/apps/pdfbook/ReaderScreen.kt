@@ -556,7 +556,13 @@ private fun ReaderOverlayBottom(
             TapZoneEntry(onClick = onAdjustTapZones)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            VolumeButton(R.drawable.ic_prev_book, R.string.reader_prev_book, onPreviousBook)
+            val rtlBook = direction == ReadingDirection.RTL
+            val leftVolume = volumeButtonAt(VolumeEnd.Left, rtlBook)
+            VolumeButton(
+                R.drawable.ic_prev_book,
+                leftVolume.labelRes,
+                if (leftVolume == VolumeStep.Next) onNextBook else onPreviousBook,
+            )
             if (pageCount > 1) {
                 val sliderDirection =
                     if (direction == ReadingDirection.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr
@@ -578,7 +584,12 @@ private fun ReaderOverlayBottom(
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            VolumeButton(R.drawable.ic_next_book, R.string.reader_next_book, onNextBook)
+            val rightVolume = volumeButtonAt(VolumeEnd.Right, rtlBook)
+            VolumeButton(
+                R.drawable.ic_next_book,
+                rightVolume.labelRes,
+                if (rightVolume == VolumeStep.Next) onNextBook else onPreviousBook,
+            )
         }
         Text(
             text = stringResource(R.string.progress, currentPage, pageCount),

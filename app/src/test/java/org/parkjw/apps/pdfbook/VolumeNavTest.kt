@@ -76,4 +76,12 @@ class VolumeNavTest {
         assertEquals(saved, openStateFor(saved, ReadingDirection.RTL))
         assertEquals(BookState(direction = ReadingDirection.RTL), openStateFor(null, ReadingDirection.RTL))
     }
+
+    @Test
+    fun nb3VolumeButtonsFollowSliderDirection() {
+        assertEquals(VolumeStep.Previous, volumeButtonAt(VolumeEnd.Left, rightToLeft = false))
+        assertEquals(VolumeStep.Next, volumeButtonAt(VolumeEnd.Right, rightToLeft = false))
+        assertEquals(VolumeStep.Next, volumeButtonAt(VolumeEnd.Left, rightToLeft = true))
+        assertEquals(VolumeStep.Previous, volumeButtonAt(VolumeEnd.Right, rightToLeft = true))
+    }
 }
