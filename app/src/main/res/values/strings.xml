@@ -14,7 +14,7 @@
     <string name="sort_name">이름순</string>
     <string name="continue_reading">이어 읽기</string>
     <string name="progress">%1$d / %2$d</string>
-    <string name="folders_title">책 폴더</string>
+    <string name="folders_title">PDFBook</string>
     <string name="folders_add">폴더 추가</string>
     <string name="folder_rename">이름 바꾸기</string>
     <string name="folder_repick">폴더 다시 고르기</string>
