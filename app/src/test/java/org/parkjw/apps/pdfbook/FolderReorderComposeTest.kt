@@ -8,6 +8,9 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -152,6 +155,29 @@ class FolderReorderComposeTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithText(context.getString(R.string.folder_rename)).assertExists()
         assertTrue(saved.isEmpty())
+    }
+
+    @Test
+    @Config(qualifiers = "ko-w360dp-h920dp-xxhdpi")
+    fun lastHandleScrollsClearOfAddFolderButtonOnFoldedScreen() {
+        val cards = (1..8).map { card("f$it") }
+        setShelf(cards, onReorder = {})
+        composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(cards.lastIndex)
+        repeat(3) {
+            composeRule.onNode(hasScrollToIndexAction()).performTouchInput { swipeUp() }
+            composeRule.waitForIdle()
+        }
+        val lastHandle = handleNodes().last()
+        val fabText = composeRule.onNodeWithText(context.getString(R.string.folders_add), useUnmergedTree = true)
+            .fetchSemanticsNode()
+        val fab = generateSequence(fabText) { it.parent }.first { it.config.contains(SemanticsActions.OnClick) }
+        val handleBottom = lastHandle.boundsInRoot.bottom
+        val lastTitleTop = composeRule.onNodeWithText("Folder f8").fetchSemanticsNode().boundsInRoot.top
+        assertTrue(lastTitleTop < handleBottom)
+        assertTrue(
+            "handle bottom $handleBottom must be above add button top ${fab.boundsInRoot.top}",
+            handleBottom <= fab.boundsInRoot.top,
+        )
     }
 
     private fun runCustomAction(index: Int, label: String) {
