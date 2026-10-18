@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.TapZoneWidthSheet
+import org.parkjw.apps.pdfbook.TapZoneWidthSheetDefaults
 import org.parkjw.apps.pdfbook.lock.AppLockMode
 import org.parkjw.apps.pdfbook.lock.SecurityValueRow
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
@@ -501,6 +502,8 @@ private fun ReadingSettingsScreen(
                 percent = settings.tapZoneSidePercent,
                 onPercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 onDone = { showTapWidthSheet = false },
+                colors = TapZoneWidthSheetDefaults.appColors(),
+                previewDirection = settings.defaultReadingDirection,
             )
         }
     }
