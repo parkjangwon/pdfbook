@@ -7,3 +7,8 @@ fun Context.installedVersionName(): String =
     packageManager
         .getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
         .versionName.orEmpty()
+
+fun Context.installedVersionCode(): Long =
+    packageManager
+        .getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+        .longVersionCode

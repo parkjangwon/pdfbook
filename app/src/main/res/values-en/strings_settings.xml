@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_reading_entry">Page turn · Two pages · Tap zones</string>
+    <string name="settings_open_source">Open source licenses</string>
+    <string name="settings_github">GitHub</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_version_value">v%1$s (%2$d)</string>
+    <string name="oss_androidx_name">AndroidX / Jetpack Compose</string>
+    <string name="oss_androidx_license">Apache License 2.0</string>
+    <string name="oss_androidx_copyright">Copyright The Android Open Source Project</string>
+    <string name="oss_androidx_url">https://www.apache.org/licenses/LICENSE-2.0</string>
+    <string name="oss_kotlin_name">Kotlin &amp; kotlinx.coroutines</string>
+    <string name="oss_kotlin_license">Apache License 2.0</string>
+    <string name="oss_kotlin_copyright">Copyright JetBrains s.r.o. and Kotlin contributors</string>
+    <string name="oss_kotlin_url">https://www.apache.org/licenses/LICENSE-2.0</string>
+    <string name="oss_material_name">Material Components / Material 3</string>
+    <string name="oss_material_license">Apache License 2.0</string>
+    <string name="oss_material_copyright">Copyright The Android Open Source Project</string>
+    <string name="oss_material_url">https://www.apache.org/licenses/LICENSE-2.0</string>
+    <string name="oss_jetbrains_mono_name">JetBrains Mono</string>
+    <string name="oss_jetbrains_mono_license">SIL Open Font License 1.1</string>
+    <string name="oss_jetbrains_mono_copyright">Copyright 2020 The JetBrains Mono Project Authors</string>
+    <string name="oss_jetbrains_mono_url">https://scripts.sil.org/OFL</string>
+    <string name="oss_pdfbook_sans_name">PDFBook Sans (based on Pretendard)</string>
+    <string name="oss_pdfbook_sans_license">SIL Open Font License 1.1</string>
+    <string name="oss_pdfbook_sans_copyright">Copyright © 2021 Kil Hyung-jin</string>
+    <string name="oss_pdfbook_sans_url">https://scripts.sil.org/OFL</string>
+    <string name="oss_datastore_name">AndroidX DataStore</string>
+    <string name="oss_datastore_license">Apache License 2.0</string>
+    <string name="oss_datastore_copyright">Copyright The Android Open Source Project</string>
+    <string name="oss_datastore_url">https://www.apache.org/licenses/LICENSE-2.0</string>
+    <string name="oss_activity_name">AndroidX Activity</string>
+    <string name="oss_activity_license">Apache License 2.0</string>
+    <string name="oss_activity_copyright">Copyright The Android Open Source Project</string>
+    <string name="oss_activity_url">https://www.apache.org/licenses/LICENSE-2.0</string>
+    <string name="oss_window_name">AndroidX Window</string>
+    <string name="oss_window_license">Apache License 2.0</string>
+    <string name="oss_window_copyright">Copyright The Android Open Source Project</string>
+    <string name="oss_window_url">https://www.apache.org/licenses/LICENSE-2.0</string>
+</resources>

@@ -297,6 +297,7 @@ class LockScreenshotsTest {
                     onSettingsChange = {},
                     appLockMode = mode,
                     versionName = "0.3.1",
+                    versionCode = 4L,
                     scrollToEnd = true,
                     modifier = Modifier.fillMaxSize(),
                 )
