@@ -454,6 +454,9 @@ private fun App(
             volumeDelta,
             defaultReadingDirection = settings.defaultReadingDirection,
             onBack = { openUri = null },
+            showTapZoneGuide = settings.showTapZoneGuide,
+            tapZoneSidePercent = settings.tapZoneSidePercent,
+            onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
         )
         contentPhase == FolderContentPhase.Loading -> Unit
         contentPhase == FolderContentPhase.AccessLost -> FolderPickScreen(

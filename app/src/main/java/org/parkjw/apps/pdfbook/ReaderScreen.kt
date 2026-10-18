@@ -1,6 +1,12 @@
 package org.parkjw.apps.pdfbook
 
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -82,6 +88,10 @@ fun ReaderScreen(
     direction: ReadingDirection = ReadingDirection.RTL,
     volumeDelta: Flow<Int>? = null,
     overlayVisible: Boolean = false,
+    showTapZoneGuide: Boolean = true,
+    tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
+    onTapZoneSidePercentChange: (Int) -> Unit = {},
+    tapZoneWidthSheetVisible: Boolean = false,
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -98,6 +108,10 @@ fun ReaderScreen(
             direction = direction,
             volumeDelta = volumeDelta,
             initialOverlayVisible = overlayVisible,
+            showTapZoneGuide = showTapZoneGuide,
+            tapZoneSidePercent = tapZoneSidePercent,
+            onTapZoneSidePercentChange = onTapZoneSidePercentChange,
+            initialTapZoneWidthSheetVisible = tapZoneWidthSheetVisible,
         )
     }
 }
@@ -117,11 +131,20 @@ private fun ReaderScreenContent(
     direction: ReadingDirection,
     volumeDelta: Flow<Int>?,
     initialOverlayVisible: Boolean,
+    showTapZoneGuide: Boolean,
+    tapZoneSidePercent: Int,
+    onTapZoneSidePercentChange: (Int) -> Unit,
+    initialTapZoneWidthSheetVisible: Boolean,
 ) {
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
     val scope = rememberCoroutineScope()
     var overlayVisible by remember { mutableStateOf(initialOverlayVisible) }
+    var widthSheetVisible by remember { mutableStateOf(initialTapZoneWidthSheetVisible) }
+    var sidePercent by remember(tapZoneSidePercent) {
+        mutableIntStateOf(normalizeTapZoneSidePercent(tapZoneSidePercent))
+    }
+    val sideFraction = tapZoneSideFraction(sidePercent)
     var zoom by remember { mutableStateOf(ZoomState()) }
     val zoomRef = rememberUpdatedState(zoom)
     val zoomed = !zoom.allowsPageTurn
@@ -245,49 +268,75 @@ private fun ReaderScreenContent(
                                 },
                         )
                     } else {
-                        val leftDelta = if (rtl) 1 else -1
-                        val rightDelta = if (rtl) -1 else 1
                         Row(Modifier.fillMaxSize()) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .combinedClickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = { goTo(leftDelta) },
-                                        onDoubleClick = { toggleZoom() },
-                                    ),
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .combinedClickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = { overlayVisible = !overlayVisible },
-                                        onDoubleClick = { toggleZoom() },
-                                    ),
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .combinedClickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = { goTo(rightDelta) },
-                                        onDoubleClick = { toggleZoom() },
-                                    ),
-                            )
+                            tapZoneSpans(direction, sideFraction).forEach { span ->
+                                val interactionSource = remember { MutableInteractionSource() }
+                                val onTap = {
+                                    if (span.zone == TapZone.Menu) {
+                                        overlayVisible = !overlayVisible
+                                    } else {
+                                        goTo(span.zone.pageDelta)
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(span.width)
+                                        .fillMaxHeight()
+                                        .then(
+                                            if (span.zone.acceptsDoubleTapAtBaseScale) {
+                                                Modifier.combinedClickable(
+                                                    interactionSource = interactionSource,
+                                                    indication = null,
+                                                    onClick = onTap,
+                                                    onDoubleClick = { toggleZoom() },
+                                                )
+                                            } else {
+                                                Modifier.clickable(
+                                                    interactionSource = interactionSource,
+                                                    indication = null,
+                                                    onClick = onTap,
+                                                )
+                                            },
+                                        ),
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        if (overlayVisible) {
+        if (widthSheetVisible || (overlayVisible && showTapZoneGuide && !zoomed)) {
+            TapZoneGuide(
+                direction = direction,
+                sideFraction = sideFraction,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        if (widthSheetVisible) {
+            BackHandler { widthSheetVisible = false }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { widthSheetVisible = false },
+                    ),
+            )
+            TapZoneWidthSheet(
+                percent = sidePercent,
+                onPercentChange = { value ->
+                    if (value != sidePercent) {
+                        sidePercent = value
+                        onTapZoneSidePercentChange(value)
+                    }
+                },
+                onDone = { widthSheetVisible = false },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        } else if (overlayVisible) {
             ReaderOverlayTop(
                 title = title,
                 twoPage = twoPage,
@@ -301,6 +350,11 @@ private fun ReaderScreenContent(
                 currentPage = currentPage,
                 direction = direction,
                 onSeekPage = ::seekPage,
+                showTapZoneEntry = !zoomed,
+                onAdjustTapZones = {
+                    zoom = ZoomState()
+                    widthSheetVisible = true
+                },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
@@ -388,6 +442,8 @@ private fun ReaderOverlayBottom(
     currentPage: Int,
     direction: ReadingDirection,
     onSeekPage: (Int) -> Unit,
+    showTapZoneEntry: Boolean,
+    onAdjustTapZones: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -403,6 +459,9 @@ private fun ReaderOverlayBottom(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        if (showTapZoneEntry) {
+            TapZoneEntry(onClick = onAdjustTapZones)
+        }
         if (pageCount > 1) {
             val sliderDirection =
                 if (direction == ReadingDirection.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr
@@ -426,6 +485,31 @@ private fun ReaderOverlayBottom(
             text = stringResource(R.string.progress, currentPage, pageCount),
             style = PdfBookNumeric.copy(fontSize = 13.sp, color = ReaderOnOverlay),
             modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
+    }
+}
+
+@Composable
+private fun TapZoneEntry(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.reader_tap_zone_label),
+            color = ReaderOnOverlayVariant,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = stringResource(R.string.reader_tap_zone_adjust),
+            color = ReaderOnOverlay,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            textDecoration = TextDecoration.Underline,
         )
     }
 }
