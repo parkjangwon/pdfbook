@@ -30,6 +30,9 @@ fun ReaderRoute(
     showTapZoneGuide: Boolean = true,
     tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     onTapZoneSidePercentChange: (Int) -> Unit = {},
+    volumes: ReaderVolumes = ReaderVolumes(),
+    showTitleToast: Boolean = false,
+    onTitleToastShown: () -> Unit = {},
 ) {
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
@@ -40,7 +43,7 @@ fun ReaderRoute(
     }
     if (!loaded) return
     val initialDirection = resolveReadingDirection(saved?.direction, defaultReadingDirection)
-    val state = saved ?: BookState(direction = initialDirection)
+    val state = openStateFor(saved, initialDirection)
 
     val context = LocalContext.current
     val uri = remember(key) { Uri.parse(book.uri) }
@@ -129,6 +132,9 @@ fun ReaderRoute(
                     showTapZoneGuide = showTapZoneGuide,
                     tapZoneSidePercent = tapZoneSidePercent,
                     onTapZoneSidePercentChange = onTapZoneSidePercentChange,
+                    volumes = volumes,
+                    showTitleToast = showTitleToast,
+                    onTitleToastShown = onTitleToastShown,
                 )
             }
         }
