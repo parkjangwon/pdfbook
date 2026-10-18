@@ -12,6 +12,27 @@ val hasReleaseSigning =
         System.getenv("PDFBOOK_KEY_PASSWORD"),
     ).all { !it.isNullOrBlank() }
 
+val appVersionName = version.toString()
+
+val appVersionCode =
+    Regex("""^(\d+)\.(\d+)\.(\d+)$""").matchEntire(appVersionName)?.destructured?.let { (major, minor, patch) ->
+        val minorNumber = minor.toInt()
+        val patchNumber = patch.toInt()
+        if (minorNumber > 99 || patchNumber > 99) {
+            throw GradleException("version $appVersionName: MINOR and PATCH must be 0..99")
+        }
+        major.toInt() * 10000 + minorNumber * 100 + patchNumber
+    } ?: throw GradleException("version must be MAJOR.MINOR.PATCH in gradle.properties, got '$appVersionName'")
+
+tasks.register("printVersion") {
+    val name = appVersionName
+    val code = appVersionCode
+    doLast {
+        println("versionName=$name")
+        println("versionCode=$code")
+    }
+}
+
 android {
     namespace = "org.parkjw.apps.pdfbook"
     compileSdk = 37
@@ -20,12 +41,8 @@ android {
         applicationId = "org.parkjw.apps.pdfbook"
         minSdk = 35
         targetSdk = 37
-        versionCode = findProperty("versionCode")?.toString()?.toIntOrNull()
-            ?: System.getenv("PDFBOOK_VERSION_CODE")?.toIntOrNull()
-            ?: 1
-        versionName = findProperty("versionName")?.toString()
-            ?: System.getenv("PDFBOOK_VERSION_NAME")
-            ?: "0.0.1"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     signingConfigs {
