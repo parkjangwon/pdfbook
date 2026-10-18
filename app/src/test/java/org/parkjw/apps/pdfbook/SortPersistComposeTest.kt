@@ -3,6 +3,7 @@ package org.parkjw.apps.pdfbook
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -49,6 +50,8 @@ class SortPersistComposeTest {
         val recent = context.getString(R.string.sort_recent)
         val name = context.getString(R.string.sort_name)
         composeRule.onNodeWithText(recent).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(sortOptionTag(BookSort.Name)).performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText(name).assertExists()
         showLibrary.value = false

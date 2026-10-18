@@ -12,6 +12,7 @@
     <string name="es_permission_lost_action">폴더 다시 고르기</string>
     <string name="sort_recent">최근 읽은 순</string>
     <string name="sort_name">이름순</string>
+    <string name="sort_menu_title">정렬</string>
     <string name="continue_reading">이어 읽기</string>
     <string name="progress">%1$d / %2$d</string>
     <string name="folders_title">PDFBook</string>

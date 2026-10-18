@@ -4,17 +4,21 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,7 +36,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,11 +50,22 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.hidden.HiddenBadge
@@ -68,11 +82,11 @@ import org.parkjw.apps.pdfbook.ui.theme.CoverCorner
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookDropdownMenu
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookProgressBar
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSnackbarHost
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.extendedColors
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
-import org.parkjw.apps.pdfbook.ui.theme.pdfBookTextButtonColors
 import kotlin.math.roundToInt
 
 @Composable
@@ -119,6 +133,17 @@ fun FolderPickScreen(
     }
 }
 
+const val SORT_BUTTON_TAG = "library_sort_button"
+const val SORT_CHECK_TAG = "library_sort_check"
+private val SORT_MENU_WIDTH = 176.dp
+
+fun sortOptionTag(sort: BookSort): String = "library_sort_option_" + sort.name
+
+fun sortLabelRes(sort: BookSort): Int = when (sort) {
+    BookSort.Recent -> R.string.sort_recent
+    BookSort.Name -> R.string.sort_name
+}
+
 @Composable
 fun LibraryScreen(
     listing: Listing,
@@ -139,6 +164,7 @@ fun LibraryScreen(
     onPeekToggle: () -> Unit = {},
     peekHiddenBookIds: Set<String> = emptySet(),
     showPeekMenu: Boolean = false,
+    showSortMenu: Boolean = false,
     sort: BookSort = BookSort.Recent,
     onSortChange: (BookSort) -> Unit = {},
     subfolders: List<SubfolderItem> = emptyList(),
@@ -151,6 +177,7 @@ fun LibraryScreen(
     val byName = sort == BookSort.Name
     var menuBookUri by remember { mutableStateOf<String?>(null) }
     var peekMenuOpen by remember { mutableStateOf(showPeekMenu) }
+    var sortMenuOpen by remember { mutableStateOf(showSortMenu) }
     val snackbarHostState = remember { SnackbarHostState() }
     val sorted = remember(listing, states, byName) { sortBooks(listing.books, states, byName) }
     val resume = remember(byName, resumeBooks, sorted, states, peekHiddenBookIds) {
@@ -206,11 +233,85 @@ fun LibraryScreen(
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(
-                    onClick = { onSortChange(if (byName) BookSort.Recent else BookSort.Name) },
-                    colors = pdfBookTextButtonColors(),
-                ) {
-                    Text(stringResource(if (byName) R.string.sort_name else R.string.sort_recent))
+                Box {
+                    val sortTitle = stringResource(R.string.sort_menu_title)
+                    val sortLabel = stringResource(sortLabelRes(sort))
+                    val density = LocalDensity.current
+                    var sortButtonWidth by remember { mutableStateOf(0.dp) }
+                    Row(
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .onSizeChanged { sortButtonWidth = with(density) { it.width.toDp() } }
+                            .testTag(SORT_BUTTON_TAG)
+                            .clip(PdfBookShapeTokens.pill)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .clickable(role = Role.Button) { sortMenuOpen = true }
+                            .semantics {
+                                contentDescription = sortTitle
+                                stateDescription = sortLabel
+                            }
+                            .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = sortLabel,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                        )
+                        Icon(
+                            painter = painterResource(R.drawable.ic_expand_more),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    PdfBookDropdownMenu(
+                        expanded = sortMenuOpen,
+                        onDismissRequest = { sortMenuOpen = false },
+                        modifier = Modifier.width(SORT_MENU_WIDTH),
+                        offset = DpOffset(sortButtonWidth - SORT_MENU_WIDTH, 0.dp),
+                    ) {
+                        BookSort.entries.forEach { option ->
+                            val chosen = option == sort
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = stringResource(sortLabelRes(option)),
+                                        fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
+                                    )
+                                },
+                                leadingIcon = {
+                                    Box(Modifier.size(20.dp)) {
+                                        if (chosen) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_check),
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .testTag(SORT_CHECK_TAG),
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    sortMenuOpen = false
+                                    if (!chosen) onSortChange(option)
+                                },
+                                contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag(sortOptionTag(option))
+                                    .semantics {
+                                        role = Role.RadioButton
+                                        selected = chosen
+                                    },
+                            )
+                        }
+                    }
                 }
                 IconButton(
                     onClick = onSettings,
