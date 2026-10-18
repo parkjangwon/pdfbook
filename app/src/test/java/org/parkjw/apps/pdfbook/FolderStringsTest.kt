@@ -1,5 +1,6 @@
 package org.parkjw.apps.pdfbook
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -37,6 +38,32 @@ class FolderStringsTest {
         assertTrue("folder_books_count must be plurals in values", "folder_books_count" in defaults.plurals)
         assertTrue("en folder_books_count needs one", "one" in en.quantities.getValue("folder_books_count"))
         assertTrue("en folder_books_count needs other", "other" in en.quantities.getValue("folder_books_count"))
+    }
+
+    @Test
+    fun shelfTitleIsAppNameWhileOtherFolderWordingStays() {
+        val root = projectRoot()
+        for (dir in listOf("values", "values-ko", "values-en")) {
+            val values = loadValues(File(root, "app/src/main/res/$dir"))
+            assertEquals("folders_title in $dir", "PDFBook", values["folders_title"])
+        }
+        val ko = loadValues(File(root, "app/src/main/res/values-ko"))
+        val en = loadValues(File(root, "app/src/main/res/values-en"))
+        assertTrue(ko.getValue("es_pick_folder_title").contains("책 폴더"))
+        assertTrue(en.getValue("es_pick_folder_title").contains("book folder"))
+    }
+
+    private fun loadValues(dir: File): Map<String, String> {
+        val values = linkedMapOf<String, String>()
+        val factory = DocumentBuilderFactory.newInstance()
+        for (file in dir.listFiles { f -> f.isFile && f.extension == "xml" }.orEmpty()) {
+            val nodes = factory.newDocumentBuilder().parse(file).getElementsByTagName("string")
+            for (i in 0 until nodes.length) {
+                val name = nodes.item(i).attributes?.getNamedItem("name")?.nodeValue ?: continue
+                values[name] = nodes.item(i).textContent
+            }
+        }
+        return values
     }
 
     private data class ResNames(
