@@ -495,7 +495,7 @@ private fun App(
             },
             snackbarMessage = snackbarMessage,
             snackbarActionLabel = if (undoItem != null) undoLabel else null,
-            onSnackbarShown = { snackbarMessage = null },
+            onSnackbarShown = { snackbarMessage = null; undoItem = null; undoWasUnhide = false },
             onSnackbarAction = undoHidden,
             onHideBook = { bookInfo ->
                 hideItem(
@@ -538,7 +538,7 @@ private fun App(
             snackbarMessage = snackbarMessage,
             scrollToUri = scrollToUri,
             showRenameFor = renameCard,
-            onSnackbarShown = { snackbarMessage = null },
+            onSnackbarShown = { snackbarMessage = null; undoItem = null; undoWasUnhide = false },
             onScrollHandled = { scrollToUri = null },
             onOpenFolder = { uri ->
                 scope.launch {

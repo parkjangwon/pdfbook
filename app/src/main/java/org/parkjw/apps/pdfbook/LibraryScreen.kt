@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -150,11 +151,13 @@ fun LibraryScreen(
             book.uri !in peekHiddenBookIds && (states[bookKey(book.uri, book.size)]?.openedAt ?: 0L) > 0L
         }
     }
+    val currentOnSnackbarAction by rememberUpdatedState(onSnackbarAction)
+    val currentOnSnackbarShown by rememberUpdatedState(onSnackbarShown)
     LaunchedEffect(snackbarMessage, snackbarActionLabel) {
         val message = snackbarMessage ?: return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(message = message, actionLabel = snackbarActionLabel)
-        if (result == SnackbarResult.ActionPerformed) onSnackbarAction()
-        onSnackbarShown()
+        if (result == SnackbarResult.ActionPerformed) currentOnSnackbarAction()
+        currentOnSnackbarShown()
     }
     Box(modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
@@ -253,8 +256,8 @@ fun LibraryScreen(
                             onOpen,
                             covers[bookKey(resume.uri, resume.size)],
                             covers.containsKey(bookKey(resume.uri, resume.size)),
-                            menuExpanded = menuBookUri == resume.uri,
-                            onMenuExpand = { menuBookUri = resume.uri },
+                            menuExpanded = menuBookUri == "resume:" + resume.uri,
+                            onMenuExpand = { menuBookUri = "resume:" + resume.uri },
                             onMenuDismiss = { menuBookUri = null },
                             onHide = {
                                 menuBookUri = null

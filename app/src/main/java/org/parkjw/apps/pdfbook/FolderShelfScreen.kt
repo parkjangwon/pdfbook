@@ -46,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -121,11 +122,13 @@ fun FolderShelfScreen(
     val hasResume = shelf.globalResume != null
 
     val exitConfirm = stringResource(R.string.exit_confirm)
+    val currentOnSnackbarAction by rememberUpdatedState(onSnackbarAction)
+    val currentOnSnackbarShown by rememberUpdatedState(onSnackbarShown)
     LaunchedEffect(snackbarMessage, snackbarActionLabel) {
         val message = snackbarMessage ?: return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(message = message, actionLabel = snackbarActionLabel)
-        if (result == SnackbarResult.ActionPerformed) onSnackbarAction()
-        onSnackbarShown()
+        if (result == SnackbarResult.ActionPerformed) currentOnSnackbarAction()
+        currentOnSnackbarShown()
     }
     LaunchedEffect(exitHintToken) {
         if (exitHintToken == 0) return@LaunchedEffect
