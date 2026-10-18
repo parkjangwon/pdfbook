@@ -3,14 +3,17 @@ package org.parkjw.apps.pdfbook
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -18,6 +21,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -37,7 +42,11 @@ class ReaderVolumesComposeTest {
 
     private fun book(n: Int) = BookInfo("doc:$n", "책 ${n}권.pdf", 10)
 
-    private fun setReader(volumes: ReaderVolumes, title: String = "책 1권") {
+    private fun setReader(
+        volumes: ReaderVolumes,
+        title: String = "책 1권",
+        direction: ReadingDirection = ReadingDirection.RTL,
+    ) {
         val pageCount = 4
         val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
         composeRule.setContent {
@@ -52,6 +61,7 @@ class ReaderVolumesComposeTest {
                     twoPage = false,
                     onBack = {},
                     onDirectionChange = {},
+                    direction = direction,
                     overlayVisible = true,
                     showTapZoneGuide = false,
                     volumes = volumes,
@@ -141,12 +151,58 @@ class ReaderVolumesComposeTest {
     }
 
     @Test
+    fun backClosesSheet() {
+        setReader(ReaderVolumes(bookList = list(listOf(book(1), book(2)), book(1))))
+        composeRule.onNodeWithContentDescription("책 목록").performClick()
+        composeRule.onNodeWithTag(BOOK_LIST_SHEET_TAG).assertIsDisplayed()
+        Espresso.pressBack()
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag(BOOK_LIST_SHEET_TAG).assertCountEquals(0)
+    }
+
+    @Test
     fun scrimTapClosesSheet() {
         setReader(ReaderVolumes(bookList = list(listOf(book(1), book(2)), book(1))))
         composeRule.onNodeWithContentDescription("책 목록").performClick()
-        composeRule.onNodeWithTag(BOOK_LIST_SCRIM_TAG).performClick()
+        composeRule.onNodeWithTag(BOOK_LIST_SHEET_TAG).assertIsDisplayed()
+        composeRule.onAllNodes(isRoot())[1].performTouchInput { click(Offset(width / 2f, 10f)) }
         composeRule.waitForIdle()
         composeRule.onAllNodesWithTag(BOOK_LIST_SHEET_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun bl2RepeatedRowTapsPickOnce() {
+        val picked = mutableListOf<String>()
+        setReader(
+            ReaderVolumes(
+                bookList = list(listOf(book(1), book(2), book(3)), book(1)),
+                onPick = { picked += it.name },
+            ),
+        )
+        composeRule.onNodeWithContentDescription("책 목록").performClick()
+        composeRule.waitForIdle()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNode(hasText("책 2권") and hasClickAction()).performClick()
+        composeRule.onNode(hasText("책 3권") and hasClickAction()).performClick()
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        assertEquals(listOf("책 2권.pdf"), picked)
+    }
+
+    @Test
+    fun nb3RightToLeftBookPutsNextOnTheLeft() {
+        setReader(ReaderVolumes(onPrevious = {}, onNext = {}), direction = ReadingDirection.RTL)
+        val next = composeRule.onNodeWithContentDescription("다음 권").fetchSemanticsNode().boundsInRoot
+        val previous = composeRule.onNodeWithContentDescription("이전 권").fetchSemanticsNode().boundsInRoot
+        assertTrue(next.right <= previous.left)
+    }
+
+    @Test
+    fun nb3LeftToRightBookPutsNextOnTheRight() {
+        setReader(ReaderVolumes(onPrevious = {}, onNext = {}), direction = ReadingDirection.LTR)
+        val next = composeRule.onNodeWithContentDescription("다음 권").fetchSemanticsNode().boundsInRoot
+        val previous = composeRule.onNodeWithContentDescription("이전 권").fetchSemanticsNode().boundsInRoot
+        assertTrue(previous.right <= next.left)
     }
 
     @Test
