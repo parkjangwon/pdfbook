@@ -33,6 +33,7 @@ import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReaderScreen
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
+import org.parkjw.apps.pdfbook.settings.SettingsSubScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.update.AppVersion
 import org.parkjw.apps.pdfbook.update.RELEASES_PAGE_URL
@@ -268,6 +269,71 @@ class MainScreenshotsTest {
     @Test
     @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
     fun settingsDarkUnfolded() = captureSettings(dark = true, file = "settings-dark-unfolded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsBTopLightFolded() = captureSettings(dark = false, file = "settings-b-top-light-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun settingsBTopDarkFolded() = captureSettings(dark = true, file = "settings-b-top-dark-folded.png")
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsBBottomLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-b-bottom-light-folded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun settingsBBottomDarkFolded() = captureSettings(
+        dark = true,
+        file = "settings-b-bottom-dark-folded.png",
+        scrollToEnd = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsReadingLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-reading-light-folded.png",
+        initialSubScreen = SettingsSubScreen.Reading,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun settingsReadingDarkFolded() = captureSettings(
+        dark = true,
+        file = "settings-reading-dark-folded.png",
+        initialSubScreen = SettingsSubScreen.Reading,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsTapWidthSheetLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-tapwidth-sheet-light-folded.png",
+        initialSubScreen = SettingsSubScreen.Reading,
+        initiallyShowTapWidthSheet = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsOpenSourceLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-open-source-light-folded.png",
+        initialSubScreen = SettingsSubScreen.OpenSource,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsChoiceStartLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-choice-start-light-folded.png",
+        initiallyShowStartChoice = true,
+    )
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
@@ -727,6 +793,9 @@ class MainScreenshotsTest {
         file: String,
         scrollToEnd: Boolean = false,
         updateState: UpdateUiState = UpdateUiState.Idle,
+        initialSubScreen: SettingsSubScreen = SettingsSubScreen.Main,
+        initiallyShowStartChoice: Boolean = false,
+        initiallyShowTapWidthSheet: Boolean = false,
     ) {
         capture(file, dark) {
             SettingsScreen(
@@ -735,9 +804,13 @@ class MainScreenshotsTest {
                 ),
                 onSettingsChange = {},
                 versionName = "0.3.0",
+                versionCode = 4L,
                 modifier = Modifier.fillMaxSize(),
                 scrollToEnd = scrollToEnd,
                 updateState = updateState,
+                initialSubScreen = initialSubScreen,
+                initiallyShowStartChoice = initiallyShowStartChoice,
+                initiallyShowTapWidthSheet = initiallyShowTapWidthSheet,
             )
         }
     }

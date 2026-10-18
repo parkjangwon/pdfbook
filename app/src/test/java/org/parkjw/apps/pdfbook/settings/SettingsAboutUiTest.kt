@@ -28,6 +28,22 @@ class SettingsAboutUiTest {
                 )
             }
         }
-        composeRule.onNodeWithText("버전 1.2.3").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("버전").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("v1.2.3 (0)").assertIsDisplayed()
+    }
+
+    @Test
+    fun showsVersionCodeWhenProvided() {
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                SettingsScreen(
+                    settings = AppSettings(),
+                    onSettingsChange = {},
+                    versionName = "1.2.3",
+                    versionCode = 9L,
+                )
+            }
+        }
+        composeRule.onNodeWithText("v1.2.3 (9)").performScrollTo().assertIsDisplayed()
     }
 }

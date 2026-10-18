@@ -42,5 +42,7 @@ fun Context.openInstallPermissionSettings(): Boolean =
         Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.fromParts("package", packageName, null)),
     )
 
-fun Context.openReleasePage(url: String): Boolean =
+fun Context.openBrowsableUrl(url: String): Boolean =
     startSafely(Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
+
+fun Context.openReleasePage(url: String): Boolean = openBrowsableUrl(url)

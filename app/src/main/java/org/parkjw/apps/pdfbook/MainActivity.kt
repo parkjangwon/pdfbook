@@ -76,6 +76,7 @@ import org.parkjw.apps.pdfbook.update.UpdateBanner
 import org.parkjw.apps.pdfbook.update.displayVersion
 import org.parkjw.apps.pdfbook.update.UpdateUiState
 import org.parkjw.apps.pdfbook.update.UpdateViewModel
+import org.parkjw.apps.pdfbook.update.installedVersionCode
 import org.parkjw.apps.pdfbook.update.installedVersionName
 import org.parkjw.apps.pdfbook.update.launchApkInstaller
 import org.parkjw.apps.pdfbook.update.openInstallPermissionSettings
@@ -446,8 +447,12 @@ private fun App(
         folderSelected = selectedFolderUri != null && book == null,
         showLost = showLostForUri != null,
     )
-    BackHandler(enabled = backAction == FolderBackAction.CloseSettings) {
-        if (showAppLock) showAppLock = false else showSettings = false
+    BackHandler(enabled = backAction == FolderBackAction.CloseSettings || showHiddenItems) {
+        when {
+            showAppLock -> showAppLock = false
+            showHiddenItems -> showHiddenItems = false
+            else -> showSettings = false
+        }
     }
     BackHandler(enabled = backAction == FolderBackAction.CloseReader) { openUri = null }
     BackHandler(enabled = backAction == FolderBackAction.CloseLibrary) {
@@ -578,6 +583,7 @@ private fun App(
             appLockMode = lockConfig.mode,
             onOpenAppLock = { showAppLock = true },
             versionName = remember(context) { context.installedVersionName() },
+            versionCode = remember(context) { context.installedVersionCode() },
             updateState = updateState,
             onUpdateAction = onUpdateAction,
             hiddenCount = hiddenItems.size,
