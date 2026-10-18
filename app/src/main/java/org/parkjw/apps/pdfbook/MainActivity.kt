@@ -325,6 +325,7 @@ private fun App(
             volumeDelta,
             defaultReadingDirection = settings.defaultReadingDirection,
             onBack = { openUri = null },
+            showTapZoneGuide = settings.showTapZoneGuide,
         )
         contentPhase == FolderContentPhase.Loading -> Unit
         contentPhase == FolderContentPhase.AccessLost -> FolderPickScreen(
