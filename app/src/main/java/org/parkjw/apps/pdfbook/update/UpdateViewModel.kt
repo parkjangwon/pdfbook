@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -22,13 +21,10 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         currentVersionName = { versionName },
         today = { LocalDate.now().toEpochDay() },
     )
-    private var job: Job? = null
-
     val state: StateFlow<UpdateUiState> = flow.state
 
     private fun run(block: suspend () -> Unit) {
-        if (job?.isActive == true) return
-        job = viewModelScope.launch(Dispatchers.IO) { block() }
+        viewModelScope.launch(Dispatchers.IO) { block() }
     }
 
     fun autoCheckOnLaunch(enabled: Boolean) = run { flow.autoCheckOnLaunch(enabled) }

@@ -26,6 +26,7 @@ import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
 import org.parkjw.apps.pdfbook.update.AppVersion
 import org.parkjw.apps.pdfbook.update.RELEASES_PAGE_URL
 import org.parkjw.apps.pdfbook.update.Release
+import org.parkjw.apps.pdfbook.update.ReleaseAsset
 import org.parkjw.apps.pdfbook.update.UpdateAction
 import org.parkjw.apps.pdfbook.update.UpdateProblem
 import org.parkjw.apps.pdfbook.update.UpdateUiState
@@ -147,5 +148,27 @@ class SettingsUpdateUiTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText("릴리스 페이지 열기").performScrollTo().performClick()
         assertEquals(listOf(UpdateAction.OpenReleasePage, UpdateAction.OpenReleasePage), actions)
+    }
+
+    @Test
+    fun missingInstallPermissionOffersSettings() {
+        val actions = mutableListOf<UpdateAction>()
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                SettingsScreen(
+                    settings = AppSettings(),
+                    onSettingsChange = {},
+                    versionName = "0.3.0",
+                    updateState = UpdateUiState.NeedsInstallPermission(
+                        release,
+                        ReleaseAsset("pdfbook-0.3.1.apk", "https://github.com/x", 1, ""),
+                    ),
+                    onUpdateAction = { actions += it },
+                )
+            }
+        }
+        composeRule.onNodeWithText("설치하려면 PDFBook의 앱 설치를 허용해 주세요").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("설정 열기").performScrollTo().performClick()
+        assertEquals(listOf(UpdateAction.OpenSettings), actions)
     }
 }

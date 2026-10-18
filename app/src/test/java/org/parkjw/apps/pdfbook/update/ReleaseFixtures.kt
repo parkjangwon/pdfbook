@@ -10,7 +10,7 @@ object ReleaseFixtures {
           "content_type": ${JSONObject.quote(contentType)},
           "size": 5242880,
           "state": "uploaded",
-          "browser_download_url": "https://github.com/parkjangwon/pdfbook/releases/download/TAG/$name"
+          "browser_download_url": "https://github.com/parkjangwon/pdfbook/releases/download/{{tag}}/$name"
         }
         """.trimIndent()
 
@@ -21,7 +21,7 @@ object ReleaseFixtures {
         assets: List<String>? = null,
     ): String {
         val plain = tag.removePrefix("v")
-        val assetJson = (assets ?: listOf(asset("pdfbook-$plain.apk"))).joinToString(",").replace("TAG", tag)
+        val assetJson = (assets ?: listOf(asset("pdfbook-$plain.apk"))).joinToString(",").replace("{{tag}}", tag)
         return """
             {
               "url": "https://api.github.com/repos/parkjangwon/pdfbook/releases/1",

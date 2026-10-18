@@ -5,6 +5,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 const val RELEASES_PAGE_URL = "https://github.com/parkjangwon/pdfbook/releases/latest"
+internal const val RELEASE_PAGE_PREFIX = "https://github.com/parkjangwon/pdfbook/releases/"
+internal const val RELEASE_DOWNLOAD_PREFIX = "https://github.com/parkjangwon/pdfbook/releases/download/"
 internal const val RELEASES_API_URL = "https://api.github.com/repos/parkjangwon/pdfbook/releases?per_page=20"
 internal const val CONNECT_TIMEOUT_MS = 15_000
 internal const val READ_TIMEOUT_MS = 30_000

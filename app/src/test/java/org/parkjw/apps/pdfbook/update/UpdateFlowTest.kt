@@ -98,10 +98,15 @@ class UpdateFlowTest {
         response = { throw IOException("offline") }
         val failing = flow().also { it.autoCheckOnLaunch(enabled = true) }
         assertEquals(UpdateUiState.Idle, failing.state.value)
+        assertEquals(1, fetches)
+        assertEquals(100L, store.day)
+        flow().autoCheckOnLaunch(enabled = true)
+        assertEquals(1, fetches)
         today = 101
         response = { ReleaseResponse(200, ReleaseFixtures.list(ReleaseFixtures.release("v0.3.0"))) }
         val latest = flow().also { it.autoCheckOnLaunch(enabled = true) }
         assertEquals(UpdateUiState.Idle, latest.state.value)
+        assertEquals(2, fetches)
     }
 
     @Test
@@ -192,11 +197,31 @@ class UpdateFlowTest {
         response = {
             ReleaseResponse(
                 200,
-                """[{"tag_name":"v0.3.1","html_url":"https://evil.example/x","assets":[{"name":"pdfbook-0.3.1.apk","browser_download_url":"https://github.com/a.apk","size":1}]}]""",
+                """[{"tag_name":"v0.3.1","html_url":"https://evil.example/x","assets":[{"name":"pdfbook-0.3.1.apk","browser_download_url":"https://github.com/parkjangwon/pdfbook/releases/download/v0.3.1/pdfbook-0.3.1.apk","size":1}]}]""",
             )
         }
         val f = flow().also { it.manualCheck() }
         f.downloadAndInstall()
-        assertEquals(RELEASES_PAGE_URL, (f.state.value as UpdateUiState.Failed).releasePageUrl)
+        assertEquals(UpdateUiState.Failed(UpdateProblem.Verify, RELEASES_PAGE_URL), f.state.value)
+    }
+
+    @Test
+    fun promptFromAutoCheckIsClearedOnceInstallerOpens() = runBlocking {
+        val f = flow().also { it.autoCheckOnLaunch(enabled = true) }
+        assertTrue((f.state.value as UpdateUiState.Available).prompt)
+        f.downloadAndInstall()
+        f.installerLaunched(true)
+        assertFalse((f.state.value as UpdateUiState.Available).prompt)
+    }
+
+    @Test
+    fun autoCheckNeverOverridesAnExistingState() = runBlocking {
+        val f = flow().also { it.manualCheck() }
+        val before = f.state.value
+        store.day = null
+        today = 200
+        f.autoCheckOnLaunch(enabled = true)
+        assertEquals(before, f.state.value)
+        assertEquals(1, fetches)
     }
 }

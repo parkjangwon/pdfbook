@@ -23,7 +23,7 @@ data class Release(
 
     fun apkAsset(): ReleaseAsset? {
         val expected = version?.let { "pdfbook-$it.apk" } ?: return null
-        return assets.firstOrNull { it.name == expected && it.downloadUrl.startsWith("https://") }
+        return assets.firstOrNull { it.name == expected && it.downloadUrl.startsWith(RELEASE_DOWNLOAD_PREFIX) }
     }
 }
 

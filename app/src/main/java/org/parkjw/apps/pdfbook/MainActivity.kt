@@ -346,7 +346,7 @@ private fun App(
         }
     }
 
-    (updateState as? UpdateUiState.Available)?.takeIf { it.prompt }?.let { available ->
+    (updateState as? UpdateUiState.Available)?.takeIf { it.prompt && book == null }?.let { available ->
         UpdatePromptDialog(
             state = available,
             onDownload = {

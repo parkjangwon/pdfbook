@@ -2,6 +2,7 @@ package org.parkjw.apps.pdfbook.update
 
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,6 +44,8 @@ class UpdateFlow(
 ) {
     private val mutableState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
     val state: StateFlow<UpdateUiState> = mutableState.asStateFlow()
+    private val downloading = AtomicBoolean(false)
+    private val checking = AtomicBoolean(false)
 
     suspend fun autoCheckOnLaunch(enabled: Boolean) {
         if (state.value != UpdateUiState.Idle) return
@@ -53,13 +56,17 @@ class UpdateFlow(
     }
 
     suspend fun manualCheck() {
-        if (state.value.isBusy) return
-        check(manual = true)
+        if (state.value.isBusy || !checking.compareAndSet(false, true)) return
+        try {
+            check(manual = true)
+        } finally {
+            checking.set(false)
+        }
     }
 
     private suspend fun check(manual: Boolean) {
-        mutableState.value = if (manual) UpdateUiState.Checking else UpdateUiState.Idle
-        mutableState.value = when (val result = checker.check(currentVersionName())) {
+        if (manual) mutableState.value = UpdateUiState.Checking
+        val next = when (val result = checker.check(currentVersionName())) {
             is UpdateCheckResult.UpToDate -> if (manual) UpdateUiState.UpToDate else UpdateUiState.Idle
             is UpdateCheckResult.Available -> {
                 val prompt = !manual && UpdatePolicy.shouldPromptAfterAutoCheck(
@@ -76,6 +83,11 @@ class UpdateFlow(
                     UpdateUiState.Idle
                 }
         }
+        if (manual) {
+            mutableState.value = next
+        } else {
+            mutableState.compareAndSet(UpdateUiState.Idle, next)
+        }
     }
 
     suspend fun later() {
@@ -85,6 +97,15 @@ class UpdateFlow(
     }
 
     fun downloadAndInstall() {
+        if (!downloading.compareAndSet(false, true)) return
+        try {
+            startDownload()
+        } finally {
+            downloading.set(false)
+        }
+    }
+
+    private fun startDownload() {
         val release = when (val current = state.value) {
             is UpdateUiState.Available -> current.release to current.apk
             is UpdateUiState.NeedsInstallPermission -> current.release to current.apk
@@ -133,5 +154,5 @@ class UpdateFlow(
     }
 
     private fun releasePage(release: Release): String =
-        release.htmlUrl.takeIf { it.startsWith("https://github.com/parkjangwon/pdfbook/") } ?: RELEASES_PAGE_URL
+        release.htmlUrl.takeIf { it.startsWith(RELEASE_PAGE_PREFIX) } ?: RELEASES_PAGE_URL
 }

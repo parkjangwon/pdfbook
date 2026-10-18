@@ -8,8 +8,7 @@ import java.security.MessageDigest
 
 data class SignerSnapshot(
     val packageName: String,
-    val currentSigners: Set<String>,
-    val signerHistory: List<String>,
+    val signers: Set<String>,
 )
 
 fun interface ApkVerifier {
@@ -22,21 +21,13 @@ fun sha256Hex(bytes: ByteArray): String =
 fun signaturesMatch(installed: SignerSnapshot?, archive: SignerSnapshot?): Boolean {
     if (installed == null || archive == null) return false
     if (installed.packageName != archive.packageName) return false
-    if (installed.currentSigners.isEmpty() || archive.currentSigners.isEmpty()) return false
-    if (installed.currentSigners == archive.currentSigners) return true
-    val installedSigner = installed.currentSigners.singleOrNull() ?: return false
-    return archive.currentSigners.size == 1 && installedSigner in archive.signerHistory
+    return installed.signers.isNotEmpty() && installed.signers == archive.signers
 }
 
 fun PackageInfo.signerSnapshot(): SignerSnapshot? {
     val info = signingInfo ?: return null
-    val current = info.apkContentsSigners.orEmpty().map { sha256Hex(it.toByteArray()) }.toSet()
-    val history = if (info.hasMultipleSigners()) {
-        emptyList()
-    } else {
-        info.signingCertificateHistory.orEmpty().map { sha256Hex(it.toByteArray()) }
-    }
-    return SignerSnapshot(packageName, current, history)
+    val signers = info.apkContentsSigners.orEmpty().map { sha256Hex(it.toByteArray()) }.toSet()
+    return SignerSnapshot(packageName, signers)
 }
 
 class PackageManagerApkVerifier(private val context: Context) : ApkVerifier {

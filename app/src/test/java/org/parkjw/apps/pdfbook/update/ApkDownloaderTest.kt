@@ -3,9 +3,9 @@ package org.parkjw.apps.pdfbook.update
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -17,73 +17,95 @@ class ApkDownloaderTest {
     val tmp = TemporaryFolder()
 
     private val bytes = ByteArray(300_000) { (it % 251).toByte() }
+    private val url = "https://github.com/parkjangwon/pdfbook/releases/download/v0.3.1/pdfbook-0.3.1.apk"
 
-    private fun asset(name: String = "pdfbook-0.3.1.apk", size: Long = bytes.size.toLong(), url: String = "https://github.com/x/$name") =
-        ReleaseAsset(name, url, size, "application/vnd.android.package-archive")
+    private fun asset(size: Long = bytes.size.toLong(), downloadUrl: String = url) =
+        ReleaseAsset("pdfbook-0.3.1.apk", downloadUrl, size, "application/vnd.android.package-archive")
 
     private fun dir() = File(tmp.root, "updates")
 
+    private fun downloader(length: Long = -1, input: () -> InputStream = { ByteArrayInputStream(bytes) }) =
+        FileApkDownloader(dir()) { ApkStream(length, input()) }
+
     @Test
-    fun writesFileAndReportsMonotonicProgress() {
+    fun writesFileReportsProgressAndClosesConnection() {
         val requested = mutableListOf<String>()
         val progress = mutableListOf<Int>()
-        val file = FileApkDownloader(dir()) { url ->
-            requested += url
-            ApkStream(bytes.size.toLong(), ByteArrayInputStream(bytes))
+        var closed = 0
+        val file = FileApkDownloader(dir()) { requestedUrl ->
+            requested += requestedUrl
+            ApkStream(bytes.size.toLong(), ByteArrayInputStream(bytes)) { closed++ }
         }.download(asset()) { progress += it }
-        assertEquals(listOf("https://github.com/x/pdfbook-0.3.1.apk"), requested)
+        assertEquals(listOf(url), requested)
         assertArrayEquals(bytes, file.readBytes())
-        assertEquals("pdfbook-0.3.1.apk", file.name)
+        assertEquals(APK_FILE_NAME, file.name)
         assertEquals(100, progress.last())
         assertEquals(progress.sorted(), progress)
         assertEquals(progress.distinct(), progress)
         assertEquals(listOf(file), dir().listFiles()!!.toList())
+        assertEquals(1, closed)
     }
 
     @Test
     fun removesOlderDownloads() {
         dir().mkdirs()
         File(dir(), "pdfbook-0.3.0.apk").writeText("old")
-        FileApkDownloader(dir()) { ApkStream(-1, ByteArrayInputStream(bytes)) }.download(asset()) {}
-        assertEquals(listOf("pdfbook-0.3.1.apk"), dir().list()!!.toList())
+        downloader().download(asset()) {}
+        assertEquals(listOf(APK_FILE_NAME), dir().list()!!.toList())
     }
 
     @Test
-    fun truncatedOrOversizedDownloadsFailAndLeaveNothing() {
-        val short = bytes.copyOf(1000)
+    fun truncatedOversizedOrMismatchedDownloadsFailAndLeaveNothing() {
         assertThrows(IOException::class.java) {
-            FileApkDownloader(dir()) { ApkStream(-1, ByteArrayInputStream(short)) }.download(asset()) {}
+            downloader { ByteArrayInputStream(bytes.copyOf(1000)) }.download(asset()) {}
         }
         assertTrue(dir().list()!!.isEmpty())
-        assertThrows(IOException::class.java) {
-            FileApkDownloader(dir()) { ApkStream(-1, ByteArrayInputStream(bytes)) }.download(asset(size = 10)) {}
-        }
+        assertThrows(IOException::class.java) { downloader().download(asset(size = 10)) {} }
+        assertTrue(dir().list()!!.isEmpty())
+        assertThrows(IOException::class.java) { downloader(length = 12345).download(asset()) {} }
         assertTrue(dir().list()!!.isEmpty())
         assertThrows(IOException::class.java) {
-            FileApkDownloader(dir()) { ApkStream(0, ByteArrayInputStream(ByteArray(0))) }.download(asset(size = 0)) {}
+            downloader(length = 0) { ByteArrayInputStream(ByteArray(0)) }.download(asset(size = 0)) {}
         }
+        assertThrows(IOException::class.java) { downloader().download(asset(size = MAX_APK_BYTES + 1)) {} }
+        assertThrows(IOException::class.java) { downloader(length = MAX_APK_BYTES + 1).download(asset(size = 0)) {} }
     }
 
     @Test
-    fun streamErrorsPropagateAsIOException() {
-        val failing = object : java.io.InputStream() {
-            var n = 0
-            override fun read(): Int = if (n++ < 10) 1 else throw IOException("reset")
+    fun unknownSizeIsCappedAndStillWorksBelowCap() {
+        val file = downloader().download(asset(size = 0)) {}
+        assertArrayEquals(bytes, file.readBytes())
+    }
+
+    @Test
+    fun streamErrorsPropagateAndCloseConnection() {
+        var closed = false
+        val failing = object : InputStream() {
+            override fun read(): Int = throw IOException("reset")
+            override fun read(b: ByteArray, off: Int, len: Int): Int = throw IOException("reset")
         }
         assertThrows(IOException::class.java) {
-            FileApkDownloader(dir()) { ApkStream(-1, failing) }.download(asset()) {}
+            FileApkDownloader(dir()) { ApkStream(-1, failing) { closed = true } }.download(asset()) {}
         }
-        assertFalse(File(dir(), "pdfbook-0.3.1.apk").exists())
+        assertTrue(dir().list()!!.isEmpty())
+        assertTrue(closed)
     }
 
     @Test
-    fun refusesUnsafeTargets() {
-        val downloader = FileApkDownloader(dir()) { ApkStream(-1, ByteArrayInputStream(bytes)) }
+    fun refusesUrlsOutsideThisRepositoryReleases() {
         listOf(
-            asset(url = "http://github.com/x.apk"),
-            asset(name = "../evil.apk"),
-            asset(name = ".hidden.apk"),
-        ).forEach { bad -> assertThrows(IOException::class.java) { downloader.download(bad) {} } }
+            "http://github.com/parkjangwon/pdfbook/releases/download/v0.3.1/pdfbook-0.3.1.apk",
+            "https://example.com/pdfbook-0.3.1.apk",
+            "https://github.com/someone/else/releases/download/v0.3.1/pdfbook-0.3.1.apk",
+        ).forEach { bad ->
+            var opened = false
+            val d = FileApkDownloader(dir()) {
+                opened = true
+                ApkStream(-1, ByteArrayInputStream(bytes))
+            }
+            assertThrows(IOException::class.java) { d.download(asset(downloadUrl = bad)) {} }
+            assertTrue(!opened)
+        }
     }
 
     @Test

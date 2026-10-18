@@ -6,7 +6,14 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
-class ApkStream(val contentLength: Long, val input: InputStream)
+const val MAX_APK_BYTES = 200L * 1024 * 1024
+internal const val APK_FILE_NAME = "pdfbook-update.apk"
+
+class ApkStream(
+    val contentLength: Long,
+    val input: InputStream,
+    val close: () -> Unit = {},
+)
 
 fun interface ApkTransport {
     @Throws(IOException::class)
@@ -26,28 +33,31 @@ class FileApkDownloader(
     private val transport: ApkTransport,
 ) : ApkDownloader {
     override fun download(asset: ReleaseAsset, onProgress: (Int) -> Unit): File {
-        if (!asset.downloadUrl.startsWith("https://")) throw IOException("refusing non-https download")
-        if (asset.name.contains('/') || asset.name.contains('\\') || asset.name.startsWith(".")) {
-            throw IOException("unsafe asset name")
-        }
+        if (!asset.downloadUrl.startsWith(RELEASE_DOWNLOAD_PREFIX)) throw IOException("unexpected download url")
+        if (asset.sizeBytes > MAX_APK_BYTES) throw IOException("apk too large")
         if (!directory.isDirectory && !directory.mkdirs()) throw IOException("cannot create $directory")
         directory.listFiles()?.forEach { it.delete() }
-        val target = File(directory, asset.name)
-        val partial = File(directory, asset.name + ".part")
+        val target = File(directory, APK_FILE_NAME)
+        val partial = File(directory, "$APK_FILE_NAME.part")
         val stream = transport.open(asset.downloadUrl)
-        val expected = asset.sizeBytes.takeIf { it > 0L } ?: stream.contentLength
-        var read = 0L
-        var lastPercent = -1
         try {
+            val declared = asset.sizeBytes.takeIf { it > 0L }
+            val served = stream.contentLength.takeIf { it > 0L }
+            if (declared != null && served != null && declared != served) throw IOException("size mismatch")
+            if ((served ?: 0L) > MAX_APK_BYTES) throw IOException("apk too large")
+            val expected = declared ?: served ?: -1L
+            val limit = if (expected > 0L) expected else MAX_APK_BYTES
+            var read = 0L
+            var lastPercent = -1
             stream.input.use { input ->
                 partial.outputStream().use { output ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
                         val n = input.read(buffer)
                         if (n < 0) break
-                        output.write(buffer, 0, n)
                         read += n
-                        if (expected > 0L && read > expected) throw IOException("download larger than expected")
+                        if (read > limit) throw IOException("download larger than expected")
+                        output.write(buffer, 0, n)
                         val percent = progressPercent(read, expected)
                         if (percent != lastPercent) {
                             lastPercent = percent
@@ -62,6 +72,8 @@ class FileApkDownloader(
             partial.delete()
             target.delete()
             throw e
+        } finally {
+            stream.close()
         }
         return target
     }
@@ -76,11 +88,15 @@ class HttpsApkTransport(private val userAgent: String) : ApkTransport {
             setRequestProperty("User-Agent", userAgent)
             setRequestProperty("Accept", "application/octet-stream")
         }
-        val code = connection.responseCode
-        if (code !in 200..299 || connection.url.protocol != "https") {
+        try {
+            val code = connection.responseCode
+            if (code !in 200..299 || connection.url.protocol != "https") {
+                throw IOException("download failed with HTTP $code")
+            }
+            return ApkStream(connection.contentLengthLong, connection.inputStream) { connection.disconnect() }
+        } catch (e: IOException) {
             connection.disconnect()
-            throw IOException("download failed with HTTP $code")
+            throw e
         }
-        return ApkStream(connection.contentLengthLong, connection.inputStream)
     }
 }

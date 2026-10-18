@@ -7,7 +7,7 @@ object UpdatePolicy {
         enabled && lastAutoCheckDay != today
 
     fun shouldPromptAfterAutoCheck(version: AppVersion, snooze: UpdateSnooze?, today: Long): Boolean =
-        snooze == null || snooze.version != version.toString() || snooze.epochDay < today
+        snooze == null || snooze.version != version.toString() || snooze.epochDay != today
 
     fun showsFailure(manual: Boolean): Boolean = manual
 }

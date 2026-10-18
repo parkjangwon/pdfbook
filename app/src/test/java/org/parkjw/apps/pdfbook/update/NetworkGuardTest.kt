@@ -6,12 +6,15 @@ import org.junit.Test
 
 class NetworkGuardTest {
     private val networkApis = listOf(
-        Regex("""\bHttpURLConnection\b"""),
-        Regex("""\bHttpsURLConnection\b"""),
+        Regex("""\bjava\.net\."""),
+        Regex("""\bjavax\.net\."""),
+        Regex("""\bandroid\.net\.http\b"""),
+        Regex("""\bURL\s*\("""),
+        Regex("""\b(Http|Https)URLConnection\b"""),
         Regex("""\bopenConnection\s*\("""),
-        Regex("""\bjava\.net\.(URL|Socket|URI)\b"""),
-        Regex("""\bSocket\s*\("""),
-        Regex("""\bokhttp3?\b"""),
+        Regex("""\b(Socket|SSLSocket|DatagramSocket|SocketChannel|InetAddress)\b"""),
+        Regex("""\bDownloadManager\b"""),
+        Regex("""\b(okhttp3?|ktor|retrofit2?|Cronet\w*)\b"""),
         Regex("""\bWebView\b"""),
     )
     private val allowed = setOf("GitHubReleaseSource.kt", "ApkDownloader.kt")
@@ -22,8 +25,8 @@ class NetworkGuardTest {
         val offenders = File(root, "app/src/main/java").walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
             .filter { file -> networkApis.any { it.containsMatchIn(file.readText()) } }
-            .map { it.relativeTo(root).path }
-            .filterNot { path -> path.contains("/update/") && File(path).name in allowed }
+            .map { it.relativeTo(root).invariantSeparatorsPath }
+            .filterNot { path -> path.contains("/update/") && path.substringAfterLast('/') in allowed }
             .toList()
         assertEquals(emptyList<String>(), offenders)
     }

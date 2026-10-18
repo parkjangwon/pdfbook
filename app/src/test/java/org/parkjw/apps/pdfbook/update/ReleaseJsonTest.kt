@@ -41,6 +41,7 @@ class ReleaseJsonTest {
         val release = ReleaseJson.parseList(json).single()
         assertEquals("v0.3.0", release.name)
         assertEquals("", release.notes)
+        assertEquals("", release.htmlUrl)
         assertNull(release.publishedAt)
         assertFalse(release.draft)
         assertFalse(release.prerelease)
