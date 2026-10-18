@@ -20,7 +20,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import org.parkjw.apps.pdfbook.sortFoldersByRecent
 import java.io.File
 
 class FolderRepositoryTest {
@@ -245,18 +244,77 @@ class FolderRepositoryTest {
     }
 
     @Test
-    fun duplicateAddMovesFolderToShelfTop() = runBlocking {
-        val repo = repository("dup-top.preferences_pb")
+    fun duplicateAddKeepsOrderAndOpenedAt() = runBlocking {
+        val repo = repository("dup-keep.preferences_pb")
         assertEquals(AddKind.Created, repo.add("content://tree/a", "A"))
         assertEquals(AddKind.Created, repo.add("content://tree/b", "B"))
         repo.markOpened("content://tree/a", 100L)
-        repo.markOpened("content://tree/b", 200L)
+        val before = repo.folders.first()
         permissions.taken.clear()
-        assertEquals(AddKind.Duplicate, repo.add("content://tree/a", "Other"))
+        assertEquals(AddKind.Duplicate, repo.add("content://tree/b", "Other"))
         assertTrue(permissions.taken.isEmpty())
+        assertEquals(before, repo.folders.first())
+        assertEquals(listOf("content://tree/a", "content://tree/b"), before.map { it.uri })
+    }
+
+    @Test
+    fun reorderVisibleIsSavedAndNewFoldersGoLast() = runBlocking {
+        val data = store("reorder.preferences_pb")
+        val repo = FolderRepository(data, permissions)
+        repo.add("content://tree/a", "A")
+        repo.add("content://tree/b", "B")
+        repo.add("content://tree/c", "C")
+        repo.reorderVisible(listOf("content://tree/c", "content://tree/a", "content://tree/b"))
+        val reopened = FolderRepository(data, permissions)
+        assertEquals(
+            listOf("content://tree/c", "content://tree/a", "content://tree/b"),
+            reopened.folders.first().map { it.uri },
+        )
+        reopened.add("content://tree/d", "D")
+        assertEquals("content://tree/d", reopened.folders.first().last().uri)
+    }
+
+    @Test
+    fun reorderVisibleKeepsHiddenFolderSlot() = runBlocking {
+        val repo = repository("reorder-hidden.preferences_pb")
+        repo.add("content://tree/a", "A")
+        repo.add("content://tree/h", "H")
+        repo.add("content://tree/b", "B")
+        repo.reorderVisible(listOf("content://tree/b", "content://tree/a"))
+        assertEquals(
+            listOf("content://tree/b", "content://tree/h", "content://tree/a"),
+            repo.folders.first().map { it.uri },
+        )
+    }
+
+    @Test
+    fun upgradeKeepsPreviouslyShownRecentOrder() = runBlocking {
+        val data = store("upgrade.preferences_pb")
+        data.edit {
+            it[FolderRepository.MigratedKey] = true
+            it[FolderRepository.FoldersKey] = encodeFolders(
+                listOf(
+                    Folder("content://tree/a", "A", 0, FolderAccess.Ok, 10L),
+                    Folder("content://tree/b", "B", 1, FolderAccess.Lost, 30L),
+                    Folder("content://tree/c", "C", 2, FolderAccess.Ok, 20L),
+                    Folder("content://tree/d", "D", 3, FolderAccess.Ok, 0L),
+                ),
+            )
+        }
+        val repo = FolderRepository(data, permissions)
+        repo.migrateFromLegacyIfNeeded()
         val folders = repo.folders.first()
-        assertEquals(2, folders.size)
-        assertEquals("content://tree/a", sortFoldersByRecent(folders).first().uri)
+        assertEquals(
+            listOf("content://tree/b", "content://tree/c", "content://tree/a", "content://tree/d"),
+            folders.map { it.uri },
+        )
+        assertEquals(listOf(0, 1, 2, 3), folders.map { it.order })
+        repo.markOpened("content://tree/d", 999L)
+        repo.migrateFromLegacyIfNeeded()
+        assertEquals("content://tree/d", repo.folders.first().last().uri)
+        val restarted = FolderRepository(data, permissions)
+        restarted.migrateFromLegacyIfNeeded()
+        assertEquals("content://tree/d", restarted.folders.first().last().uri)
     }
 
     @Test

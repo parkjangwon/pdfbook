@@ -23,25 +23,67 @@ class FolderShelfTest {
     ) = Folder(uri, name, order, access, lastOpenedAt)
 
     @Test
-    fun sortFoldersByRecentUsesOpenedAtThenOrder() {
+    fun shelfCardsFollowSavedOrderNotRecentOpen() {
         val folders = listOf(
-            folder("a", order = 0, lastOpenedAt = 1L),
-            folder("b", order = 1, lastOpenedAt = 9L),
-            folder("c", order = 2, lastOpenedAt = 9L),
+            folder("a", order = 2, lastOpenedAt = 50L),
+            folder("b", order = 0, lastOpenedAt = 1L),
+            folder("c", order = 1, lastOpenedAt = 99L),
         )
-        assertEquals(listOf("b", "c", "a"), sortFoldersByRecent(folders).map { it.uri })
+        val ui = buildFolderShelfUi(folders, emptyMap(), emptyMap())
+        assertEquals(listOf("b", "c", "a"), ui.cards.map { it.uri })
     }
 
     @Test
-    fun duplicateMarkOpenedBecomesFirstShelfCard() {
+    fun duplicateAddAndOpeningDoNotMoveCard() {
         val base = listOf(
             folder("a", order = 0, lastOpenedAt = 1L),
             folder("b", order = 1, lastOpenedAt = 9L),
         )
-        val duplicate = add(base, "a", "Other")
+        val duplicate = add(base, "b", "Other")
         assertEquals(AddKind.Duplicate, duplicate.kind)
-        val bumped = markOpened(duplicate.folders, "a", 99L)
-        assertEquals("a", sortFoldersByRecent(bumped).first().uri)
+        assertEquals(base, duplicate.folders)
+        val opened = markOpened(duplicate.folders, "b", 99L)
+        assertEquals(listOf("a", "b"), buildFolderShelfUi(opened, emptyMap(), emptyMap()).cards.map { it.uri })
+    }
+
+    @Test
+    fun newFolderGoesToBottom() {
+        val base = listOf(folder("a", order = 0), folder("b", order = 1))
+        val added = add(base, "c", "C")
+        assertEquals(AddKind.Created, added.kind)
+        assertEquals(listOf("a", "b", "c"), buildFolderShelfUi(added.folders, emptyMap(), emptyMap()).cards.map { it.uri })
+    }
+
+    @Test
+    fun orderedCardsUsesPendingOrderOnlyForSameSet() {
+        val cards = buildFolderShelfUi(
+            listOf(folder("a", order = 0), folder("b", order = 1), folder("c", order = 2)),
+            emptyMap(),
+            emptyMap(),
+        ).cards
+        assertEquals(listOf("c", "a", "b"), orderedCards(cards, listOf("c", "a", "b")).map { it.uri })
+        assertEquals(listOf("a", "b", "c"), orderedCards(cards, null).map { it.uri })
+        assertEquals(listOf("a", "b", "c"), orderedCards(cards, listOf("a", "b")).map { it.uri })
+        assertEquals(listOf("a", "b", "c"), orderedCards(cards, listOf("a", "b", "x")).map { it.uri })
+    }
+
+    @Test
+    fun moveBeforeTakesTargetSlotBothWays() {
+        val order = listOf("a", "b", "c", "d")
+        assertEquals(listOf("b", "c", "a", "d"), moveBefore(order, "a", "c"))
+        assertEquals(listOf("a", "d", "b", "c"), moveBefore(order, "d", "b"))
+        assertEquals(order, moveBefore(order, "a", "a"))
+        assertEquals(order, moveBefore(order, "x", "a"))
+    }
+
+    @Test
+    fun autoScrollOnlyNearEdges() {
+        assertEquals(0f, reorderAutoScrollStep(200f, 300f, 0f, 1000f, 100f, 10f), 0f)
+        assertEquals(-5f, reorderAutoScrollStep(50f, 150f, 0f, 1000f, 100f, 10f), 0.001f)
+        assertEquals(-10f, reorderAutoScrollStep(-40f, 60f, 0f, 1000f, 100f, 10f), 0.001f)
+        assertEquals(5f, reorderAutoScrollStep(850f, 950f, 0f, 1000f, 100f, 10f), 0.001f)
+        assertEquals(10f, reorderAutoScrollStep(950f, 1100f, 0f, 1000f, 100f, 10f), 0.001f)
+        assertEquals(0f, reorderAutoScrollStep(950f, 1100f, 0f, 1000f, 0f, 10f), 0f)
     }
 
     @Test
@@ -76,13 +118,13 @@ class FolderShelfTest {
             bookKey(c1.uri, c1.size) to BookState(page = 4, pageCount = 8, openedAt = 200L),
         )
         val ui = buildFolderShelfUi(folders, listings, states)
-        assertEquals(listOf("fb", "fa", "fc"), ui.cards.map { it.uri })
-        assertEquals(2, ui.cards[1].bookCount)
-        assertEquals(listOf(bookKey(a1.uri, a1.size), bookKey(a2.uri, a2.size)), ui.cards[1].coverKeys)
-        assertEquals("A1", ui.cards[1].resume?.title)
-        assertEquals(20, ui.cards[1].resume?.percent)
-        assertEquals(FolderAccess.Lost, ui.cards[0].access)
-        assertEquals(0, ui.cards[0].bookCount)
+        assertEquals(listOf("fa", "fb", "fc"), ui.cards.map { it.uri })
+        assertEquals(2, ui.cards[0].bookCount)
+        assertEquals(listOf(bookKey(a1.uri, a1.size), bookKey(a2.uri, a2.size)), ui.cards[0].coverKeys)
+        assertEquals("A1", ui.cards[0].resume?.title)
+        assertEquals(20, ui.cards[0].resume?.percent)
+        assertEquals(FolderAccess.Lost, ui.cards[1].access)
+        assertEquals(0, ui.cards[1].bookCount)
         assertEquals(c1.uri, ui.globalResume?.book?.uri)
         assertEquals("fc", ui.globalResume?.folderUri)
         assertEquals(50, ui.globalResume?.percent)
