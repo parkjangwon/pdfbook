@@ -1,5 +1,6 @@
 package org.parkjw.apps.pdfbook.settings
 
+import org.parkjw.apps.pdfbook.DEFAULT_TAP_ZONE_SIDE_PERCENT
 import org.parkjw.apps.pdfbook.ReadingDirection
 
 enum class StartScreen {
@@ -43,4 +44,5 @@ data class AppSettings(
     val pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
     val doubleTapZoomScale: Float = 2f,
     val autoUpdateCheck: Boolean = true,
+    val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
 )

@@ -14,7 +14,7 @@
     <string name="sort_name">Name</string>
     <string name="continue_reading">Continue reading</string>
     <string name="progress">%1$d / %2$d</string>
-    <string name="folders_title">Book folders</string>
+    <string name="folders_title">PDFBook</string>
     <string name="folders_add">Add folder</string>
     <string name="folder_rename">Rename</string>
     <string name="folder_repick">Choose folder again</string>
@@ -83,4 +83,15 @@
     <string name="update_check_action">Check</string>
     <string name="update_current_version">Current version %1$s</string>
     <string name="update_download_hint">Opens the installer once the download finishes</string>
+    <string name="reader_zone_previous">Previous</string>
+    <string name="reader_zone_menu">Menu</string>
+    <string name="reader_zone_next">Next</string>
+    <string name="reader_tap_zone_label">Tap zones</string>
+    <string name="reader_tap_zone_adjust">Adjust width</string>
+    <string name="reader_tap_width_title">Tap zone width</string>
+    <string name="reader_tap_width_body">Width of the left and right zones. The middle opens the menu.</string>
+    <string name="reader_tap_width_percent">%1$d%%</string>
+    <string name="reader_tap_width_value">%1$d%% · default %2$d%%</string>
+    <string name="reader_tap_width_reset">Reset to default</string>
+    <string name="reader_tap_width_done">Done</string>
 </resources>
