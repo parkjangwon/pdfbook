@@ -28,6 +28,8 @@ fun ReaderRoute(
     defaultReadingDirection: ReadingDirection,
     onBack: () -> Unit,
     showTapZoneGuide: Boolean = true,
+    tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
+    onTapZoneSidePercentChange: (Int) -> Unit = {},
 ) {
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
@@ -125,6 +127,8 @@ fun ReaderRoute(
                     direction = direction,
                     volumeDelta = volumeDelta,
                     showTapZoneGuide = showTapZoneGuide,
+                    tapZoneSidePercent = tapZoneSidePercent,
+                    onTapZoneSidePercentChange = onTapZoneSidePercentChange,
                 )
             }
         }

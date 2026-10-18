@@ -62,4 +62,12 @@
     <string name="reader_zone_previous">이전</string>
     <string name="reader_zone_menu">메뉴</string>
     <string name="reader_zone_next">다음</string>
+    <string name="reader_tap_zone_label">탭 영역</string>
+    <string name="reader_tap_zone_adjust">폭 조절</string>
+    <string name="reader_tap_width_title">탭 영역 폭</string>
+    <string name="reader_tap_width_body">왼쪽·오른쪽 영역의 폭이에요. 가운데는 메뉴를 열어요.</string>
+    <string name="reader_tap_width_percent">%1$d%%</string>
+    <string name="reader_tap_width_value">%1$d%% · 기본 %2$d%%</string>
+    <string name="reader_tap_width_reset">기본값으로</string>
+    <string name="reader_tap_width_done">완료</string>
 </resources>

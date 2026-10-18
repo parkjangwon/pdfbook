@@ -23,6 +23,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import android.graphics.Bitmap
+import org.parkjw.apps.pdfbook.DEFAULT_TAP_ZONE_SIDE_PERCENT
 import org.parkjw.apps.pdfbook.FolderCardUi
 import org.parkjw.apps.pdfbook.FolderPickScreen
 import org.parkjw.apps.pdfbook.FolderShelfScreen
@@ -313,6 +314,56 @@ class MainScreenshotsTest {
     @Config(qualifiers = FOLDED_EN_QUALIFIERS)
     fun readerGuideLightFoldedEn() = captureReader(dark = false, file = "reader-guide-light-folded-en.png", showTapZoneGuide = true)
 
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun readerTapWidthLightFolded() = captureReader(
+        dark = false,
+        file = "reader-tapwidth-light-folded.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun readerTapWidthDarkFolded() = captureReader(
+        dark = true,
+        file = "reader-tapwidth-dark-folded.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_QUALIFIERS)
+    fun readerTapWidthLightUnfolded() = captureReader(
+        dark = false,
+        file = "reader-tapwidth-light-unfolded.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
+    @Test
+    @Config(qualifiers = UNFOLDED_NIGHT_QUALIFIERS)
+    fun readerTapWidthDarkUnfolded() = captureReader(
+        dark = true,
+        file = "reader-tapwidth-dark-unfolded.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_EN_QUALIFIERS)
+    fun readerTapWidthLightFoldedEn() = captureReader(
+        dark = false,
+        file = "reader-tapwidth-light-folded-en.png",
+        showTapZoneGuide = true,
+        tapZoneSidePercent = 40,
+        tapZoneWidthSheetVisible = true,
+    )
+
     private fun captureLibrary(dark: Boolean, file: String) {
         val listing = sampleListing()
         capture(file, dark) {
@@ -489,6 +540,8 @@ class MainScreenshotsTest {
         file: String,
         showTapZoneGuide: Boolean = false,
         direction: ReadingDirection = ReadingDirection.RTL,
+        tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
+        tapZoneWidthSheetVisible: Boolean = false,
     ) {
         val pageCount = 12
         val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
@@ -511,6 +564,8 @@ class MainScreenshotsTest {
                 direction = direction,
                 overlayVisible = true,
                 showTapZoneGuide = showTapZoneGuide,
+                tapZoneSidePercent = tapZoneSidePercent,
+                tapZoneWidthSheetVisible = tapZoneWidthSheetVisible,
                 modifier = Modifier.fillMaxSize(),
             )
         }
