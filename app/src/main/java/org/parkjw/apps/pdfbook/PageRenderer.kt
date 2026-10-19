@@ -4,12 +4,12 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
-import android.util.LruCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -21,60 +21,23 @@ import kotlin.math.min
 interface PageBitmaps {
     val pageCount: Int
     suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap?
-    fun prefetch(spreads: List<List<Int>>, spreadIndex: Int, maxWidth: Int, maxHeight: Int) {}
+    fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? = null
+    fun prerender(current: List<PageRequest>, targets: List<PageRequest>) {}
+    fun trimToCurrent() {}
 }
 
-class PageRenderer private constructor(
+interface PageSource : Closeable {
+    val pageCount: Int
+    fun draw(page: Int, maxWidth: Int, maxHeight: Int): Bitmap
+}
+
+class PdfPageSource(
     private val pfd: ParcelFileDescriptor,
     private val pdf: PdfRenderer,
-) : PageBitmaps, Closeable {
-    private val mutex = Mutex()
-    private val renderDispatcher = Dispatchers.IO.limitedParallelism(1)
-    private val scope = CoroutineScope(SupervisorJob() + renderDispatcher)
-    private var prefetchJob: Job? = null
-    @Volatile private var closed = false
-
-    private val cache = object : LruCache<CacheKey, Bitmap>(
-        (Runtime.getRuntime().maxMemory() / 8).toInt().coerceAtLeast(1),
-    ) {
-        override fun sizeOf(key: CacheKey, value: Bitmap): Int = value.byteCount.coerceAtLeast(1)
-    }
-
+) : PageSource {
     override val pageCount: Int get() = pdf.pageCount
 
-    override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
-        prefetchJob?.cancel()
-        return renderLocked(page, maxWidth, maxHeight)
-    }
-
-    override fun prefetch(spreads: List<List<Int>>, spreadIndex: Int, maxWidth: Int, maxHeight: Int) {
-        if (closed || maxWidth <= 0 || maxHeight <= 0 || spreads.isEmpty()) return
-        prefetchJob?.cancel()
-        prefetchJob = scope.launch {
-            val from = (spreadIndex - 2).coerceAtLeast(0)
-            val to = (spreadIndex + 2).coerceAtMost(spreads.lastIndex)
-            for (i in from..to) {
-                for (page in spreads[i]) {
-                    renderLocked(page, maxWidth, maxHeight)
-                }
-            }
-        }
-    }
-
-    private suspend fun renderLocked(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
-        if (closed || page < 1 || page > pageCount || maxWidth <= 0 || maxHeight <= 0) return null
-        val key = CacheKey(page, maxWidth, maxHeight)
-        cache.get(key)?.let { return it }
-        return withContext(renderDispatcher) {
-            mutex.withLock {
-                if (closed) return@withLock null
-                cache.get(key)?.let { return@withLock it }
-                draw(page, maxWidth, maxHeight).also { cache.put(key, it) }
-            }
-        }
-    }
-
-    private fun draw(page: Int, maxWidth: Int, maxHeight: Int): Bitmap {
+    override fun draw(page: Int, maxWidth: Int, maxHeight: Int): Bitmap {
         pdf.openPage(page - 1).use { pdfPage ->
             val scale = min(
                 maxWidth.toFloat() / pdfPage.width,
@@ -90,20 +53,104 @@ class PageRenderer private constructor(
     }
 
     override fun close() {
-        prefetchJob?.cancel()
+        pdf.close()
+        pfd.close()
+    }
+}
+
+class PageRenderer(
+    private val source: PageSource,
+    limitBytes: Long = cacheLimitBytes(Runtime.getRuntime().maxMemory()),
+) : PageBitmaps, Closeable {
+    private val mutex = Mutex()
+    private val renderDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val scope = CoroutineScope(SupervisorJob() + renderDispatcher)
+    private val jobLock = Any()
+    private var prerenderJob: Job? = null
+    private var pending: List<PageRequest> = emptyList()
+    @Volatile private var closed = false
+
+    val cache = PageCache<Bitmap>(limitBytes) { it.byteCount.toLong() }
+
+    override val pageCount: Int = source.pageCount
+
+    override fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? =
+        if (closed) null else cache.get(PageRequest(page, maxWidth, maxHeight))
+
+    override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
+        val key = PageRequest(page, maxWidth, maxHeight)
+        cache.get(key)?.let { return it }
+        val interrupted = synchronized(jobLock) {
+            val active = prerenderJob?.isActive == true
+            prerenderJob?.cancel()
+            active
+        }
+        try {
+            return renderLocked(key)
+        } finally {
+            if (interrupted) startPrerender()
+        }
+    }
+
+    override fun prerender(current: List<PageRequest>, targets: List<PageRequest>) {
+        if (closed) return
+        cache.focus(current.map { it.page })
+        synchronized(jobLock) { pending = current + targets }
+        startPrerender()
+    }
+
+    override fun trimToCurrent() {
+        synchronized(jobLock) {
+            prerenderJob?.cancel()
+            pending = emptyList()
+        }
+        cache.trimToCurrent()
+    }
+
+    suspend fun awaitPrerender() {
+        synchronized(jobLock) { prerenderJob }?.join()
+    }
+
+    private fun startPrerender() {
+        synchronized(jobLock) {
+            prerenderJob?.cancel()
+            val targets = pending
+            if (closed || targets.isEmpty()) return
+            prerenderJob = scope.launch {
+                for (target in targets) {
+                    ensureActive()
+                    renderLocked(target)
+                }
+            }
+        }
+    }
+
+    private suspend fun renderLocked(key: PageRequest): Bitmap? {
+        if (closed || key.page < 1 || key.page > pageCount || key.maxWidth <= 0 || key.maxHeight <= 0) {
+            return null
+        }
+        cache.get(key)?.let { return it }
+        return withContext(renderDispatcher) {
+            mutex.withLock {
+                if (closed) return@withLock null
+                cache.get(key)?.let { return@withLock it }
+                source.draw(key.page, key.maxWidth, key.maxHeight).also { cache.put(key, it) }
+            }
+        }
+    }
+
+    override fun close() {
+        synchronized(jobLock) { prerenderJob?.cancel() }
         scope.cancel()
         runBlocking(renderDispatcher) {
             mutex.withLock {
                 if (closed) return@withLock
                 closed = true
-                cache.evictAll()
-                pdf.close()
-                pfd.close()
+                cache.clear()
+                source.close()
             }
         }
     }
-
-    private data class CacheKey(val page: Int, val maxWidth: Int, val maxHeight: Int)
 
     companion object {
         fun open(pfd: ParcelFileDescriptor): PageRenderer {
@@ -113,7 +160,7 @@ class PageRenderer private constructor(
                 pfd.close()
                 throw t
             }
-            return PageRenderer(pfd, pdf)
+            return PageRenderer(PdfPageSource(pfd, pdf))
         }
     }
 }
