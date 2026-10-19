@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -190,6 +191,7 @@ private fun SettingsMainScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .testTag("settings_screen")
                 .padding(padding)
                 .verticalScroll(rememberScrollState(if (scrollToEnd) Int.MAX_VALUE else 0))
                 .padding(bottom = PdfBookSpacing.lg),
@@ -219,6 +221,7 @@ private fun SettingsMainScreen(
                 SettingsNavRow(
                     label = stringResource(R.string.settings_reading_entry),
                     onClick = onOpenReading,
+                    modifier = Modifier.testTag("settings_reading_entry"),
                 )
             }
 
@@ -274,6 +277,7 @@ private fun SettingsMainScreen(
                 SettingsNavRow(
                     label = stringResource(R.string.settings_open_source),
                     onClick = onOpenOpenSource,
+                    modifier = Modifier.testTag("settings_open_source"),
                 )
                 GroupDivider()
                 ListItem(
@@ -360,7 +364,11 @@ private fun ReadingSettingsScreen(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             SafeTopBar {
-                IconButton(onClick = onBack, colors = pdfBookIconButtonColors()) {
+                IconButton(
+                    onClick = onBack,
+                    colors = pdfBookIconButtonColors(),
+                    modifier = Modifier.testTag("settings_reading_back"),
+                ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_arrow_back),
                         contentDescription = stringResource(R.string.reader_back),
@@ -377,6 +385,7 @@ private fun ReadingSettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .testTag("settings_reading_screen")
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = PdfBookSpacing.lg),
@@ -451,6 +460,7 @@ private fun ReadingSettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .testTag("settings_tap_width_row")
                         .selectable(selected = false, onClick = { showTapWidthSheet = true }),
                 )
             }
@@ -558,6 +568,7 @@ private fun <T> SettingsChoiceDialog(
 internal fun SettingsNavRow(
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     ListItem(
         headlineContent = {
@@ -571,7 +582,7 @@ internal fun SettingsNavRow(
             )
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .selectable(selected = false, onClick = onClick),
     )

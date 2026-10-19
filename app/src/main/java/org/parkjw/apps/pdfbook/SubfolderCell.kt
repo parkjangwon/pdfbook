@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -53,7 +54,7 @@ fun SubfolderCell(
     onUnhide: () -> Unit,
 ) {
     val contentAlpha = if (item.isHidden) 0.4f else 1f
-    Box(Modifier.fillMaxWidth()) {
+    Box(Modifier.fillMaxWidth().testTag("library_subfolder")) {
         Column(
             Modifier
                 .fillMaxWidth()

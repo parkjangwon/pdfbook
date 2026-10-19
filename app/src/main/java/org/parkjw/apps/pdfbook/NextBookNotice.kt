@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -96,6 +97,7 @@ fun EndNoticeHost(
 fun EndNoticeCard(notice: EndNotice, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
+            .testTag("end_notice")
             .widthIn(max = END_NOTICE_MAX_WIDTH)
             .fillMaxWidth()
             .height(END_NOTICE_HEIGHT)
@@ -135,6 +137,7 @@ fun EndNoticeCard(notice: EndNotice, onOpen: () -> Unit, modifier: Modifier = Mo
                 Box(
                     modifier = Modifier
                         .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        .testTag("end_notice_open")
                         .clearAndSetSemantics {
                             contentDescription = openLabel
                             role = Role.Button

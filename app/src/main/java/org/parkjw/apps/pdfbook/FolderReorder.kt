@@ -25,6 +25,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -175,6 +176,7 @@ fun FolderReorderHandle(
     Box(
         modifier = modifier
             .size(48.dp)
+            .testTag("folder_reorder_handle")
             .semantics {
                 contentDescription = label
                 customActions = listOfNotNull(

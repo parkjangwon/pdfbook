@@ -2,6 +2,7 @@ package org.parkjw.apps.pdfbook
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -275,6 +276,7 @@ private fun ReaderScreenContent(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .testTag("reader_screen")
             .background(ReaderBackground),
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -388,6 +390,7 @@ private fun ReaderScreenContent(
                                     modifier = Modifier
                                         .weight(span.width)
                                         .fillMaxHeight()
+                                        .testTag("reader_zone_" + span.zone.name)
                                         .then(
                                             if (span.zone.acceptsDoubleTapAtBaseScale) {
                                                 Modifier.combinedClickable(
@@ -527,6 +530,7 @@ private fun BookChangedToast(title: String, onShown: () -> Unit, modifier: Modif
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
+            .testTag("reader_book_changed_toast")
             .padding(horizontal = 32.dp)
             .background(ReaderOverlay, PdfBookShapeTokens.pill)
             .padding(horizontal = 16.dp, vertical = 10.dp),
@@ -538,10 +542,12 @@ private fun VolumeButton(
     iconRes: Int,
     labelRes: Int,
     onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     IconButton(
         onClick = { onClick?.invoke() },
         enabled = onClick != null,
+        modifier = modifier,
         colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
     ) {
         Icon(
@@ -564,6 +570,7 @@ private fun ReaderOverlayTop(
     Row(
         modifier
             .fillMaxWidth()
+            .testTag("reader_overlay_top")
             .background(ReaderOverlay)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -577,6 +584,7 @@ private fun ReaderOverlayTop(
         IconButton(
             onClick = onBack,
             colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+            modifier = Modifier.testTag("reader_back"),
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_arrow_back),
@@ -596,6 +604,7 @@ private fun ReaderOverlayTop(
             IconButton(
                 onClick = onOpenBookList,
                 colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+                modifier = Modifier.testTag("reader_book_list_button"),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_book_list),
@@ -612,11 +621,12 @@ private fun ReaderOverlayTop(
                 if (twoPage) R.string.reader_mode_double else R.string.reader_mode_single,
             ),
             tint = ReaderOnOverlay,
-            modifier = Modifier.padding(horizontal = 12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp).testTag("reader_page_mode"),
         )
         IconButton(
             onClick = { onDirectionChange(toggledDirection(direction)) },
             colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+            modifier = Modifier.testTag("reader_direction_toggle"),
         ) {
             Icon(
                 painter = painterResource(
@@ -655,6 +665,7 @@ private fun ReaderOverlayBottom(
     Column(
         modifier
             .fillMaxWidth()
+            .testTag("reader_overlay_bottom")
             .background(ReaderOverlay)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -675,6 +686,7 @@ private fun ReaderOverlayBottom(
                 R.drawable.ic_prev_book,
                 leftVolume.labelRes,
                 if (leftVolume == VolumeStep.Next) onNextBook else onPreviousBook,
+                Modifier.testTag("reader_volume_left"),
             )
             if (pageCount > 1) {
                 val sliderDirection =
@@ -692,7 +704,7 @@ private fun ReaderOverlayBottom(
                             activeTickColor = ReaderAccent,
                             inactiveTickColor = ReaderTrack,
                         ),
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).testTag("reader_slider"),
                     )
                 }
             } else {
@@ -703,12 +715,13 @@ private fun ReaderOverlayBottom(
                 R.drawable.ic_next_book,
                 rightVolume.labelRes,
                 if (rightVolume == VolumeStep.Next) onNextBook else onPreviousBook,
+                Modifier.testTag("reader_volume_right"),
             )
         }
         Text(
             text = stringResource(R.string.progress, currentPage, pageCount),
             style = PdfBookNumeric.copy(fontSize = 13.sp, color = ReaderOnOverlay),
-            modifier = Modifier.align(Alignment.CenterHorizontally),
+            modifier = Modifier.align(Alignment.CenterHorizontally).testTag("reader_progress"),
         )
     }
 }
@@ -718,6 +731,7 @@ private fun TapZoneEntry(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("reader_tap_zone_entry")
             .clickable(role = Role.Button, onClick = onClick)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

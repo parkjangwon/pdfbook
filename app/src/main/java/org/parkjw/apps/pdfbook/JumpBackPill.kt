@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -82,6 +83,7 @@ fun JumpBackPill(page: Int, onClick: () -> Unit, modifier: Modifier = Modifier) 
     }
     Row(
         modifier = modifier
+            .testTag("jump_back_pill")
             .height(JUMP_BACK_HEIGHT)
             .clip(PdfBookShapeTokens.pill)
             .background(ReaderChip, PdfBookShapeTokens.pill)
