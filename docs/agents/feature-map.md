@@ -9,6 +9,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 - Tags repeated in lists (`folder_card`, `library_book`, `book_list_row`, `library_subfolder`) match the first visible item. Pick a specific item by its text.
 - System screens (folder picker, permission dialogs) have no tags; match them by text.
 - `scripts/verify.sh <feature>` drives the flows below and saves screenshots, UI dumps, logcat and `dumpsys gfxinfo` to `build/verify/<feature>/<timestamp>/`.
+- `scripts/verify.sh all` runs every feature and writes `build/verify/summary.md`. The "Verify on emulator" workflow runs it on PRs labelled `needs-design` and uploads `build/verify/` as the `verify-evidence` artifact.
 
 ## Launch and folders
 

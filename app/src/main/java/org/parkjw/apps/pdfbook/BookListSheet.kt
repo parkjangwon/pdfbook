@@ -50,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -98,7 +99,7 @@ fun BookListSheet(
     }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        modifier = modifier.testTag(BOOK_LIST_SHEET_TAG),
+        modifier = modifier.testTag(BOOK_LIST_SHEET_TAG).semantics { testTagsAsResourceId = true },
         sheetState = sheetState,
         sheetMaxWidth = 640.dp,
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),

@@ -12,12 +12,14 @@ BOOK_TITLE="PDFBook test book"
 
 usage() {
   cat <<USAGE
-Usage: scripts/verify.sh <feature>
+Usage: scripts/verify.sh <feature>|all
 
 Builds nothing; installs the debug APK, opens the app on an emulator or device,
 drives it with adb + uiautomator, and saves evidence to build/verify/<feature>/<timestamp>.
 
 Features: $FEATURES
+"all" runs every feature, keeps going after failures, writes build/verify/summary.md,
+and exits 1 if any feature failed.
 
 Environment:
   ANDROID_HOME   Android SDK (needs platform-tools, emulator)
@@ -33,6 +35,24 @@ die() {
 }
 
 FEATURE="${1:-}"
+if [ "$FEATURE" = all ]; then
+  mkdir -p "$ROOT/build/verify"
+  SUMMARY="$ROOT/build/verify/summary.md"
+  printf '| Feature | Result | Seconds |\n|---|---|---|\n' >"$SUMMARY"
+  failed=0
+  for name in $FEATURES; do
+    start=$(date +%s)
+    if "${BASH_SOURCE[0]}" "$name"; then
+      result=PASS
+    else
+      result=FAIL
+      failed=1
+    fi
+    printf '| %s | %s | %s |\n' "$name" "$result" "$(($(date +%s) - start))" >>"$SUMMARY"
+  done
+  cat "$SUMMARY"
+  exit "$failed"
+fi
 case " $FEATURES " in
   *" $FEATURE "*) ;;
   *)
@@ -57,6 +77,11 @@ EMULATOR_PID=""
 
 cleanup() {
   local status=$?
+  if [ "$status" != 0 ] && [ -n "${ANDROID_SERIAL:-}" ]; then
+    timeout 20 "$ADB" exec-out screencap -p >"$OUT/failure.png" 2>/dev/null || true
+    [ -f "$OUT/ui.xml" ] && mv "$OUT/ui.xml" "$OUT/failure.xml"
+    timeout 20 "$ADB" logcat -d -v threadtime >"$OUT/logcat.txt" 2>/dev/null || true
+  fi
   if [ "$STARTED_EMULATOR" = 1 ]; then
     timeout 20 "$ADB" emu kill >/dev/null 2>&1 || true
     if [ -n "$EMULATOR_PID" ]; then
@@ -109,6 +134,20 @@ boot_emulator() {
 dump_ui() {
   "$ADB" shell uiautomator dump /sdcard/pdfbook-ui.xml >/dev/null 2>&1 || true
   "$ADB" pull /sdcard/pdfbook-ui.xml "$OUT/ui.xml" >/dev/null 2>&1 || true
+}
+
+node_text() {
+  python3 - "$OUT/ui.xml" "$1" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+path, tag = sys.argv[1:3]
+for node in ET.parse(path).getroot().iter("node"):
+    if node.get("resource-id") == tag:
+        print(node.get("text", ""))
+        sys.exit(0)
+sys.exit(1)
+PY
 }
 
 find_node() {
@@ -187,18 +226,23 @@ pick_folder() {
   tap_id folder_pick_button
   wait_node resource-id '.*documentsui.*' 30 >/dev/null || die "Folder picker did not open (last dump: $OUT/ui.xml)"
   sleep 2
-  local i
-  for i in 1 2 3; do
+  local found=0
+  for _ in 1 2 3 4 5 6; do
     dump_ui
     if find_node text 'pdfbook-verify' >/dev/null; then
+      found=1
       break
-    fi
-    if find_node content-desc 'Show roots' >/dev/null; then
+    elif find_node text 'Download' >/dev/null; then
+      tap_node text 'Download'
+    elif find_node content-desc 'Show roots' >/dev/null; then
       tap_node content-desc 'Show roots'
-      tap_node text 'Downloads?'
+      tap_node text 'sdk_gphone.*|Internal storage|Downloads'
+    else
+      sleep 1
     fi
     sleep 1
   done
+  [ "$found" = 1 ] || die "Generated folder not found in the picker (last dump: $OUT/ui.xml)"
   tap_node text 'pdfbook-verify'
   sleep 1
   tap_node text 'Use this folder'
@@ -250,6 +294,9 @@ fi
 export ANDROID_SERIAL="$DEVICE"
 echo "verify: device $DEVICE"
 
+"$ADB" shell settings put global window_animation_scale 0 >/dev/null 2>&1 || true
+"$ADB" shell settings put global transition_animation_scale 0 >/dev/null 2>&1 || true
+"$ADB" shell settings put global animator_duration_scale 0 >/dev/null 2>&1 || true
 "$ADB" install -r -g "$APK" >/dev/null
 "$ADB" shell pm clear "$PKG" >/dev/null
 prepare_book
@@ -291,11 +338,23 @@ case "$FEATURE" in
   jump-back)
     open_book
     show_overlay
+    expect_id reader_progress
+    origin="$(node_text reader_progress)"
     slider_tap 80
-    tap_id reader_zone_Menu
-    expect_id jump_back_pill
-    shot jump-back-pill
-    tap_id jump_back_pill
+    pill="$(wait_node resource-id jump_back_pill 5)" || die "Jump back pill did not appear (last dump: $OUT/ui.xml)"
+    STEP=$((STEP + 1))
+    "$ADB" exec-out screencap -p >"$OUT/$(printf '%02d' "$STEP")-jump-back-pill.png"
+    set -- $pill
+    "$ADB" shell input tap "$1" "$2"
+    sleep 1
+    returned=""
+    for _ in 1 2 3 4 5; do
+      dump_ui
+      returned="$(node_text reader_progress || true)"
+      [ "$returned" = "$origin" ] && break
+      sleep 1
+    done
+    [ "$returned" = "$origin" ] || die "Jump back did not return to $origin (now $returned)."
     shot jump-back-returned
     ;;
   book-list)
