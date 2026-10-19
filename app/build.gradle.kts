@@ -79,6 +79,11 @@ android {
         compose = true
     }
 
+    lint {
+        error += "HardcodedText"
+        abortOnError = true
+    }
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true

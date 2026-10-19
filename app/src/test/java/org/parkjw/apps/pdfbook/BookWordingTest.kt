@@ -11,8 +11,7 @@ class BookWordingTest {
         val root = projectRoot()
         val stringFiles = File(root, "app/src/main/res")
             .listFiles { f -> f.isDirectory && f.name.startsWith("values") }
-            ?.map { File(it, "strings.xml") }
-            ?.filter { it.isFile }
+            ?.flatMap { dir -> dir.listFiles { f -> f.isFile && f.name.matches(Regex("strings.*\\.xml")) }.orEmpty().toList() }
             .orEmpty()
             .sortedBy { it.path }
         assertTrue("no strings.xml under values*", stringFiles.isNotEmpty())
