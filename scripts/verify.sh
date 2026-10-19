@@ -136,6 +136,20 @@ dump_ui() {
   "$ADB" pull /sdcard/pdfbook-ui.xml "$OUT/ui.xml" >/dev/null 2>&1 || true
 }
 
+node_text() {
+  python3 - "$OUT/ui.xml" "$1" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+path, tag = sys.argv[1:3]
+for node in ET.parse(path).getroot().iter("node"):
+    if node.get("resource-id") == tag:
+        print(node.get("text", ""))
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
 find_node() {
   python3 - "$OUT/ui.xml" "$1" "$2" <<'PY'
 import re
@@ -324,11 +338,23 @@ case "$FEATURE" in
   jump-back)
     open_book
     show_overlay
+    expect_id reader_progress
+    origin="$(node_text reader_progress)"
     slider_tap 80
-    expect_id jump_back_pill
-    shot jump-back-pill
-    tap_id jump_back_pill
-    expect_id jump_back_pill
+    pill="$(wait_node resource-id jump_back_pill 5)" || die "Jump back pill did not appear (last dump: $OUT/ui.xml)"
+    STEP=$((STEP + 1))
+    "$ADB" exec-out screencap -p >"$OUT/$(printf '%02d' "$STEP")-jump-back-pill.png"
+    set -- $pill
+    "$ADB" shell input tap "$1" "$2"
+    sleep 1
+    returned=""
+    for _ in 1 2 3 4 5; do
+      dump_ui
+      returned="$(node_text reader_progress || true)"
+      [ "$returned" = "$origin" ] && break
+      sleep 1
+    done
+    [ "$returned" = "$origin" ] || die "Jump back did not return to $origin (now $returned)."
     shot jump-back-returned
     ;;
   book-list)
