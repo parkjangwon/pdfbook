@@ -1,6 +1,5 @@
 package org.parkjw.apps.pdfbook
 
-import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.semantics.Role
@@ -176,6 +175,8 @@ private fun ReaderScreenContent(
     val currentVolumes by rememberUpdatedState(volumes)
     var bottomBarHeight by remember { mutableIntStateOf(0) }
 
+    TrimCacheOnMemoryPressure(renderer)
+
     LaunchedEffect(pagerState.settledPage) {
         zoom = ZoomState()
     }
@@ -240,11 +241,17 @@ private fun ReaderScreenContent(
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val viewportWidth = constraints.maxWidth.toFloat()
             val viewportHeight = constraints.maxHeight.toFloat()
-            val settledSpread = currentSpreads.getOrNull(pagerState.settledPage).orEmpty()
-            val slotWidth = (constraints.maxWidth / settledSpread.size.coerceAtLeast(1)).coerceAtLeast(1)
-            val slotHeight = constraints.maxHeight.coerceAtLeast(1)
-            LaunchedEffect(pagerState.settledPage, currentSpreads, slotWidth, slotHeight) {
-                renderer.prefetch(currentSpreads, pagerState.settledPage, slotWidth, slotHeight)
+            val prerenderWidth = constraints.maxWidth
+            val prerenderHeight = constraints.maxHeight
+            LaunchedEffect(renderer, pagerState.settledPage, currentSpreads, prerenderWidth, prerenderHeight) {
+                renderer.prerender(
+                    spreadRequests(
+                        currentSpreads.getOrNull(pagerState.settledPage).orEmpty(),
+                        prerenderWidth,
+                        prerenderHeight,
+                    ),
+                    prerenderTargets(currentSpreads, pagerState.settledPage, prerenderWidth, prerenderHeight),
+                )
             }
             HorizontalPager(
                 state = pagerState,
@@ -682,7 +689,7 @@ private fun TapZoneEntry(onClick: () -> Unit) {
 }
 
 @Composable
-private fun PageBitmap(
+internal fun PageBitmap(
     renderer: PageBitmaps,
     page: Int,
     maxWidth: Int,
@@ -690,9 +697,13 @@ private fun PageBitmap(
     modifier: Modifier = Modifier,
     alignment: Alignment = Alignment.Center,
 ) {
-    var bitmap by remember(renderer, page, maxWidth, maxHeight) { mutableStateOf<Bitmap?>(null) }
+    var bitmap by remember(renderer, page, maxWidth, maxHeight) {
+        mutableStateOf(renderer.cached(page, maxWidth, maxHeight))
+    }
     LaunchedEffect(renderer, page, maxWidth, maxHeight) {
-        bitmap = renderer.render(page, maxWidth, maxHeight)
+        if (bitmap?.isRecycled != false) {
+            bitmap = renderer.render(page, maxWidth, maxHeight)
+        }
     }
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val bmp = bitmap
