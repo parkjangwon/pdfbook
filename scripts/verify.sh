@@ -212,18 +212,23 @@ pick_folder() {
   tap_id folder_pick_button
   wait_node resource-id '.*documentsui.*' 30 >/dev/null || die "Folder picker did not open (last dump: $OUT/ui.xml)"
   sleep 2
-  local i
-  for i in 1 2 3; do
+  local found=0
+  for _ in 1 2 3 4 5 6; do
     dump_ui
     if find_node text 'pdfbook-verify' >/dev/null; then
+      found=1
       break
-    fi
-    if find_node content-desc 'Show roots' >/dev/null; then
+    elif find_node text 'Download' >/dev/null; then
+      tap_node text 'Download'
+    elif find_node content-desc 'Show roots' >/dev/null; then
       tap_node content-desc 'Show roots'
-      tap_node text 'Downloads?'
+      tap_node text 'sdk_gphone.*|Internal storage|Downloads'
+    else
+      sleep 1
     fi
     sleep 1
   done
+  [ "$found" = 1 ] || die "Generated folder not found in the picker (last dump: $OUT/ui.xml)"
   tap_node text 'pdfbook-verify'
   sleep 1
   tap_node text 'Use this folder'
