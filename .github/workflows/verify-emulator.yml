@@ -6,16 +6,44 @@ on:
 
 permissions:
   contents: read
-
-concurrency:
-  group: verify-emulator-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  pull-requests: read
 
 jobs:
+  decide:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.match.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Match changed files against needs-design globs
+        id: match
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          ACTION: ${{ github.event.action }}
+          ADDED_LABEL: ${{ github.event.label.name }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'needs-design') }}
+        run: |
+          set -euo pipefail
+          if [ "$ACTION" = labeled ] && [ "$ADDED_LABEL" != needs-design ]; then
+            run=false
+          elif [ "$HAS_LABEL" = true ]; then
+            run=true
+          else
+            gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' > changed-files.txt
+            run=$(python3 scripts/needs-design.py --verbose < changed-files.txt)
+          fi
+          echo "run=$run" | tee -a "$GITHUB_OUTPUT"
+
   verify:
-    if: contains(github.event.pull_request.labels.*.name, 'needs-design')
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    concurrency:
+      group: verify-emulator-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - name: Enable KVM
