@@ -1,0 +1,37 @@
+needs-design:
+  - changed-files:
+      - any-glob-to-any-file:
+          - app/src/main/res/layout*/**
+          - app/src/main/res/drawable*/**
+          - app/src/main/res/mipmap*/**
+          - app/src/main/res/font/**
+          - app/src/main/res/values*/colors.xml
+          - app/src/main/res/values*/themes.xml
+          - app/src/main/res/values*/styles.xml
+          - app/src/main/res/values*/dimens.xml
+          - app/src/main/assets/**
+          - app/src/main/java/org/parkjw/apps/pdfbook/ui/**
+          - app/src/main/java/org/parkjw/apps/pdfbook/**/*Screen.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/**/*Sheet.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/**/*Ui.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/**/*Dialog.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/FolderReorder.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/JumpBackPill.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/MainActivity.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/NextBookNotice.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/ReaderRoute.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/SubfolderCell.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/TapZoneGuide.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/lock/LockGate.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/lock/PinEntry.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/lock/PinPad.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/settings/OpenSourceLicenses.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/settings/SecuritySettings.kt
+          - app/src/main/java/org/parkjw/apps/pdfbook/settings/StorageSettings.kt
+
+needs-copy:
+  - changed-files:
+      - any-glob-to-any-file:
+          - app/src/main/res/values*/strings*.xml
+          - app/src/main/res/values*/plurals*.xml
+          - app/src/main/res/values*/arrays*.xml
