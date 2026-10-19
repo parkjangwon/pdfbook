@@ -7,12 +7,14 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  checks: read
 
 jobs:
   decide:
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.match.outputs.run }}
+      prior: ${{ steps.match.outputs.prior }}
     steps:
       - uses: actions/checkout@v4
       - name: Match changed files against needs-design globs
@@ -21,13 +23,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
           ACTION: ${{ github.event.action }}
           ADDED_LABEL: ${{ github.event.label.name }}
           HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'needs-design') }}
         run: |
           set -euo pipefail
+          prior=none
           if [ "$ACTION" = labeled ] && [ "$ADDED_LABEL" != needs-design ]; then
             run=false
+            prior=$(gh api "repos/$REPO/commits/$SHA/check-runs?check_name=emulator&filter=all" --jq '[.check_runs[] | select(.status == "completed")] | sort_by(.completed_at) | last | .conclusion // "none"')
           elif [ "$HAS_LABEL" = true ]; then
             run=true
           else
@@ -35,8 +40,9 @@ jobs:
             run=$(python3 scripts/needs-design.py --verbose < changed-files.txt)
           fi
           echo "run=$run" | tee -a "$GITHUB_OUTPUT"
+          echo "prior=$prior" | tee -a "$GITHUB_OUTPUT"
 
-  verify:
+  emulator:
     needs: decide
     if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
@@ -79,3 +85,33 @@ jobs:
           name: verify-evidence
           path: build/verify/**
           if-no-files-found: warn
+
+  verify:
+    needs: [decide, emulator]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report emulator verification
+        env:
+          DECIDE: ${{ needs.decide.result }}
+          RUN: ${{ needs.decide.outputs.run }}
+          PRIOR: ${{ needs.decide.outputs.prior }}
+          EMULATOR: ${{ needs.emulator.result }}
+        run: |
+          echo "decide=$DECIDE run=$RUN prior=$PRIOR emulator=$EMULATOR"
+          if [ "$DECIDE" != success ]; then
+            echo "::error::decide job did not succeed ($DECIDE)"
+            exit 1
+          fi
+          if [ "$RUN" = true ]; then
+            [ "$EMULATOR" = success ] && exit 0
+            echo "::error::emulator verification $EMULATOR"
+            exit 1
+          fi
+          case "$PRIOR" in
+            failure|cancelled|timed_out|action_required|startup_failure)
+              echo "::error::latest emulator run on this commit ended with $PRIOR"
+              exit 1
+              ;;
+          esac
+          echo "emulator verification not needed for this event"
