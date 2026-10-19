@@ -188,6 +188,7 @@ private fun BookListRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(72.dp)
+            .testTag("book_list_row")
             .then(if (current) Modifier.background(ReaderListCurrent) else Modifier)
             .drawBehind {
                 if (current) drawRect(ReaderAccent, size = Size(3.dp.toPx(), size.height))

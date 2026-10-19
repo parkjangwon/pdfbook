@@ -179,7 +179,7 @@ fun TapZoneWidthSheet(
                     activeTickColor = colors.accent,
                     inactiveTickColor = colors.track,
                 ),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).testTag("tap_zone_width_slider"),
             )
             Text(
                 text = stringResource(R.string.reader_tap_width_percent, TAP_ZONE_SIDE_MAX_PERCENT),
@@ -205,12 +205,14 @@ fun TapZoneWidthSheet(
             TextButton(
                 onClick = { onPercentChange(DEFAULT_TAP_ZONE_SIDE_PERCENT) },
                 colors = pdfBookTextButtonColors(contentColor = colors.reset),
+                modifier = Modifier.testTag("tap_zone_width_reset"),
             ) {
                 Text(stringResource(R.string.reader_tap_width_reset))
             }
             Spacer(Modifier.width(8.dp))
             Button(
                 onClick = onDone,
+                modifier = Modifier.testTag("tap_zone_width_done"),
                 shape = ButtonCorner,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = colors.doneContainer,

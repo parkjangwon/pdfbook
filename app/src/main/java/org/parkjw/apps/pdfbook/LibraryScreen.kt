@@ -128,7 +128,7 @@ fun FolderPickScreen(
                 hoveredElevation = 0.dp,
                 disabledElevation = 0.dp,
             ),
-            modifier = Modifier.height(40.dp),
+            modifier = Modifier.height(40.dp).testTag("folder_pick_button"),
         ) { Text(buttonLabel) }
     }
 }
@@ -196,7 +196,7 @@ fun LibraryScreen(
         if (result == SnackbarResult.ActionPerformed) currentOnSnackbarAction()
         currentOnSnackbarShown()
     }
-    Box(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize().testTag("library_screen")) {
     Column(Modifier.fillMaxSize()) {
         SafeTopBar(
             modifier = Modifier.padding(horizontal = PdfBookSpacing.screenHorizontalFolded),
@@ -207,7 +207,11 @@ fun LibraryScreen(
                 modifier = Modifier.weight(1f),
             ) {
                 if (onBack != null) {
-                    IconButton(onClick = onBack, colors = pdfBookIconButtonColors()) {
+                    IconButton(
+                        onClick = onBack,
+                        colors = pdfBookIconButtonColors(),
+                        modifier = Modifier.testTag("library_back"),
+                    ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_arrow_back),
                             contentDescription = stringResource(R.string.reader_back),
@@ -316,6 +320,7 @@ fun LibraryScreen(
                 IconButton(
                     onClick = onSettings,
                     colors = pdfBookIconButtonColors(),
+                    modifier = Modifier.testTag("library_settings"),
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_settings),
@@ -326,6 +331,7 @@ fun LibraryScreen(
                     IconButton(
                         onClick = { peekMenuOpen = true },
                         colors = pdfBookIconButtonColors(),
+                        modifier = Modifier.testTag("library_more"),
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_more),
@@ -455,6 +461,7 @@ private fun ResumeCard(
         border = BorderStroke(1.dp, MaterialTheme.extendedColors.hairline),
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("library_resume_card")
             .combinedClickable(onClick = { onOpen(book) }, onLongClick = onMenuExpand),
     ) {
         Row(
@@ -502,6 +509,7 @@ private fun BookCell(
     Column(
         Modifier
             .fillMaxWidth()
+            .testTag("library_book")
             .combinedClickable(
                 onClick = { onOpen(book) },
                 onLongClick = {

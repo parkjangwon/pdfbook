@@ -57,6 +57,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -156,7 +157,7 @@ fun FolderShelfScreen(
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().testTag("folder_shelf_screen"),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { PdfBookSnackbarHost(snackbarHostState) },
@@ -164,6 +165,7 @@ fun FolderShelfScreen(
             val ink = MaterialTheme.extendedColors
             ExtendedFloatingActionButton(
                 onClick = onAddFolder,
+                modifier = Modifier.testTag("folder_shelf_add"),
                 shape = CardCorner,
                 containerColor = ink.inkButton,
                 contentColor = ink.onInkButton,
@@ -197,7 +199,11 @@ fun FolderShelfScreen(
                     style = MaterialTheme.typography.headlineSmall,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onSettings, colors = pdfBookIconButtonColors()) {
+                    IconButton(
+                        onClick = onSettings,
+                        colors = pdfBookIconButtonColors(),
+                        modifier = Modifier.testTag("folder_shelf_settings"),
+                    ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_settings),
                             contentDescription = stringResource(R.string.settings_title),
@@ -393,7 +399,7 @@ private fun GlobalResumeCard(
         shape = CardCorner,
         color = MaterialTheme.colorScheme.surfaceContainer,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag("folder_shelf_resume"),
     ) {
         Row(
             Modifier.padding(PdfBookSpacing.md),
@@ -455,7 +461,7 @@ private fun FolderCard(
         } else {
             BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag("folder_card"),
     ) {
         val cardClick = Modifier.combinedClickable(
             onClick = onOpen,
@@ -538,7 +544,11 @@ private fun FolderCard(
                         HiddenBadge(Modifier.padding(top = PdfBookSpacing.xxs))
                     }
                     Box {
-                        IconButton(onClick = onMenuExpand, colors = pdfBookIconButtonColors()) {
+                        IconButton(
+                            onClick = onMenuExpand,
+                            colors = pdfBookIconButtonColors(),
+                            modifier = Modifier.testTag("folder_card_menu"),
+                        ) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_more),
                                 contentDescription = null,
