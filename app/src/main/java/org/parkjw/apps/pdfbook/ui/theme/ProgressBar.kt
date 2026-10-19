@@ -51,10 +51,12 @@ fun PdfBookReaderSlider(
     valueRange: ClosedFloatingPointRange<Float>,
     colors: SliderColors,
     modifier: Modifier = Modifier,
+    onValueChangeFinished: (() -> Unit)? = null,
 ) {
     Slider(
         value = value,
         onValueChange = onValueChange,
+        onValueChangeFinished = onValueChangeFinished,
         valueRange = valueRange,
         colors = colors,
         modifier = modifier,

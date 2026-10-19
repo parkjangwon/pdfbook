@@ -52,8 +52,6 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
 
-val END_NOTICE_BOTTOM = 28.dp
-val END_NOTICE_ABOVE_BAR = 12.dp
 val END_SWIPE_THRESHOLD = 48.dp
 private val END_NOTICE_HEIGHT = 56.dp
 private val END_NOTICE_MAX_WIDTH = 480.dp

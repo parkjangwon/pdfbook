@@ -102,6 +102,7 @@ fun ReaderScreen(
     showTitleToast: Boolean = false,
     onTitleToastShown: () -> Unit = {},
     endNotice: EndNotice? = null,
+    jumpBack: JumpBack? = null,
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -127,6 +128,7 @@ fun ReaderScreen(
             showTitleToast = showTitleToast,
             onTitleToastShown = onTitleToastShown,
             initialEndNotice = endNotice,
+            initialJumpBack = jumpBack,
         )
     }
 }
@@ -155,6 +157,7 @@ private fun ReaderScreenContent(
     showTitleToast: Boolean,
     onTitleToastShown: () -> Unit,
     initialEndNotice: EndNotice?,
+    initialJumpBack: JumpBack?,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -174,11 +177,23 @@ private fun ReaderScreenContent(
     var endNoticeToken by remember { mutableIntStateOf(0) }
     val currentVolumes by rememberUpdatedState(volumes)
     var bottomBarHeight by remember { mutableIntStateOf(0) }
+    var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
+    var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
+    var seekTarget by remember(renderer) { mutableIntStateOf(0) }
+    val sheetOpen = widthSheetVisible || (bookListVisible && volumes.bookList != null)
+    val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
     TrimCacheOnMemoryPressure(renderer)
 
     LaunchedEffect(pagerState.settledPage) {
         zoom = ZoomState()
+        if (jumpBackHiddenBySettle(jumpBack, pagerState.settledPage)) jumpBack = null
+    }
+
+    LaunchedEffect(jumpBack, jumpBackShown) {
+        if (!jumpBackShown) return@LaunchedEffect
+        delay(JUMP_BACK_MILLIS)
+        jumpBack = null
     }
 
     LaunchedEffect(endNotice, endNoticeToken) {
@@ -209,6 +224,7 @@ private fun ReaderScreenContent(
         if (delta < 0) endNotice = null
         val target = pagerTargetIndex(pagerState.targetPage, delta, pagerState.pageCount)
         if (target != pagerState.targetPage) {
+            jumpBack = null
             scope.launch { pagerState.animateScrollToPage(target) }
         } else if (isTurnPastEnd(pagerState.targetPage, delta, pagerState.pageCount)) {
             nextAtEnd()
@@ -222,11 +238,34 @@ private fun ReaderScreenContent(
         }
     }
 
-    fun seekPage(page: Int) {
-        val index = spreadIndexOf(currentSpreads, page)
+    fun scrollTo(index: Int) {
         if (pagerState.targetPage != index) {
             scope.launch { pagerState.scrollToPage(index) }
         }
+    }
+
+    fun seekPage(page: Int) {
+        if (seekOrigin == null) {
+            seekOrigin = pagerState.targetPage
+            jumpBack = null
+        }
+        val index = spreadIndexOf(currentSpreads, page)
+        seekTarget = index
+        scrollTo(index)
+    }
+
+    fun seekFinished() {
+        val origin = seekOrigin ?: return
+        seekOrigin = null
+        jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)
+    }
+
+    fun jumpBackNow() {
+        if (!jumpBackShown) return
+        val current = jumpBack ?: return
+        val step = jumpBackStep(currentSpreads, current, pagerState.targetPage)
+        jumpBack = step.next
+        scrollTo(step.targetIndex)
     }
 
     fun toggleZoom() {
@@ -430,6 +469,7 @@ private fun ReaderScreenContent(
                 currentPage = currentPage,
                 direction = direction,
                 onSeekPage = ::seekPage,
+                onSeekFinished = ::seekFinished,
                 showTapZoneEntry = !zoomed,
                 onAdjustTapZones = {
                     zoom = ZoomState()
@@ -442,17 +482,25 @@ private fun ReaderScreenContent(
                     .onSizeChanged { bottomBarHeight = it.height },
             )
         }
-        val bottomBarShown = overlayVisible && !widthSheetVisible && !(bookListVisible && volumes.bookList != null)
+        val bottomBarShown = overlayVisible && !sheetOpen
+        LaunchedEffect(bottomBarShown) {
+            if (!bottomBarShown) seekFinished()
+        }
+        val noticeInset = noticeBottomInset(
+            bottomBarShown,
+            with(LocalDensity.current) { bottomBarHeight.toDp() },
+        )
         EndNoticeHost(
             notice = endNotice,
             twoPage = twoPage,
             direction = direction,
-            bottomInset = if (bottomBarShown) {
-                with(LocalDensity.current) { bottomBarHeight.toDp() } + END_NOTICE_ABOVE_BAR
-            } else {
-                END_NOTICE_BOTTOM
-            },
+            bottomInset = noticeInset,
             onOpen = ::openNextBook,
+        )
+        JumpBackHost(
+            page = if (jumpBackShown) jumpBack?.page else null,
+            bottomInset = noticeInset,
+            onClick = ::jumpBackNow,
         )
         if (showTitleToast) {
             BookChangedToast(
@@ -597,6 +645,7 @@ private fun ReaderOverlayBottom(
     currentPage: Int,
     direction: ReadingDirection,
     onSeekPage: (Int) -> Unit,
+    onSeekFinished: () -> Unit,
     showTapZoneEntry: Boolean,
     onAdjustTapZones: () -> Unit,
     modifier: Modifier = Modifier,
@@ -634,6 +683,7 @@ private fun ReaderOverlayBottom(
                     PdfBookReaderSlider(
                         value = pageToSlider(currentPage, pageCount, ReadingDirection.LTR),
                         onValueChange = { onSeekPage(sliderToPage(it, pageCount, ReadingDirection.LTR)) },
+                        onValueChangeFinished = onSeekFinished,
                         valueRange = 0f..(pageCount - 1).toFloat(),
                         colors = SliderDefaults.colors(
                             thumbColor = ReaderAccent,
