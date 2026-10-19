@@ -118,3 +118,4 @@ private fun TapZoneLabel(zone: TapZone, @DrawableRes icon: Int) {
         )
     }
 }
+
