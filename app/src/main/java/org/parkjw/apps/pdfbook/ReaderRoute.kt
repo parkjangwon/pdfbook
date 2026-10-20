@@ -33,6 +33,7 @@ fun ReaderRoute(
     volumes: ReaderVolumes = ReaderVolumes(),
     showTitleToast: Boolean = false,
     onTitleToastShown: () -> Unit = {},
+    keepZoom: Boolean = false,
 ) {
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
@@ -135,6 +136,7 @@ fun ReaderRoute(
                     volumes = volumes,
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
+                    keepZoom = keepZoom,
                 )
             }
         }

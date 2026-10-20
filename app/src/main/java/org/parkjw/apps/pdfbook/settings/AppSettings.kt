@@ -46,4 +46,5 @@ data class AppSettings(
     val autoUpdateCheck: Boolean = true,
     val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     val showDotFiles: Boolean = false,
+    val keepZoomOnTurn: Boolean = false,
 )

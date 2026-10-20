@@ -37,4 +37,6 @@
     <string name="oss_window_license">Apache License 2.0</string>
     <string name="oss_window_copyright">Copyright The Android Open Source Project</string>
     <string name="oss_window_url">https://www.apache.org/licenses/LICENSE-2.0</string>
+    <string name="settings_keep_zoom">Keep zoom when turning pages</string>
+    <string name="settings_keep_zoom_desc">Keeps your zoom and starts from the top corner of the next page</string>
 </resources>

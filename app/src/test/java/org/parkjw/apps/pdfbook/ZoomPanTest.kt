@@ -134,4 +134,29 @@ class ZoomPanTest {
         assertEquals(100f, clamped.offsetX, 0f)
         assertEquals(-200f, clamped.offsetY, 0f)
     }
+
+    @Test
+    fun readingStartRtlIsTopRight() {
+        val start = ZoomState(2f, 30f, -40f).atReadingStart(ReadingDirection.RTL, 200f, 400f)
+        assertEquals(ZoomState(2f, -100f, 200f), start)
+    }
+
+    @Test
+    fun readingStartLtrIsTopLeft() {
+        val start = ZoomState(3f).atReadingStart(ReadingDirection.LTR, 200f, 400f)
+        assertEquals(ZoomState(3f, 200f, 400f), start)
+    }
+
+    @Test
+    fun readingStartAtBaseScaleResets() {
+        assertEquals(ZoomState(), ZoomState().atReadingStart(ReadingDirection.RTL, 200f, 400f))
+    }
+
+    @Test
+    fun afterPageTurnKeepsScaleOnlyWhenEnabled() {
+        val zoomed = ZoomState(2f, 10f, 10f)
+        assertEquals(ZoomState(), zoomed.afterPageTurn(false, ReadingDirection.RTL, 200f, 400f))
+        assertEquals(ZoomState(2f, -100f, 200f), zoomed.afterPageTurn(true, ReadingDirection.RTL, 200f, 400f))
+        assertEquals(ZoomState(), ZoomState().afterPageTurn(true, ReadingDirection.LTR, 200f, 400f))
+    }
 }

@@ -62,10 +62,18 @@ class TapZoneTimingTest {
         setReader()
         composeRule.onRoot().performTouchInput { doubleClick(Offset(width * 0.5f, height / 2f)) }
         settle()
-        tap(0.9f)
+        composeRule.onRoot().performTouchInput { doubleClick(Offset(width * 0.9f, height / 2f)) }
         settle()
         assertEquals(0, pagerState.currentPage)
-        composeRule.onRoot().performTouchInput { doubleClick(Offset(width * 0.9f, height / 2f)) }
+        tap(0.9f)
+        settle()
+        assertEquals(1, pagerState.currentPage)
+    }
+
+    @Test
+    fun singleTapOnSideTurnsPageWhileZoomed() {
+        setReader()
+        composeRule.onRoot().performTouchInput { doubleClick(Offset(width * 0.5f, height / 2f)) }
         settle()
         tap(0.9f)
         settle()

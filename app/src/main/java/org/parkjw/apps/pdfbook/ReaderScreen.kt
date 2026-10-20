@@ -48,6 +48,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -104,6 +107,7 @@ fun ReaderScreen(
     onTitleToastShown: () -> Unit = {},
     endNotice: EndNotice? = null,
     jumpBack: JumpBack? = null,
+    keepZoom: Boolean = false,
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -130,6 +134,7 @@ fun ReaderScreen(
             onTitleToastShown = onTitleToastShown,
             initialEndNotice = endNotice,
             initialJumpBack = jumpBack,
+            keepZoom = keepZoom,
         )
     }
 }
@@ -159,6 +164,7 @@ private fun ReaderScreenContent(
     onTitleToastShown: () -> Unit,
     initialEndNotice: EndNotice?,
     initialJumpBack: JumpBack?,
+    keepZoom: Boolean,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -173,6 +179,9 @@ private fun ReaderScreenContent(
     var zoom by remember { mutableStateOf(ZoomState()) }
     val zoomRef = rememberUpdatedState(zoom)
     val zoomed = !zoom.allowsPageTurn
+    val keepZoomRef = rememberUpdatedState(keepZoom)
+    val directionRef = rememberUpdatedState(direction)
+    var viewport by remember { mutableStateOf(Size.Zero) }
 
     var endNotice by remember { mutableStateOf(initialEndNotice) }
     var endNoticeToken by remember { mutableIntStateOf(0) }
@@ -187,7 +196,7 @@ private fun ReaderScreenContent(
     TrimCacheOnMemoryPressure(renderer)
 
     LaunchedEffect(pagerState.settledPage) {
-        zoom = ZoomState()
+        zoom = zoom.afterPageTurn(keepZoomRef.value, directionRef.value, viewport.width, viewport.height)
         if (jumpBackHiddenBySettle(jumpBack, pagerState.settledPage)) jumpBack = null
     }
 
@@ -234,7 +243,6 @@ private fun ReaderScreenContent(
 
     LaunchedEffect(volumeDelta, pagerState) {
         volumeDelta?.collect { delta ->
-            if (!zoomRef.value.allowsPageTurn) return@collect
             goTo(delta)
         }
     }
@@ -277,6 +285,8 @@ private fun ReaderScreenContent(
         modifier = modifier
             .fillMaxSize()
             .testTag("reader_screen")
+            .semantics { this[ReaderZoomKey] = zoom }
+            .onSizeChanged { viewport = Size(it.width.toFloat(), it.height.toFloat()) }
             .background(ReaderBackground),
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -305,7 +315,7 @@ private fun ReaderScreenContent(
                 val layout = spreadLayout(spread, direction)
                 val activePage = pageIndex == pagerState.settledPage
                 val lastActive = activePage && pageIndex == currentSpreads.lastIndex
-                BoxWithConstraints(
+                Box(
                     Modifier
                         .fillMaxSize()
                         .pointerInput(viewportWidth, viewportHeight, activePage) {
@@ -332,83 +342,78 @@ private fun ReaderScreenContent(
                                 isZoomed = { !zoomRef.value.allowsPageTurn },
                                 onSwipe = { if (pagerState.targetPage == pageIndex) nextAtEnd() },
                             )
-                        }
-                        .clipToBounds()
-                        .graphicsLayer {
-                            if (activePage) {
-                                scaleX = zoom.scale
-                                scaleY = zoom.scale
-                                translationX = zoom.offsetX
-                                translationY = zoom.offsetY
-                            }
                         },
                 ) {
-                    val pageSlotWidth = (constraints.maxWidth / layout.size.coerceAtLeast(1)).coerceAtLeast(1)
-                    val pageSlotHeight = constraints.maxHeight.coerceAtLeast(1)
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        layout.forEachIndexed { index, page ->
-                            val pageAlignment = when {
-                                layout.size == 1 -> Alignment.Center
-                                index == 0 -> Alignment.CenterEnd
-                                else -> Alignment.CenterStart
-                            }
-                            PageBitmap(
-                                renderer = renderer,
-                                page = page,
-                                maxWidth = pageSlotWidth,
-                                maxHeight = pageSlotHeight,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight(),
-                                alignment = pageAlignment,
-                            )
-                        }
-                    }
-                    if (zoomed) {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .pointerInput(Unit) {
-                                    detectTapGestures(onDoubleTap = { toggleZoom() })
-                                },
-                        )
-                    } else {
-                        Row(Modifier.fillMaxSize()) {
-                            tapZoneSpans(direction, sideFraction).forEach { span ->
-                                val interactionSource = remember { MutableInteractionSource() }
-                                val onTap = {
-                                    if (span.zone == TapZone.Menu) {
-                                        overlayVisible = !overlayVisible
-                                    } else {
-                                        goTo(span.zone.pageDelta)
-                                    }
+                    BoxWithConstraints(
+                        Modifier
+                            .fillMaxSize()
+                            .clipToBounds()
+                            .graphicsLayer {
+                                if (activePage) {
+                                    scaleX = zoom.scale
+                                    scaleY = zoom.scale
+                                    translationX = zoom.offsetX
+                                    translationY = zoom.offsetY
                                 }
-                                Box(
+                            },
+                    ) {
+                        val pageSlotWidth = (constraints.maxWidth / layout.size.coerceAtLeast(1)).coerceAtLeast(1)
+                        val pageSlotHeight = constraints.maxHeight.coerceAtLeast(1)
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            layout.forEachIndexed { index, page ->
+                                val pageAlignment = when {
+                                    layout.size == 1 -> Alignment.Center
+                                    index == 0 -> Alignment.CenterEnd
+                                    else -> Alignment.CenterStart
+                                }
+                                PageBitmap(
+                                    renderer = renderer,
+                                    page = page,
+                                    maxWidth = pageSlotWidth,
+                                    maxHeight = pageSlotHeight,
                                     modifier = Modifier
-                                        .weight(span.width)
-                                        .fillMaxHeight()
-                                        .testTag("reader_zone_" + span.zone.name)
-                                        .then(
-                                            if (span.zone.acceptsDoubleTapAtBaseScale) {
-                                                Modifier.combinedClickable(
-                                                    interactionSource = interactionSource,
-                                                    indication = null,
-                                                    onClick = onTap,
-                                                    onDoubleClick = { toggleZoom() },
-                                                )
-                                            } else {
-                                                Modifier.clickable(
-                                                    interactionSource = interactionSource,
-                                                    indication = null,
-                                                    onClick = onTap,
-                                                )
-                                            },
-                                        ),
+                                        .weight(1f)
+                                        .fillMaxHeight(),
+                                    alignment = pageAlignment,
                                 )
                             }
+                        }
+                    }
+                    Row(Modifier.fillMaxSize()) {
+                        tapZoneSpans(direction, sideFraction).forEach { span ->
+                            val interactionSource = remember { MutableInteractionSource() }
+                            val onTap = {
+                                if (span.zone == TapZone.Menu) {
+                                    overlayVisible = !overlayVisible
+                                } else {
+                                    goTo(span.zone.pageDelta)
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(span.width)
+                                    .fillMaxHeight()
+                                    .testTag("reader_zone_" + span.zone.name)
+                                    .then(
+                                        if (zoomed || span.zone.acceptsDoubleTapAtBaseScale) {
+                                            Modifier.combinedClickable(
+                                                interactionSource = interactionSource,
+                                                indication = null,
+                                                onClick = onTap,
+                                                onDoubleClick = { toggleZoom() },
+                                            )
+                                        } else {
+                                            Modifier.clickable(
+                                                interactionSource = interactionSource,
+                                                indication = null,
+                                                onClick = onTap,
+                                            )
+                                        },
+                                    ),
+                            )
                         }
                     }
                 }
@@ -848,3 +853,5 @@ private suspend fun PointerInputScope.detectReaderZoomGestures(
         } while (event.changes.any { it.pressed })
     }
 }
+
+val ReaderZoomKey = SemanticsPropertyKey<ZoomState>("ReaderZoom")
