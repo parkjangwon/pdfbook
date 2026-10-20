@@ -112,3 +112,23 @@ fun ZoomState.clampToViewport(
     val (x, y) = clampZoomOffset(offsetX, offsetY, scale, viewportWidth, viewportHeight)
     return copy(offsetX = x, offsetY = y)
 }
+
+fun ZoomState.atReadingStart(
+    direction: ReadingDirection,
+    viewportWidth: Float,
+    viewportHeight: Float,
+): ZoomState {
+    if (scale <= MinZoomScale) return ZoomState()
+    val maxX = viewportWidth * (scale - 1f) / 2f
+    val maxY = viewportHeight * (scale - 1f) / 2f
+    val x = if (direction == ReadingDirection.RTL) -maxX else maxX
+    return ZoomState(scale, x, maxY).clampToViewport(viewportWidth, viewportHeight)
+}
+
+fun ZoomState.afterPageTurn(
+    keepZoom: Boolean,
+    direction: ReadingDirection,
+    viewportWidth: Float,
+    viewportHeight: Float,
+): ZoomState =
+    if (keepZoom) atReadingStart(direction, viewportWidth, viewportHeight) else ZoomState()

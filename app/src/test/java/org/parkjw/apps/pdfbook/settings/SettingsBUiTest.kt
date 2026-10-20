@@ -143,6 +143,7 @@ class SettingsBUiTest {
             R.string.settings_two_page,
             R.string.settings_cover_alone,
             R.string.settings_page_turn_animation,
+            R.string.settings_keep_zoom,
             R.string.settings_volume_key_paging,
             R.string.settings_keep_screen_on,
             R.string.settings_tap_zone_guide,
@@ -165,7 +166,7 @@ class SettingsBUiTest {
                 )
             }
         }
-        composeRule.onNodeWithText("33%").assertIsDisplayed()
+        composeRule.onNodeWithText("33%").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(text(R.string.reader_tap_width_title)).performClick()
         composeRule.onNodeWithTag(TAP_ZONE_WIDTH_SHEET_TAG).assertIsDisplayed()
         composeRule.onNode(slider).performSemanticsAction(SemanticsActions.SetProgress) { it(41.2f) }

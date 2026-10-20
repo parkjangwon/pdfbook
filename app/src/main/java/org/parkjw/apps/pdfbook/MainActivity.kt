@@ -689,6 +689,7 @@ private fun App(
                 onBack = { openUri = null },
                 showTapZoneGuide = settings.showTapZoneGuide,
                 tapZoneSidePercent = settings.tapZoneSidePercent,
+                keepZoom = settings.keepZoomOnTurn,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 volumes = ReaderVolumes(
                     onPrevious = adjacent.previous?.let { { switchTo(it) } },

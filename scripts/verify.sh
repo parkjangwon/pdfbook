@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list settings"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list settings keep-zoom"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -372,6 +372,21 @@ case "$FEATURE" in
     tap_id settings_reading_entry
     expect_id settings_reading_screen
     shot settings-reading
+    ;;
+  keep-zoom)
+    open_library
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    keep_zoom='Keep zoom when turning pages|넘겨도 확대 유지'
+    for _ in 1 2 3; do
+      wait_node text "$keep_zoom" 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    shot keep-zoom-off
+    tap_node text "$keep_zoom"
+    shot keep-zoom-on
     ;;
 esac
 
