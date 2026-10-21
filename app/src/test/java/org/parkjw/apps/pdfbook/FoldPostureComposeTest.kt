@@ -11,9 +11,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -184,6 +186,58 @@ class FoldPostureComposeTest {
         val page = composeRule.onNodeWithTag("reader_page_12").getBoundsInRoot()
         val gap = composeRule.onNodeWithTag("book_posture_fold_gap").getBoundsInRoot()
         assertTrue(page.right <= gap.left + 1.dp)
+    }
+
+    @Test
+    fun zf1_tabletopHidesPageModeToggleOnly() {
+        var postureKind by mutableStateOf("tabletop")
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Dark) {
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val posture = when (postureKind) {
+                        "tabletop" -> FoldPosture.Tabletop(horizontalFold(constraints.maxWidth, constraints.maxHeight))
+                        "book" -> FoldPosture.Book(verticalFold(constraints.maxWidth, constraints.maxHeight))
+                        else -> FoldPosture.Flat
+                    }
+                    val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
+                    val pagerState = rememberPagerState(
+                        initialPage = spreadIndexOf(pageSpreads, 12),
+                        pageCount = { pageSpreads.size },
+                    )
+                    ReaderScreen(
+                        renderer = SolidPageBitmaps(pageCount, 0xFFF7F2E8.toInt(), 0xFF3D5A80.toInt()),
+                        pagerState = pagerState,
+                        spreads = pageSpreads,
+                        title = "책",
+                        pageCount = pageCount,
+                        currentPage = 12,
+                        twoPage = false,
+                        posture = posture,
+                        onBack = {},
+                        onDirectionChange = {},
+                        direction = ReadingDirection.LTR,
+                        overlayVisible = true,
+                        showTapZoneGuide = false,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("reader_direction_toggle").assertCountEquals(1)
+        composeRule.onAllNodesWithTag("reader_page_mode", useUnmergedTree = true).assertCountEquals(0)
+
+        postureKind = "flat"
+        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("reader_direction_toggle").assertCountEquals(1)
+        composeRule.onAllNodesWithTag("reader_page_mode", useUnmergedTree = true).assertCountEquals(1)
+
+        postureKind = "book"
+        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("reader_page_mode", useUnmergedTree = true).assertCountEquals(1)
     }
 
     private fun setReader(

@@ -530,6 +530,7 @@ private fun ReaderScreenContent(
                 direction = direction,
                 onBack = onBack,
                 onDirectionChange = onDirectionChange,
+                showPageMode = tabletop == null,
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -790,6 +791,7 @@ private fun ReaderOverlayTop(
     direction: ReadingDirection,
     onBack: () -> Unit,
     onDirectionChange: (ReadingDirection) -> Unit,
+    showPageMode: Boolean = true,
     modifier: Modifier = Modifier,
     onOpenBookList: (() -> Unit)? = null,
 ) {
@@ -839,16 +841,18 @@ private fun ReaderOverlayTop(
                 )
             }
         }
-        Icon(
-            painter = painterResource(
-                if (twoPage) R.drawable.ic_page_spread else R.drawable.ic_page_single,
-            ),
-            contentDescription = stringResource(
-                if (twoPage) R.string.reader_mode_double else R.string.reader_mode_single,
-            ),
-            tint = ReaderOnOverlay,
-            modifier = Modifier.padding(horizontal = 12.dp).testTag("reader_page_mode"),
-        )
+        if (showPageMode) {
+            Icon(
+                painter = painterResource(
+                    if (twoPage) R.drawable.ic_page_spread else R.drawable.ic_page_single,
+                ),
+                contentDescription = stringResource(
+                    if (twoPage) R.string.reader_mode_double else R.string.reader_mode_single,
+                ),
+                tint = ReaderOnOverlay,
+                modifier = Modifier.padding(horizontal = 12.dp).testTag("reader_page_mode"),
+            )
+        }
         IconButton(
             onClick = { onDirectionChange(toggledDirection(direction)) },
             colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
