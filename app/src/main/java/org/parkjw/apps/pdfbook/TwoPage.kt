@@ -1,33 +1,25 @@
 package org.parkjw.apps.pdfbook
 
-import android.app.Activity
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.window.layout.FoldingFeature
-import androidx.window.layout.WindowInfoTracker
+import org.parkjw.apps.pdfbook.settings.TwoPageMode
 
-fun shouldUseTwoPage(widthDp: Int, halfOpened: Boolean): Boolean =
-    !halfOpened && widthDp >= 600
+fun shouldUseTwoPage(mode: TwoPageMode, widthDp: Int, posture: FoldPosture): Boolean =
+    when (posture) {
+        is FoldPosture.Tabletop -> false
+        is FoldPosture.Book -> mode != TwoPageMode.AlwaysSingle
+        FoldPosture.Flat -> when (mode) {
+            TwoPageMode.AlwaysSingle -> false
+            TwoPageMode.AlwaysDouble -> true
+            TwoPageMode.Auto -> widthDp >= 600
+        }
+    }
 
 @Composable
-fun rememberTwoPage(): Boolean {
-    val context = LocalContext.current
+fun rememberTwoPage(mode: TwoPageMode, posture: FoldPosture = rememberFoldPosture()): Boolean {
     val density = LocalDensity.current
     val containerSize = LocalWindowInfo.current.containerSize
     val widthDp = (containerSize.width / density.density).toInt()
-    val halfOpened by produceState(initialValue = false, context) {
-        val activity = context as? Activity ?: return@produceState
-        WindowInfoTracker.getOrCreate(activity)
-            .windowLayoutInfo(activity)
-            .collect { info ->
-                value = info.displayFeatures
-                    .filterIsInstance<FoldingFeature>()
-                    .any { it.state == FoldingFeature.State.HALF_OPENED }
-            }
-    }
-    return shouldUseTwoPage(widthDp, halfOpened)
+    return shouldUseTwoPage(mode, widthDp, posture)
 }

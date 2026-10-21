@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.dp
 val CoverCorner = RoundedCornerShape(8.dp)
 val ButtonCorner = RoundedCornerShape(8.dp)
 val CardCorner = RoundedCornerShape(12.dp)
+val PadCorner = RoundedCornerShape(14.dp)
 val SheetTopCorner = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
 val DialogCorner = RoundedCornerShape(16.dp)
 
