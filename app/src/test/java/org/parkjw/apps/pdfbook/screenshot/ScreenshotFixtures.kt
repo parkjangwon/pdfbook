@@ -38,6 +38,8 @@ internal const val FOLDED_NIGHT_QUALIFIERS = "ko-w360dp-h920dp-night-xxhdpi"
 internal const val UNFOLDED_QUALIFIERS = "ko-w656dp-h728dp-xxhdpi"
 internal const val UNFOLDED_NIGHT_QUALIFIERS = "ko-w656dp-h728dp-night-xxhdpi"
 internal const val FOLDED_EN_QUALIFIERS = "en-w360dp-h920dp-xxhdpi"
+/** Pixel Fold–ish inner screen for SPEC-7 posture screenshots. */
+internal const val FOLDABLE_QUALIFIERS = "ko-w841dp-h701dp-xxhdpi"
 
 internal fun solidCover(color: Int, accent: Int): Bitmap {
     val bitmap = Bitmap.createBitmap(120, 180, Bitmap.Config.ARGB_8888)

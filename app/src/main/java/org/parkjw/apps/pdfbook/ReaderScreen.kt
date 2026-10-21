@@ -26,7 +26,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Icon
@@ -61,6 +64,9 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,6 +87,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
+import kotlin.math.roundToInt
 
 @Composable
 fun ReaderScreen(
@@ -108,6 +115,7 @@ fun ReaderScreen(
     endNotice: EndNotice? = null,
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
+    posture: FoldPosture = FoldPosture.Flat,
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -135,6 +143,7 @@ fun ReaderScreen(
             initialEndNotice = endNotice,
             initialJumpBack = jumpBack,
             keepZoom = keepZoom,
+            posture = posture,
         )
     }
 }
@@ -165,6 +174,7 @@ private fun ReaderScreenContent(
     initialEndNotice: EndNotice?,
     initialJumpBack: JumpBack?,
     keepZoom: Boolean,
+    posture: FoldPosture,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -194,6 +204,21 @@ private fun ReaderScreenContent(
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
     TrimCacheOnMemoryPressure(renderer)
+
+    val postureKey = when (posture) {
+        FoldPosture.Flat -> "flat"
+        is FoldPosture.Book -> "book:${posture.foldBounds}"
+        is FoldPosture.Tabletop -> "tabletop:${posture.foldBounds}"
+    }
+    LaunchedEffect(postureKey) {
+        zoom = ZoomState()
+    }
+
+    // Remap shownAt so a posture/spread remount does not dismiss the pill (ZF-3 / SPEC-4).
+    LaunchedEffect(spreads) {
+        val jb = jumpBack ?: return@LaunchedEffect
+        jumpBack = jb.copy(shownAt = spreadIndexOf(spreads, currentPage))
+    }
 
     LaunchedEffect(pagerState.settledPage) {
         zoom = zoom.afterPageTurn(keepZoomRef.value, directionRef.value, viewport.width, viewport.height)
@@ -281,6 +306,12 @@ private fun ReaderScreenContent(
         zoom = zoom.toggleDoubleTap()
     }
 
+    val density = LocalDensity.current
+    val foldExclusionPx = with(density) { FOLD_EXCLUSION_DP.dp.roundToPx() }
+    val tabletop = posture as? FoldPosture.Tabletop
+    val book = posture as? FoldPosture.Book
+    val bottomBarShown = overlayVisible && !sheetOpen && tabletop == null
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -290,10 +321,14 @@ private fun ReaderScreenContent(
             .background(ReaderBackground),
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val viewportWidth = constraints.maxWidth.toFloat()
-            val viewportHeight = constraints.maxHeight.toFloat()
-            val prerenderWidth = constraints.maxWidth
-            val prerenderHeight = constraints.maxHeight
+            val window = IntSize(constraints.maxWidth, constraints.maxHeight)
+            val tabletopSplit = tabletop?.let { tabletopHalves(window, it.foldBounds) }
+            val pageArea = tabletopSplit?.first
+            val padArea = tabletopSplit?.second
+            val pagerWidth = (pageArea?.width ?: window.width).toFloat()
+            val pagerHeight = (pageArea?.height ?: window.height).toFloat()
+            val prerenderWidth = (pageArea?.width ?: window.width).coerceAtLeast(1)
+            val prerenderHeight = (pageArea?.height ?: window.height).coerceAtLeast(1)
             LaunchedEffect(renderer, pagerState.settledPage, currentSpreads, prerenderWidth, prerenderHeight) {
                 renderer.prerender(
                     spreadRequests(
@@ -304,123 +339,149 @@ private fun ReaderScreenContent(
                     prerenderTargets(currentSpreads, pagerState.settledPage, prerenderWidth, prerenderHeight),
                 )
             }
-            HorizontalPager(
-                state = pagerState,
-                reverseLayout = rtl,
-                userScrollEnabled = !zoomed,
-                modifier = Modifier.fillMaxSize(),
-                beyondViewportPageCount = 1,
-            ) { pageIndex ->
-                val spread = currentSpreads.getOrNull(pageIndex) ?: return@HorizontalPager
-                val layout = spreadLayout(spread, direction)
-                val activePage = pageIndex == pagerState.settledPage
-                val lastActive = activePage && pageIndex == currentSpreads.lastIndex
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .pointerInput(viewportWidth, viewportHeight, activePage) {
-                            if (!activePage) return@pointerInput
-                            detectReaderZoomGestures(
-                                isZoomed = { !zoom.allowsPageTurn },
-                                onGesture = { centroid, zoomChange, pan ->
-                                    zoom = zoom.applyGesture(
-                                        zoomChange,
-                                        centroid.x,
-                                        centroid.y,
-                                        pan.x,
-                                        pan.y,
-                                        viewportWidth,
-                                        viewportHeight,
-                                    )
-                                },
-                            )
-                        }
-                        .pointerInput(lastActive, direction) {
-                            if (!lastActive) return@pointerInput
-                            detectSwipePastEnd(
-                                direction = direction,
-                                isZoomed = { !zoomRef.value.allowsPageTurn },
-                                onSwipe = { if (pagerState.targetPage == pageIndex) nextAtEnd() },
-                            )
+            Box(
+                Modifier
+                    .then(
+                        if (pageArea != null) {
+                            Modifier
+                                .offset { IntOffset(pageArea.left, pageArea.top) }
+                                .width(with(density) { pageArea.width.toDp() })
+                                .height(with(density) { pageArea.height.toDp() })
+                        } else {
+                            Modifier.fillMaxSize()
                         },
-                ) {
-                    BoxWithConstraints(
+                    )
+                    .testTag("reader_page_area"),
+            ) {
+                HorizontalPager(
+                    state = pagerState,
+                    reverseLayout = rtl,
+                    userScrollEnabled = !zoomed,
+                    modifier = Modifier.fillMaxSize(),
+                    beyondViewportPageCount = 1,
+                ) { pageIndex ->
+                    val spread = currentSpreads.getOrNull(pageIndex) ?: return@HorizontalPager
+                    val layout = spreadLayout(spread, direction)
+                    val activePage = pageIndex == pagerState.settledPage
+                    val lastActive = activePage && pageIndex == currentSpreads.lastIndex
+                    Box(
                         Modifier
                             .fillMaxSize()
-                            .clipToBounds()
-                            .graphicsLayer {
-                                if (activePage) {
-                                    scaleX = zoom.scale
-                                    scaleY = zoom.scale
-                                    translationX = zoom.offsetX
-                                    translationY = zoom.offsetY
-                                }
+                            .pointerInput(pagerWidth, pagerHeight, activePage) {
+                                if (!activePage) return@pointerInput
+                                detectReaderZoomGestures(
+                                    isZoomed = { !zoom.allowsPageTurn },
+                                    onGesture = { centroid, zoomChange, pan ->
+                                        zoom = zoom.applyGesture(
+                                            zoomChange,
+                                            centroid.x,
+                                            centroid.y,
+                                            pan.x,
+                                            pan.y,
+                                            pagerWidth,
+                                            pagerHeight,
+                                        )
+                                    },
+                                )
+                            }
+                            .pointerInput(lastActive, direction) {
+                                if (!lastActive) return@pointerInput
+                                detectSwipePastEnd(
+                                    direction = direction,
+                                    isZoomed = { !zoomRef.value.allowsPageTurn },
+                                    onSwipe = { if (pagerState.targetPage == pageIndex) nextAtEnd() },
+                                )
                             },
                     ) {
-                        val pageSlotWidth = (constraints.maxWidth / layout.size.coerceAtLeast(1)).coerceAtLeast(1)
-                        val pageSlotHeight = constraints.maxHeight.coerceAtLeast(1)
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalAlignment = Alignment.CenterVertically,
+                        BoxWithConstraints(
+                            Modifier
+                                .fillMaxSize()
+                                .clipToBounds()
+                                .graphicsLayer {
+                                    if (activePage) {
+                                        scaleX = zoom.scale
+                                        scaleY = zoom.scale
+                                        translationX = zoom.offsetX
+                                        translationY = zoom.offsetY
+                                    }
+                                },
                         ) {
-                            layout.forEachIndexed { index, page ->
-                                val pageAlignment = when {
-                                    layout.size == 1 -> Alignment.Center
-                                    index == 0 -> Alignment.CenterEnd
-                                    else -> Alignment.CenterStart
+                            SpreadPageLayout(
+                                renderer = renderer,
+                                layout = layout,
+                                posture = posture,
+                                direction = direction,
+                                window = IntSize(constraints.maxWidth, constraints.maxHeight),
+                                tagged = activePage,
+                            )
+                        }
+                        Row(Modifier.fillMaxSize()) {
+                            tapZoneSpans(direction, sideFraction).forEach { span ->
+                                val interactionSource = remember { MutableInteractionSource() }
+                                val onTap = {
+                                    if (span.zone == TapZone.Menu) {
+                                        overlayVisible = !overlayVisible
+                                    } else {
+                                        goTo(span.zone.pageDelta)
+                                    }
                                 }
-                                PageBitmap(
-                                    renderer = renderer,
-                                    page = page,
-                                    maxWidth = pageSlotWidth,
-                                    maxHeight = pageSlotHeight,
+                                Box(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(),
-                                    alignment = pageAlignment,
+                                        .weight(span.width)
+                                        .fillMaxHeight()
+                                        .testTag("reader_zone_" + span.zone.name)
+                                        .then(
+                                            if (zoomed || span.zone.acceptsDoubleTapAtBaseScale) {
+                                                Modifier.combinedClickable(
+                                                    interactionSource = interactionSource,
+                                                    indication = null,
+                                                    onClick = onTap,
+                                                    onDoubleClick = { toggleZoom() },
+                                                )
+                                            } else {
+                                                Modifier.clickable(
+                                                    interactionSource = interactionSource,
+                                                    indication = null,
+                                                    onClick = onTap,
+                                                )
+                                            },
+                                        ),
                                 )
                             }
                         }
                     }
-                    Row(Modifier.fillMaxSize()) {
-                        tapZoneSpans(direction, sideFraction).forEach { span ->
-                            val interactionSource = remember { MutableInteractionSource() }
-                            val onTap = {
-                                if (span.zone == TapZone.Menu) {
-                                    overlayVisible = !overlayVisible
-                                } else {
-                                    goTo(span.zone.pageDelta)
-                                }
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(span.width)
-                                    .fillMaxHeight()
-                                    .testTag("reader_zone_" + span.zone.name)
-                                    .then(
-                                        if (zoomed || span.zone.acceptsDoubleTapAtBaseScale) {
-                                            Modifier.combinedClickable(
-                                                interactionSource = interactionSource,
-                                                indication = null,
-                                                onClick = onTap,
-                                                onDoubleClick = { toggleZoom() },
-                                            )
-                                        } else {
-                                            Modifier.clickable(
-                                                interactionSource = interactionSource,
-                                                indication = null,
-                                                onClick = onTap,
-                                            )
-                                        },
-                                    ),
+                }
+            }
+            if (padArea != null) {
+                TabletopPads(
+                    direction = direction,
+                    currentPage = currentPage,
+                    pageCount = pageCount,
+                    onPrevious = { goTo(TapZone.Previous.pageDelta) },
+                    onMenu = { overlayVisible = !overlayVisible },
+                    onNext = { goTo(TapZone.Next.pageDelta) },
+                    slider = if (overlayVisible && !sheetOpen) {
+                        {
+                            TabletopSlider(
+                                pageCount = pageCount,
+                                currentPage = currentPage,
+                                direction = direction,
+                                onSeekPage = ::seekPage,
+                                onSeekFinished = ::seekFinished,
                             )
                         }
-                    }
-                }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier
+                        .offset { IntOffset(padArea.left, padArea.top) }
+                        .width(with(density) { padArea.width.toDp() })
+                        .height(with(density) { padArea.height.toDp() }),
+                )
             }
         }
 
-        if (widthSheetVisible || (overlayVisible && showTapZoneGuide && !zoomed)) {
+        if (widthSheetVisible || (overlayVisible && showTapZoneGuide && !zoomed && tabletop == null)) {
             TapZoneGuide(
                 direction = direction,
                 sideFraction = sideFraction,
@@ -470,33 +531,59 @@ private fun ReaderScreenContent(
                 onBack = onBack,
                 onDirectionChange = onDirectionChange,
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
-            ReaderOverlayBottom(
-                pageCount = pageCount,
-                currentPage = currentPage,
-                direction = direction,
-                onSeekPage = ::seekPage,
-                onSeekFinished = ::seekFinished,
-                showTapZoneEntry = !zoomed,
-                onAdjustTapZones = {
-                    zoom = ZoomState()
-                    widthSheetVisible = true
-                },
-                onPreviousBook = volumes.onPrevious,
-                onNextBook = volumes.onNext,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .onSizeChanged { bottomBarHeight = it.height },
+                    .align(Alignment.TopCenter)
+                    .then(
+                        if (tabletop != null) {
+                            Modifier.fillMaxWidth()
+                        } else {
+                            Modifier
+                        },
+                    ),
             )
+            if (tabletop == null) {
+                val bookRight = book?.let {
+                    bookHalves(
+                        IntSize(viewport.width.roundToInt().coerceAtLeast(1), viewport.height.roundToInt().coerceAtLeast(1)),
+                        it.foldBounds,
+                    ).second
+                }
+                ReaderOverlayBottom(
+                    pageCount = pageCount,
+                    currentPage = currentPage,
+                    direction = direction,
+                    onSeekPage = ::seekPage,
+                    onSeekFinished = ::seekFinished,
+                    showTapZoneEntry = !zoomed,
+                    onAdjustTapZones = {
+                        zoom = ZoomState()
+                        widthSheetVisible = true
+                    },
+                    onPreviousBook = volumes.onPrevious,
+                    onNextBook = volumes.onNext,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .then(
+                            if (bookRight != null && bookRight.width > foldExclusionPx) {
+                                Modifier
+                                    .offset { IntOffset(bookRight.left + foldExclusionPx, 0) }
+                                    .width(with(density) {
+                                        (bookRight.width - foldExclusionPx).coerceAtLeast(0).toDp()
+                                    })
+                            } else {
+                                Modifier.fillMaxWidth()
+                            },
+                        )
+                        .onSizeChanged { bottomBarHeight = it.height },
+                )
+            }
         }
-        val bottomBarShown = overlayVisible && !sheetOpen
-        LaunchedEffect(bottomBarShown) {
-            if (!bottomBarShown) seekFinished()
+        LaunchedEffect(overlayVisible, sheetOpen) {
+            if (!overlayVisible || sheetOpen) seekFinished()
         }
         val noticeInset = noticeBottomInset(
             bottomBarShown,
-            with(LocalDensity.current) { bottomBarHeight.toDp() },
+            with(density) { bottomBarHeight.toDp() },
         )
         EndNoticeHost(
             notice = endNotice,
@@ -517,6 +604,140 @@ private fun ReaderScreenContent(
                 modifier = Modifier.align(Alignment.Center),
             )
         }
+    }
+}
+
+@Composable
+private fun SpreadPageLayout(
+    renderer: PageBitmaps,
+    layout: List<Int>,
+    posture: FoldPosture,
+    direction: ReadingDirection,
+    window: IntSize,
+    tagged: Boolean,
+) {
+    val book = posture as? FoldPosture.Book
+    if (book != null) {
+        val halves = bookHalves(window, book.foldBounds)
+        Box(Modifier.fillMaxSize().background(ReaderBackground)) {
+            Box(
+                Modifier
+                    .offset { IntOffset(book.foldBounds.left, book.foldBounds.top) }
+                    .width(with(LocalDensity.current) { book.foldBounds.width.toDp() })
+                    .height(with(LocalDensity.current) { book.foldBounds.height.toDp() })
+                    .then(if (tagged) Modifier.testTag("book_posture_fold_gap") else Modifier),
+            )
+            if (layout.size >= 2) {
+                BookHalfPage(
+                    renderer = renderer,
+                    page = layout[0],
+                    half = halves.first,
+                    alignment = Alignment.CenterEnd,
+                    tagged = tagged,
+                )
+                BookHalfPage(
+                    renderer = renderer,
+                    page = layout[1],
+                    half = halves.second,
+                    alignment = Alignment.CenterStart,
+                    tagged = tagged,
+                )
+            } else {
+                val half = bookSingleHalf(halves, direction)
+                BookHalfPage(
+                    renderer = renderer,
+                    page = layout.first(),
+                    half = half,
+                    alignment = Alignment.Center,
+                    tagged = tagged,
+                )
+            }
+        }
+        return
+    }
+    val pageSlotWidth = (window.width / layout.size.coerceAtLeast(1)).coerceAtLeast(1)
+    val pageSlotHeight = window.height.coerceAtLeast(1)
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        layout.forEachIndexed { index, page ->
+            val pageAlignment = when {
+                layout.size == 1 -> Alignment.Center
+                index == 0 -> Alignment.CenterEnd
+                else -> Alignment.CenterStart
+            }
+            PageBitmap(
+                renderer = renderer,
+                page = page,
+                maxWidth = pageSlotWidth,
+                maxHeight = pageSlotHeight,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .then(if (tagged) Modifier.testTag("reader_page_$page") else Modifier),
+                alignment = pageAlignment,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BookHalfPage(
+    renderer: PageBitmaps,
+    page: Int,
+    half: IntRect,
+    alignment: Alignment,
+    tagged: Boolean,
+) {
+    val density = LocalDensity.current
+    if (half.width <= 0 || half.height <= 0) return
+    Box(
+        Modifier
+            .offset { IntOffset(half.left, half.top) }
+            .width(with(density) { half.width.toDp() })
+            .height(with(density) { half.height.toDp() })
+            .then(if (tagged) Modifier.testTag("reader_page_$page") else Modifier),
+    ) {
+        PageBitmap(
+            renderer = renderer,
+            page = page,
+            maxWidth = half.width,
+            maxHeight = half.height,
+            modifier = Modifier.fillMaxSize(),
+            alignment = alignment,
+        )
+    }
+}
+
+@Composable
+private fun TabletopSlider(
+    pageCount: Int,
+    currentPage: Int,
+    direction: ReadingDirection,
+    onSeekPage: (Int) -> Unit,
+    onSeekFinished: () -> Unit,
+) {
+    if (pageCount <= 1) return
+    val sliderDirection =
+        if (direction == ReadingDirection.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr
+    CompositionLocalProvider(LocalLayoutDirection provides sliderDirection) {
+        PdfBookReaderSlider(
+            value = pageToSlider(currentPage, pageCount, ReadingDirection.LTR),
+            onValueChange = { onSeekPage(sliderToPage(it, pageCount, ReadingDirection.LTR)) },
+            onValueChangeFinished = onSeekFinished,
+            valueRange = 0f..(pageCount - 1).toFloat(),
+            colors = SliderDefaults.colors(
+                thumbColor = ReaderAccent,
+                activeTrackColor = ReaderAccent,
+                inactiveTrackColor = ReaderTrack,
+                activeTickColor = ReaderAccent,
+                inactiveTickColor = ReaderTrack,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("reader_slider"),
+        )
     }
 }
 

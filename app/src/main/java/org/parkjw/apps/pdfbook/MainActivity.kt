@@ -690,6 +690,7 @@ private fun App(
                 showTapZoneGuide = settings.showTapZoneGuide,
                 tapZoneSidePercent = settings.tapZoneSidePercent,
                 keepZoom = settings.keepZoomOnTurn,
+                twoPageMode = settings.twoPageMode,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 volumes = ReaderVolumes(
                     onPrevious = adjacent.previous?.let { { switchTo(it) } },

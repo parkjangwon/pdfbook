@@ -18,7 +18,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import org.parkjw.apps.pdfbook.settings.TwoPageMode
 
 @Composable
 fun ReaderRoute(
@@ -34,6 +37,7 @@ fun ReaderRoute(
     showTitleToast: Boolean = false,
     onTitleToastShown: () -> Unit = {},
     keepZoom: Boolean = false,
+    twoPageMode: TwoPageMode = TwoPageMode.Auto,
 ) {
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
@@ -75,11 +79,12 @@ fun ReaderRoute(
         }
         is PdfOpenResult.Ready -> {
             val renderer = result.renderer
-            val twoPage = rememberTwoPage()
+            val posture = rememberFoldPosture()
+            val twoPage = rememberTwoPage(twoPageMode, posture)
             val spreadList = remember(renderer.pageCount, twoPage) {
                 spreads(renderer.pageCount, twoPage = twoPage, coverAlone = true)
             }
-            var keptPage by rememberSaveable(key) {
+            var anchorPage by rememberSaveable(key) {
                 mutableIntStateOf(state.page.coerceIn(1, renderer.pageCount.coerceAtLeast(1)))
             }
             var direction by rememberSaveable(
@@ -93,25 +98,27 @@ fun ReaderRoute(
                 Box(Modifier.fillMaxSize())
             } else {
                 val pagerState = rememberPagerState(
-                    initialPage = spreadIndexOf(spreadList, keptPage),
+                    initialPage = spreadIndexOf(spreadList, anchorPage),
                     pageCount = { spreadList.size },
                 )
-                LaunchedEffect(pagerState.settledPage) {
-                    keptPageFromSettle(spreadList, pagerState.settledPage)?.let {
-                        keptPage = it
-                    }
-                }
                 LaunchedEffect(spreadList) {
-                    val index = spreadIndexOf(spreadList, keptPage)
+                    var sync = readingAnchorBeginSync(ReadingAnchor(anchorPage), spreadList)
+                    val index = readingAnchorTargetIndex(spreadList, sync)
                     if (pagerState.currentPage != index) {
                         pagerState.scrollToPage(index)
+                    } else {
+                        sync = sync.copy(pendingIndex = null)
+                    }
+                    snapshotFlow { pagerState.settledPage }.collectLatest { settled ->
+                        sync = readingAnchorAfterSettle(sync, spreadList, settled)
+                        if (sync.page != anchorPage) anchorPage = sync.page
                     }
                 }
-                LaunchedEffect(keptPage, direction) {
+                LaunchedEffect(anchorPage, direction) {
                     store.save(
                         key,
                         state.copy(
-                            page = keptPage,
+                            page = anchorPage,
                             pageCount = renderer.pageCount,
                             direction = direction,
                             openedAt = System.currentTimeMillis(),
@@ -124,8 +131,9 @@ fun ReaderRoute(
                     spreads = spreadList,
                     title = titleOf(book.name),
                     pageCount = renderer.pageCount,
-                    currentPage = keptPage,
+                    currentPage = anchorPage,
                     twoPage = twoPage,
+                    posture = posture,
                     onBack = onBack,
                     onDirectionChange = { direction = it },
                     direction = direction,
