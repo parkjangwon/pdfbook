@@ -21,7 +21,7 @@ XML
 
 expect() {
   local name="$1" want="$2" file="$tmp/$1.xml" out got
-  if out="$(python3 scripts/anr-wait.py "$file" 2>/dev/null)"; then got="tap $out"; else got=skip; fi
+  if out="$(python3 scripts/anr-wait.py "$file" PDFBook 2>/dev/null)"; then got="tap $out"; else got=skip; fi
   if [[ "$got" == "$want" ]]; then
     echo "ok $name -> $got"
   else
@@ -32,6 +32,7 @@ expect() {
 
 dialog "Pixel Launcher isn't responding" > "$tmp/launcher.xml"
 dialog "PDFBook isn't responding" > "$tmp/own.xml"
+dialog "Bookshelf isn't responding" > "$tmp/own-label.xml"
 dialog "pdfbook 앱이 응답하지 않습니다" > "$tmp/own-ko.xml"
 dialog "" > "$tmp/no-title.xml"
 dialog "Pixel Launcher이(가) 응답하지 않음" > "$tmp/launcher-ko.xml"
@@ -43,6 +44,7 @@ printf '<hierarchy><node' > "$tmp/broken.xml"
 
 expect launcher "tap 540 1359 Pixel Launcher isn't responding"
 expect own skip
+if python3 scripts/anr-wait.py "$tmp/own-label.xml" Bookshelf >/dev/null 2>&1; then echo "FAIL own-label: dismissed"; fail=1; else echo "ok own-label -> skip"; fi
 expect own-ko skip
 expect no-title skip
 expect launcher-ko "tap 540 1359 Pixel Launcher이(가) 응답하지 않음"
@@ -53,7 +55,7 @@ expect app skip
 expect broken skip
 expect missing skip
 
-# logcat filter: only PDFBook's crashes and ANRs fail the run.
+# logcat filter: every crash and PDFBook's ANRs fail the run; other apps' ANRs don't.
 cat > "$tmp/logcat.txt" <<'LOG'
 10-22 16:10:36.364  900  950 E ActivityManager: ANR in com.google.android.apps.nexuslauncher (com.google.android.apps.nexuslauncher/.NexusLauncherActivity)
 10-22 16:10:37.000 1200 1200 E AndroidRuntime: FATAL EXCEPTION: main
@@ -69,8 +71,8 @@ check_count() {
   got="$(wc -l < "$file" | tr -d ' ')"
   if [[ "$got" == "$want" ]]; then echo "ok $name -> $got lines"; else echo "FAIL $name: want $want lines, got $got"; fail=1; fi
 }
-check_count own-crashes "$tmp/own.txt" 4
-check_count foreign-crashes "$tmp/foreign.txt" 3
+check_count failing-lines "$tmp/own.txt" 4
+check_count foreign-anrs "$tmp/foreign.txt" 1
 grep -q 'nexuslauncher' "$tmp/own.txt" && { echo "FAIL launcher ANR counted as own"; fail=1; } || echo "ok launcher ANR is foreign"
 
 exit "$fail"

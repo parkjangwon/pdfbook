@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Find the Wait button of another app's "isn't responding" dialog.
 
-Usage: anr-wait.py <ui.xml>
+Usage: anr-wait.py <ui.xml> [app label]
 Prints "<x> <y> <title>" and exits 0 when the dump shows a system ANR dialog
 for an app other than PDFBook. Exits 1 otherwise, including when the title is
 missing, empty or not a known ANR title, so PDFBook's own ANR is never dismissed.
@@ -17,7 +17,7 @@ ANR_TITLE = re.compile(
 )
 
 
-def main(path: str) -> int:
+def main(path: str, label: str = "") -> int:
     try:
         nodes = list(ET.parse(path).getroot().iter("node"))
     except (ET.ParseError, OSError):
@@ -36,6 +36,8 @@ def main(path: str) -> int:
     app = match.group("app") or match.group("app_ko") or ""
     if not app.strip() or re.search(r"pdfbook|parkjw", app, re.IGNORECASE):
         return 1
+    if label.strip() and label.strip().casefold() in app.casefold():
+        return 1
     coords = [int(n) for n in re.findall(r"\d+", wait.get("bounds", ""))]
     if len(coords) != 4:
         return 1
@@ -45,4 +47,4 @@ def main(path: str) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1]) if len(sys.argv) == 2 else 2)
+    sys.exit(main(*sys.argv[1:3]) if len(sys.argv) in (2, 3) else 2)
