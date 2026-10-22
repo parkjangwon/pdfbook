@@ -57,6 +57,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Pinch / double-tap zoom | Reader → pinch, or double-tap a page | `reader_screen` | `ZoomPan.kt` | `ZoomPanTest` |
 | Zoom lock and keep zoom (SPEC-6) | Reader → zoom in; swipes only pan, tap zones and volume keys still turn | `reader_screen` (`ReaderZoomKey` semantics), `reader_zone_Next` | `ZoomPan.kt`, `ReaderScreen.kt` | `ZoomLockComposeTest`, `ZoomPanTest`, `TapZoneTimingTest` |
 | Volume key paging | Reader → volume up / down | – | `MainActivity.kt`, `VolumeNav.kt` | `VolumeNavTest` |
+| Full screen reading (#115) | Reader with full screen reading on (default) | – | `ReaderSystemBars.kt`, `ReaderScreen.kt` | `ReaderSystemBarsTest`, `ReaderImmersiveComposeTest` |
 | Prerender and memory trim (SPEC-5) | Reader → turn pages | – | `PageCache.kt`, `MemoryTrim.kt`, `PageRenderer.kt` | `PageCacheTest`, `PrerenderTargetsTest`, `LargeBookPrerenderTest` |
 
 ## Settings
@@ -67,6 +68,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | General: start screen, theme, language | Settings → rows by text | text only | `settings/SettingsScreen.kt`, `settings/AppLocale.kt` | `AppLocaleTest`, `SettingsBUiTest` |
 | Reading settings | Settings → `settings_reading_entry` | `settings_reading_screen`, `settings_reading_back` | `settings/SettingsScreen.kt` | `SettingsBUiTest` |
 | Keep zoom when turning pages (SPEC-6) | Reading settings → "Keep zoom when turning pages" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt` | `KeepZoomSettingsTest`, `SettingsBUiTest` |
+| Full screen reading (#115) | Reading settings → "전체 화면으로 읽기" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt` | `FullScreenReadingSettingsTest` |
 | Tap zone width, settings (SPEC-2 TW-1/2/4) | Reading settings → `settings_tap_width_row` | `settings_tap_width_row`, `tap_zone_width_sheet` | `settings/SettingsScreen.kt`, `TapZoneWidthSheet.kt` | `TapZoneWidthSettingsTest`, `TapZoneWidthSheetThemeTest` |
 | Storage: hidden items, dot files | Settings → `settings_hidden_items` | `settings_hidden_items` | `settings/StorageSettings.kt`, `hidden/HiddenItemsScreen.kt` | `StorageSettingsTest`, `HiddenItemsScreenTest` |
 | App lock / PIN | Settings → "App lock" row → choose PIN or biometric | `pin_dot`, `pin_next`, PIN pad text | `lock/AppLockSettingsScreen.kt`, `lock/PinPad.kt`, `lock/PinEntry.kt`, `lock/LockGate.kt` | `LockScreensTest`, `LockPolicyTest`, `LockRepositoryTest`, `LockScreenshotsTest` |
