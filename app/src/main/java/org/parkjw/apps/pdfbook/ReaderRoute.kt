@@ -40,6 +40,7 @@ fun ReaderRoute(
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
     fullScreenReading: Boolean = true,
 ) {
+    ReaderSystemBarsScope()
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
     var saved by remember(key) { mutableStateOf<BookState?>(null) }

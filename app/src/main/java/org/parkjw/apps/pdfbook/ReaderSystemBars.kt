@@ -29,23 +29,34 @@ internal val LocalReaderSystemBarsController =
     staticCompositionLocalOf<ReaderSystemBarsController?> { null }
 
 @Composable
-internal fun ReaderSystemBars(
-    fullScreenReading: Boolean,
-    overlayVisible: Boolean,
-) {
+private fun rememberReaderSystemBarsController(): ReaderSystemBarsController? {
     val view = LocalView.current
     val provided = LocalReaderSystemBarsController.current
-    val controller = remember(view, provided) {
+    return remember(view, provided) {
         provided ?: view.context.findActivity()?.window?.let { window ->
             WindowReaderSystemBarsController(window, view)
         }
     }
+}
+
+@Composable
+internal fun ReaderSystemBars(
+    fullScreenReading: Boolean,
+    overlayVisible: Boolean,
+) {
+    val controller = rememberReaderSystemBarsController()
     val hidden = readerHidesSystemBars(
         inReader = true,
         fullScreenReading = fullScreenReading,
         overlayVisible = overlayVisible,
     )
     LaunchedEffect(controller, hidden) { controller?.setBarsHidden(hidden) }
+}
+
+/** Owns the bars for the whole reader route so a book switch keeps them hidden. */
+@Composable
+internal fun ReaderSystemBarsScope() {
+    val controller = rememberReaderSystemBarsController()
     DisposableEffect(controller) {
         onDispose { controller?.setBarsHidden(false) }
     }

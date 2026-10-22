@@ -206,7 +206,10 @@ private fun ReaderScreenContent(
     val sheetOpen = widthSheetVisible || (bookListVisible && volumes.bookList != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
-    ReaderSystemBars(fullScreenReading = fullScreenReading, overlayVisible = overlayVisible)
+    ReaderSystemBars(
+        fullScreenReading = fullScreenReading,
+        overlayVisible = overlayVisible || sheetOpen,
+    )
 
     TrimCacheOnMemoryPressure(renderer)
 

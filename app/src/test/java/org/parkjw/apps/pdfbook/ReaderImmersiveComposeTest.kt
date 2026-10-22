@@ -42,13 +42,18 @@ class ReaderImmersiveComposeTest {
         fake: FakeController,
         fullScreenReading: Boolean = true,
         overlayVisible: Boolean = false,
+        widthSheetVisible: Boolean = false,
         readerShown: () -> Boolean = { true },
+        routeShown: () -> Boolean = { true },
     ) {
         val pageCount = 4
         val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
         composeRule.setContent {
             CompositionLocalProvider(LocalReaderSystemBarsController provides fake) {
                 PdfBookTheme(themeMode = ThemeMode.Dark) {
+                    if (routeShown()) {
+                        ReaderSystemBarsScope()
+                    }
                     if (readerShown()) {
                         ReaderScreen(
                             renderer = SolidPageBitmaps(pageCount, 0xFFF7F2E8.toInt(), 0xFF3D5A80.toInt()),
@@ -62,6 +67,7 @@ class ReaderImmersiveComposeTest {
                             onDirectionChange = {},
                             overlayVisible = overlayVisible,
                             showTapZoneGuide = false,
+                            tapZoneWidthSheetVisible = widthSheetVisible,
                             fullScreenReading = fullScreenReading,
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -102,11 +108,34 @@ class ReaderImmersiveComposeTest {
     fun leavingReaderShowsBars() {
         var shown by mutableStateOf(true)
         val fake = FakeController()
-        setReader(fake, readerShown = { shown })
+        setReader(fake, readerShown = { shown }, routeShown = { shown })
         assertEquals(true, fake.calls.last())
 
         composeRule.runOnIdle { shown = false }
         composeRule.waitForIdle()
+        assertEquals(false, fake.calls.last())
+    }
+
+    @Test
+    fun switchingBooksKeepsBarsHidden() {
+        var screenShown by mutableStateOf(true)
+        val fake = FakeController()
+        setReader(fake, readerShown = { screenShown })
+        assertEquals(true, fake.calls.last())
+
+        composeRule.runOnIdle { screenShown = false }
+        composeRule.waitForIdle()
+        assertEquals(fake.calls.toString(), true, fake.calls.last())
+
+        composeRule.runOnIdle { screenShown = true }
+        composeRule.waitForIdle()
+        assertEquals(true, fake.calls.last())
+    }
+
+    @Test
+    fun openSheetShowsBars() {
+        val fake = FakeController()
+        setReader(fake, widthSheetVisible = true)
         assertEquals(false, fake.calls.last())
     }
 }
