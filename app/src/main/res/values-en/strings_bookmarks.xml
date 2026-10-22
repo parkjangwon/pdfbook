@@ -5,6 +5,6 @@
     <string name="reader_bookmark_list">Bookmarks</string>
     <string name="bookmark_list_title">Bookmarks</string>
     <string name="bookmark_page">Page %1$d</string>
-    <string name="bookmark_delete">Delete bookmark on page %1$d</string>
+    <string name="bookmark_delete">Remove bookmark on page %1$d</string>
     <string name="bookmark_empty">No bookmarks yet</string>
 </resources>

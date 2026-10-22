@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -52,8 +51,15 @@ fun toggledBookmark(pages: List<Int>, page: Int): List<Int> =
 
 fun encodeBookmarks(pages: List<Int>): String = pages.joinToString(",")
 
-fun decodeBookmarks(raw: String?): List<Int> =
-    raw.orEmpty().split(',').mapNotNull { it.toIntOrNull() }.distinct().sorted()
+fun decodeBookmarks(raw: String?, pageCount: Int = Int.MAX_VALUE): List<Int> =
+    raw.orEmpty().split(',').mapNotNull { it.toIntOrNull() }.filter { it in 1..pageCount }.distinct().sorted()
+
+/** A spread counts as bookmarked if any of its pages is. */
+fun spreadBookmarked(pages: List<Int>, spread: List<Int>): Boolean = spread.any { it in pages }
+
+/** Removes every bookmarked page of the spread, else adds its first page. */
+fun spreadToggleTargets(pages: List<Int>, spread: List<Int>): List<Int> =
+    spread.filter { it in pages }.ifEmpty { spread.take(1) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,7 +106,7 @@ fun BookmarkSheet(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .height(56.dp)
+                            .heightIn(min = 56.dp)
                             .testTag("bookmark_row")
                             .clickable(role = Role.Button) { onPick(page) }
                             .padding(start = 20.dp, end = 8.dp),

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
@@ -24,8 +25,9 @@ class BookStore(private val store: DataStore<Preferences>) {
         store.edit { it[stringPreferencesKey(BOOK_PREFIX + key)] = encodeState(state) }
     }
 
-    fun bookmarks(key: String): Flow<List<Int>> =
-        store.data.map { decodeBookmarks(it[stringPreferencesKey(BOOKMARK_PREFIX + key)]) }
+    fun bookmarks(key: String, pageCount: Int = Int.MAX_VALUE): Flow<List<Int>> =
+        store.data.map { decodeBookmarks(it[stringPreferencesKey(BOOKMARK_PREFIX + key)], pageCount) }
+            .distinctUntilChanged()
 
     suspend fun toggleBookmark(key: String, page: Int) {
         store.edit {

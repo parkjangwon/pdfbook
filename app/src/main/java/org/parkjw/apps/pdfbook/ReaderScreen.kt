@@ -53,7 +53,10 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -541,6 +544,7 @@ private fun ReaderScreenContent(
                 onDismiss = { bookListVisible = false },
             )
         } else if (overlayVisible) {
+            val currentSpread = currentSpreads.getOrElse(spreadIndexOf(currentSpreads, currentPage)) { listOf(currentPage) }
             ReaderOverlayTop(
                 title = title,
                 twoPage = twoPage,
@@ -549,8 +553,8 @@ private fun ReaderScreenContent(
                 onDirectionChange = onDirectionChange,
                 showPageMode = tabletop == null,
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
-                bookmarked = bookmarks?.let { currentPage in it.pages },
-                onToggleBookmark = { bookmarks?.onToggle?.invoke(currentPage) },
+                bookmarked = bookmarks?.let { spreadBookmarked(it.pages, currentSpread) },
+                onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
                 onOpenBookmarks = bookmarks?.let { { bookmarkSheetVisible = true } },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -855,7 +859,12 @@ private fun ReaderOverlayTop(
             IconButton(
                 onClick = onToggleBookmark,
                 colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
-                modifier = Modifier.testTag("reader_bookmark_toggle"),
+                modifier = Modifier
+                    .testTag("reader_bookmark_toggle")
+                    .semantics {
+                        role = Role.Checkbox
+                        toggleableState = ToggleableState(bookmarked)
+                    },
             ) {
                 Icon(
                     painter = painterResource(if (bookmarked) R.drawable.ic_bookmark_on else R.drawable.ic_bookmark),

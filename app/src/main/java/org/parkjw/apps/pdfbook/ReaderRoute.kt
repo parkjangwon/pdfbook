@@ -10,7 +10,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -24,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.settings.TwoPageMode
 
 @Composable
@@ -128,8 +128,15 @@ fun ReaderRoute(
                         ),
                     )
                 }
-                val bookmarkPages by store.bookmarks(key).collectAsState(emptyList())
+                val pageCount = renderer.pageCount
+                val bookmarkFlow = remember(store, key, pageCount) { store.bookmarks(key, pageCount) }
+                val bookmarkPages by bookmarkFlow.collectAsState(null)
                 val bookmarkScope = rememberCoroutineScope()
+                val readerBookmarks = remember(bookmarkPages, key) {
+                    bookmarkPages?.let { pages ->
+                        ReaderBookmarks(pages) { page -> bookmarkScope.launch { store.toggleBookmark(key, page) } }
+                    }
+                }
                 ReaderScreen(
                     renderer = renderer,
                     pagerState = pagerState,
@@ -150,9 +157,7 @@ fun ReaderRoute(
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,
-                    bookmarks = ReaderBookmarks(bookmarkPages) { page ->
-                        bookmarkScope.launch { store.toggleBookmark(key, page) }
-                    },
+                    bookmarks = readerBookmarks,
                 )
             }
         }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -91,9 +92,63 @@ class BookmarksTest {
         composeRule.onNodeWithContentDescription("책갈피 목록").performClick()
         composeRule.onNodeWithTag(BOOKMARK_SHEET_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("3쪽").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("3쪽 책갈피 삭제").performClick()
+        composeRule.onNodeWithContentDescription("3쪽 책갈피 해제").performClick()
         assertEquals(emptyList<Int>(), pages)
         composeRule.onNodeWithText("아직 책갈피가 없어요").assertIsDisplayed()
+    }
+
+    @Test
+    fun decodeDropsOutOfRangeAndDuplicates() {
+        assertEquals(listOf(1, 3, 4), decodeBookmarks("4,a,,3,3,0,-2,9,1", pageCount = 5))
+    }
+
+    private fun setTwoPageContent(currentPage: Int, initial: List<Int>, onPages: (List<Int>) -> Unit) {
+        val pageSpreads = spreads(5, twoPage = true, coverAlone = true)
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Dark) {
+                var pages by remember { mutableStateOf(initial) }
+                val pagerState = rememberPagerState(pageCount = { pageSpreads.size })
+                ReaderScreen(
+                    renderer = SolidPageBitmaps(5, 0xFFF7F2E8.toInt(), 0xFF3D5A80.toInt()),
+                    pagerState = pagerState,
+                    spreads = pageSpreads,
+                    title = "책",
+                    pageCount = 5,
+                    currentPage = currentPage,
+                    twoPage = true,
+                    onBack = {},
+                    onDirectionChange = {},
+                    overlayVisible = true,
+                    showTapZoneGuide = false,
+                    bookmarks = ReaderBookmarks(pages) { pages = toggledBookmark(pages, it).also(onPages) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun twoPageSpreadCountsAnyPageAndRemovesAllBookmarkedPages() {
+        var latest = listOf(2, 3)
+        setTwoPageContent(currentPage = 2, initial = listOf(2, 3), onPages = { latest = it })
+        composeRule.onNodeWithContentDescription("책갈피 해제").performClick()
+        assertEquals(emptyList<Int>(), latest)
+    }
+
+    @Test
+    fun twoPageRightPageBookmarkShowsAsBookmarked() {
+        var latest = listOf(3)
+        setTwoPageContent(currentPage = 2, initial = listOf(3), onPages = { latest = it })
+        composeRule.onNodeWithContentDescription("책갈피 해제").performClick()
+        assertEquals(emptyList<Int>(), latest)
+    }
+
+    @Test
+    fun twoPageAddBookmarksFirstPageOfSpread() {
+        var latest = emptyList<Int>()
+        setTwoPageContent(currentPage = 3, initial = emptyList(), onPages = { latest = it })
+        composeRule.onNodeWithContentDescription("책갈피 추가").performClick()
+        assertEquals(listOf(2), latest)
     }
 
     @Test
