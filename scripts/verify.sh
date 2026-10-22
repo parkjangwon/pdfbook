@@ -267,21 +267,54 @@ open_book() {
   sleep 2
 }
 
+# Touch the bars to restart the 4 s auto-hide (#10), re-opening them if the
+# previous dump was slow enough for them to hide.
+refresh_overlay() {
+  local found
+  found="$(wait_node resource-id reader_progress 1)" || {
+    tap_id reader_zone_Menu
+    expect_id reader_overlay_bottom
+    found="$(wait_node resource-id reader_progress)" || die "Overlay progress not found (last dump: $OUT/ui.xml)"
+  }
+  set -- $found
+  "$ADB" shell input tap "$1" "$2"
+  sleep 1
+}
+
 show_overlay() {
   if ! wait_node resource-id reader_overlay_bottom 1 >/dev/null; then
     tap_id reader_zone_Menu
+    expect_id reader_overlay_bottom
   fi
-  expect_id reader_overlay_bottom
+  refresh_overlay
 }
 
 slider_tap() {
-  local fraction="$1" found
-  found="$(wait_node resource-id reader_slider)" || die "Reader slider not found."
-  set -- $found
-  local x1="$3" x2="$5" y="$2"
-  local x=$((x1 + (x2 - x1) * fraction / 100))
-  "$ADB" shell input tap "$x" "$y"
-  sleep 1
+  local fraction="$1" progress slider
+  for _ in $(seq 1 6); do
+    # One dump for both nodes: touch the bars to restart the 4 s auto-hide (#10)
+    # and tap the slider right after, so no second dump can race the timeout.
+    dump_ui
+    progress="$(find_node resource-id reader_progress || true)"
+    slider="$(find_node resource-id reader_slider || true)"
+    if [ -n "$progress" ] && [ -n "$slider" ]; then
+      set -- $progress
+      "$ADB" shell input tap "$1" "$2"
+      set -- $slider
+      local x1="$3" x2="$5" y="$2"
+      local x=$((x1 + (x2 - x1) * fraction / 100))
+      "$ADB" shell input tap "$x" "$y"
+      sleep 1
+      return 0
+    fi
+    if [ -z "$progress" ]; then
+      # The 4 s auto-hide already closed the overlay: tap the centre zone to reopen.
+      tap_id reader_zone_Menu
+    else
+      die "Reader slider not found (last dump: $OUT/ui.xml)"
+    fi
+  done
+  die "Reader slider not found."
 }
 
 echo "verify: output -> $OUT"
@@ -338,8 +371,7 @@ case "$FEATURE" in
   jump-back)
     open_book
     show_overlay
-    expect_id reader_progress
-    origin="$(node_text reader_progress)"
+    origin="$(node_text reader_progress)" || die "Reader progress not found (last dump: $OUT/ui.xml)"
     slider_tap 80
     pill="$(wait_node resource-id jump_back_pill 5)" || die "Jump back pill did not appear (last dump: $OUT/ui.xml)"
     STEP=$((STEP + 1))

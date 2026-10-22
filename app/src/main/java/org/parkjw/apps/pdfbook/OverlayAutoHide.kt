@@ -15,35 +15,35 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 
 const val OVERLAY_AUTO_HIDE_MILLIS = 4_000L
 
-// Overlay bars share their own fade duration; retiming the next-book notice
-// (END_NOTICE_FADE_MILLIS) must not retime them.
-const val OVERLAY_FADE_MILLIS = 150
-
 /**
- * Pure auto-hide state machine for the reader overlay. All times are injected by
- * the caller, so resets and pauses are unit-testable without a Compose clock.
+ * Pure auto-hide state machine for the reader overlay. All times come from the
+ * caller's monotonic clock, and the screen drives this same [nextDelay] sequence
+ * the unit tests assert, so a pause and a reset behave identically in both.
  */
 class OverlayAutoHideTimer(private val timeoutMillis: Long = OVERLAY_AUTO_HIDE_MILLIS) {
     private var lastInteractionAt = 0L
-    private var paused = true
 
-    /** A touch anywhere on the overlay restarts the countdown from [now]. */
+    /** A touch (or the overlay opening) restarts the countdown from [now]. */
     fun onInteraction(now: Long) {
         lastInteractionAt = now
     }
 
-    /** Recompute after a pause condition changed; returns the expiry, or null while paused. */
-    fun update(
+    /**
+     * Returns how long the bars may stay visible from [now], or null while a
+     * sheet is open, the slider is dragged, a pointer is held, TalkBack is on,
+     * or the reader is not resumed.
+     */
+    fun nextDelay(
+        now: Long,
         sheetOpen: Boolean,
         sliderDragging: Boolean,
         touchExploration: Boolean,
+        pointerPressed: Boolean = false,
+        resumed: Boolean = true,
     ): Long? {
-        paused = sheetOpen || sliderDragging || touchExploration
-        return if (paused) null else lastInteractionAt + timeoutMillis
+        if (sheetOpen || sliderDragging || touchExploration || pointerPressed || !resumed) return null
+        return (lastInteractionAt + timeoutMillis - now).coerceAtLeast(0L)
     }
-
-    /** True once [now] has reached the expiry last returned by [update]. */
-    fun expiredAt(now: Long): Boolean = !paused && now - lastInteractionAt >= timeoutMillis
 }
 
 @Composable
@@ -74,7 +74,9 @@ fun rememberTouchExplorationEnabled(): Boolean {
 @Composable
 fun rememberLifecycleResumed(): Boolean {
     val lifecycleOwner = LocalLifecycleOwner.current
-    var resumed by remember { mutableStateOf(true) }
+    var resumed by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {

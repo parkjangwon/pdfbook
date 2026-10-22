@@ -1,5 +1,7 @@
 package org.parkjw.apps.pdfbook
 
+import android.content.Context
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.Modifier
@@ -11,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -18,6 +21,7 @@ import org.junit.runner.RunWith
 import org.parkjw.apps.pdfbook.screenshot.SolidPageBitmaps
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
@@ -56,7 +60,7 @@ class OverlayAutoHideComposeTest {
         composeRule.mainClock.advanceTimeBy(100)
         composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
         composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS)
-        composeRule.mainClock.advanceTimeBy(OVERLAY_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(END_NOTICE_FADE_MILLIS + 500L)
         composeRule.waitForIdle()
         composeRule.onAllNodesWithTag("reader_overlay_top").assertCountEquals(0)
         composeRule.onAllNodesWithTag("reader_overlay_bottom").assertCountEquals(0)
@@ -79,9 +83,37 @@ class OverlayAutoHideComposeTest {
         composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
         composeRule.mainClock.advanceTimeBy(2_000)
         composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
-        composeRule.mainClock.advanceTimeBy(1_000 + OVERLAY_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(1_000 + END_NOTICE_FADE_MILLIS + 500L)
         composeRule.waitForIdle()
         composeRule.onAllNodesWithTag("reader_overlay_top").assertCountEquals(0)
+    }
+
+    @Test
+    fun buttonPressResetsTheCountdown() {
+        composeRule.mainClock.autoAdvance = false
+        setReader()
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS - 500)
+        composeRule.onNodeWithTag("reader_direction_toggle").performClick()
+        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
+        composeRule.mainClock.advanceTimeBy(2_500)
+        composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
+        composeRule.mainClock.advanceTimeBy(1_000 + END_NOTICE_FADE_MILLIS + 500L)
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("reader_overlay_top").assertCountEquals(0)
+    }
+
+    @Test
+    fun overlayStaysWhileTouchExplorationEnabled() {
+        val manager = ApplicationProvider.getApplicationContext<Context>()
+            .getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        shadowOf(manager).setTouchExplorationEnabled(true)
+        composeRule.mainClock.autoAdvance = false
+        setReader()
+        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + END_NOTICE_FADE_MILLIS + 500L)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
     }
 
     @Test
@@ -90,7 +122,7 @@ class OverlayAutoHideComposeTest {
         setReader()
         composeRule.mainClock.advanceTimeBy(100)
         composeRule.onNodeWithTag("reader_tap_zone_entry").performClick()
-        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + OVERLAY_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + END_NOTICE_FADE_MILLIS + 500L)
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("tap_zone_width_done").performClick()
         composeRule.mainClock.advanceTimeBy(1_000L)
@@ -107,12 +139,12 @@ class OverlayAutoHideComposeTest {
             down(center)
             moveBy(Offset(width / 4f, 0f))
         }
-        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + OVERLAY_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + END_NOTICE_FADE_MILLIS + 500L)
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
         composeRule.onNodeWithTag("reader_slider").performTouchInput { up() }
-        composeRule.mainClock.advanceTimeBy(OVERLAY_FADE_MILLIS + 500L)
-        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + OVERLAY_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(END_NOTICE_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + END_NOTICE_FADE_MILLIS + 500L)
         composeRule.waitForIdle()
         composeRule.onAllNodesWithTag("reader_overlay_top").assertCountEquals(0)
     }

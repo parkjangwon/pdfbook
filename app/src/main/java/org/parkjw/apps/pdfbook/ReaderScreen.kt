@@ -1,5 +1,6 @@
 package org.parkjw.apps.pdfbook
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -202,20 +203,11 @@ private fun ReaderScreenContent(
     val currentVolumes by rememberUpdatedState(volumes)
     var bottomBarHeight by remember { mutableIntStateOf(0) }
     var sliderDragging by remember { mutableStateOf(false) }
+    var overlayPressed by remember { mutableStateOf(false) }
     var overlayInteractions by remember { mutableIntStateOf(0) }
     val touchExploration = rememberTouchExplorationEnabled()
     val lifecycleResumed = rememberLifecycleResumed()
-    // Any pointer down on the overlay bars restarts the auto-hide countdown. A finger
-    // held still on a bar for >4 s still hides the bars mid-press (accepted in spec).
-    val overlayTouchResetter = Modifier.pointerInput(Unit) {
-        awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false)
-            overlayInteractions++
-            do {
-                val event = awaitPointerEvent()
-            } while (event.changes.any { it.pressed })
-        }
-    }
+    val autoHideTimer = remember { OverlayAutoHideTimer() }
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
@@ -250,16 +242,30 @@ private fun ReaderScreenContent(
         jumpBack = null
     }
 
-    // Keyed on lifecycleResumed so the countdown pauses in background and restarts
-    // full on return, instead of expiring while the reader is hidden.
-    LaunchedEffect(overlayVisible, sheetOpen, sliderDragging, touchExploration, lifecycleResumed, overlayInteractions) {
-        if (!overlayVisible || !lifecycleResumed) return@LaunchedEffect
-        // This effect restarts on an overlay touch or a pause change; the timer
-        // counts from that instant (injected clock: interaction at t=0).
-        val timer = OverlayAutoHideTimer()
-        timer.onInteraction(0L)
-        val expiry = timer.update(sheetOpen, sliderDragging, touchExploration) ?: return@LaunchedEffect
-        delay(expiry)
+    // One timer instance, driven by the monotonic clock. Every restart of this
+    // effect (the overlay opening, a touch, or a pause ending) is an interaction,
+    // so the countdown starts from now; while paused [nextDelay] returns null.
+    LaunchedEffect(
+        overlayVisible,
+        sheetOpen,
+        sliderDragging,
+        overlayPressed,
+        touchExploration,
+        lifecycleResumed,
+        overlayInteractions,
+    ) {
+        if (!overlayVisible) return@LaunchedEffect
+        val now = SystemClock.elapsedRealtime()
+        autoHideTimer.onInteraction(now)
+        val wait = autoHideTimer.nextDelay(
+            now = now,
+            sheetOpen = sheetOpen,
+            sliderDragging = sliderDragging,
+            touchExploration = touchExploration,
+            pointerPressed = overlayPressed,
+            resumed = lifecycleResumed,
+        ) ?: return@LaunchedEffect
+        delay(wait)
         overlayVisible = false
     }
 
@@ -326,6 +332,21 @@ private fun ReaderScreenContent(
         val origin = seekOrigin ?: return
         seekOrigin = null
         jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)
+    }
+
+    // A pointer down on the bars restarts the countdown and pauses it while held;
+    // a drag that ends without onValueChangeFinished still clears [sliderDragging].
+    val overlayTouchResetter = Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            overlayPressed = true
+            overlayInteractions++
+            do {
+                val event = awaitPointerEvent()
+            } while (event.changes.any { it.pressed })
+            overlayPressed = false
+            if (sliderDragging) seekFinished()
+        }
     }
 
     fun jumpBackNow() {
@@ -559,10 +580,13 @@ private fun ReaderScreenContent(
             )
         }
         val overlayShown = overlayVisible && !sheetOpen
+        // A sheet must cover the bars at once instead of fading them out on top
+        // of its scrim; the auto-hide itself keeps the overlay fade.
+        val overlayExit = fadeOut(tween(if (sheetOpen) 0 else END_NOTICE_FADE_MILLIS))
         AnimatedVisibility(
             visible = overlayShown,
-            enter = fadeIn(tween(OVERLAY_FADE_MILLIS)),
-            exit = fadeOut(tween(OVERLAY_FADE_MILLIS)),
+            enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
+            exit = overlayExit,
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
             ReaderOverlayTop(
@@ -593,8 +617,8 @@ private fun ReaderScreenContent(
             }
             AnimatedVisibility(
                 visible = overlayShown,
-                enter = fadeIn(tween(OVERLAY_FADE_MILLIS)),
-                exit = fadeOut(tween(OVERLAY_FADE_MILLIS)),
+                enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
+                exit = overlayExit,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .then(
