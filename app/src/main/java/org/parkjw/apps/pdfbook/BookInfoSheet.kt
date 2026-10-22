@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -18,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -28,12 +30,14 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookMonoFamily
 import org.parkjw.apps.pdfbook.ui.theme.SheetTopCorner
+import org.parkjw.apps.pdfbook.ui.theme.extendedColors
 import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 import java.text.DateFormat
 import java.util.Date
@@ -52,11 +56,28 @@ data class ReadingProgress(val page: Int, val pageCount: Int, val percent: Int)
 
 fun fileSizeOf(bytes: Long): FileSizeText? {
     if (bytes <= 0) return null
-    val (unit, factor) = when {
-        bytes >= 1024L * 1024 * 1024 -> FileSizeUnit.GB to 1024L * 1024 * 1024
-        bytes >= 1024L * 1024 -> FileSizeUnit.MB to 1024L * 1024
-        bytes >= 1024L -> FileSizeUnit.KB to 1024L
-        else -> FileSizeUnit.B to 1L
+    val unit = when {
+        bytes >= 1024L * 1024 * 1024 -> FileSizeUnit.GB
+        bytes >= 1024L * 1024 -> FileSizeUnit.MB
+        bytes >= 1024L -> FileSizeUnit.KB
+        else -> FileSizeUnit.B
+    }
+    val size = sizeIn(bytes, unit)
+    val promoted = when {
+        size.value != "1024" -> null
+        unit == FileSizeUnit.KB -> FileSizeUnit.MB
+        unit == FileSizeUnit.MB -> FileSizeUnit.GB
+        else -> null
+    }
+    return promoted?.let { sizeIn(bytes, it) } ?: size
+}
+
+private fun sizeIn(bytes: Long, unit: FileSizeUnit): FileSizeText {
+    val factor = when (unit) {
+        FileSizeUnit.B -> 1L
+        FileSizeUnit.KB -> 1024L
+        FileSizeUnit.MB -> 1024L * 1024
+        FileSizeUnit.GB -> 1024L * 1024 * 1024
     }
     return if (unit == FileSizeUnit.B) {
         FileSizeText(bytes.toString(), unit)
@@ -111,8 +132,10 @@ fun BookInfoSheet(
     state: BookState?,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    pageCountLoader: (suspend (BookInfo) -> Int?)? = null,
 ) {
     val context = LocalContext.current
+    val loadPageCount = pageCountLoader ?: { target: BookInfo -> readPageCount(context, target) }
     val storedPageCount = state?.pageCount?.takeIf { it > 0 }
     var pageCount by remember(book.uri, storedPageCount) { mutableStateOf(storedPageCount) }
     var loading by remember(book.uri, storedPageCount) { mutableStateOf(storedPageCount == null) }
@@ -121,7 +144,7 @@ fun BookInfoSheet(
         if (storedPageCount != null) return@LaunchedEffect
         loading = true
         unreadable = false
-        val count = readPageCount(context, book)
+        val count = loadPageCount(book)
         pageCount = count
         unreadable = count == null
         loading = false
@@ -133,8 +156,15 @@ fun BookInfoSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         sheetMaxWidth = 640.dp,
         shape = SheetTopCorner,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
+            MaterialTheme.colorScheme.surfaceContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        },
         tonalElevation = 0.dp,
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(color = MaterialTheme.extendedColors.hairlineStrong)
+        },
     ) {
         val scheme = MaterialTheme.colorScheme
         val locale = LocalConfiguration.current.locales[0]
@@ -228,7 +258,10 @@ private fun InfoRow(
         )
         Text(
             text = if (numeric) {
-                withNumericSpans(value, SpanStyle(fontFamily = PdfBookMonoFamily))
+                withNumericSpans(
+                    value,
+                    SpanStyle(fontFamily = PdfBookMonoFamily, letterSpacing = (-0.2).sp),
+                )
             } else {
                 AnnotatedString(value)
             },

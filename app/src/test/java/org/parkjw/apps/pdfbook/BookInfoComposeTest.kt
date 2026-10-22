@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,6 +68,31 @@ class BookInfoComposeTest {
         openInfo()
         composeRule.onNodeWithText("아직 읽지 않았어요").assertIsDisplayed()
         composeRule.onNodeWithText("0 / 120쪽 · 0%").assertIsDisplayed()
+    }
+
+    @Test
+    fun pageCountShowsLoadingThenLoadedValue() {
+        val pages = CompletableDeferred<Int?>()
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                BookInfoSheet(
+                    book = BookInfo("doc:loading", "읽는 중.pdf", 100),
+                    state = BookState(page = 0, pageCount = 0, openedAt = 0L),
+                    onDismiss = {},
+                    modifier = Modifier.fillMaxSize(),
+                    pageCountLoader = { pages.await() },
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("쪽 수를 확인하는 중…").assertIsDisplayed()
+        pages.complete(7)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("7쪽").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("7쪽").assertIsDisplayed()
+        composeRule.onNodeWithText("0 / 7쪽 · 0%").assertIsDisplayed()
+        composeRule.onNodeWithText("쪽 수를 확인하는 중…").assertDoesNotExist()
     }
 
     @Test

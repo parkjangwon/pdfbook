@@ -21,6 +21,13 @@ class BookInfoTest {
     }
 
     @Test
+    fun fileSizePromotesWhenRoundingWouldShow1024() {
+        assertEquals(FileSizeText("1", FileSizeUnit.MB), fileSizeOf(1_048_525))
+        assertEquals(FileSizeText("1", FileSizeUnit.MB), fileSizeOf(1_048_575))
+        assertEquals(FileSizeText("1", FileSizeUnit.GB), fileSizeOf(1_073_741_773))
+    }
+
+    @Test
     fun progressIsClampedAndZeroWhenNotRead() {
         assertEquals(
             ReadingProgress(page = 12, pageCount = 120, percent = 10),
