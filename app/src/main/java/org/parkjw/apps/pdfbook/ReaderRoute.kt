@@ -142,6 +142,7 @@ fun ReaderRoute(
                     tapZoneSidePercent = tapZoneSidePercent,
                     onTapZoneSidePercentChange = onTapZoneSidePercentChange,
                     volumes = volumes,
+                    searcher = renderer,
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,

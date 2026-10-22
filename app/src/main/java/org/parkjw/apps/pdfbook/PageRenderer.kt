@@ -4,12 +4,14 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -29,6 +31,13 @@ interface PageBitmaps {
 interface PageSource : Closeable {
     val pageCount: Int
     fun draw(page: Int, maxWidth: Int, maxHeight: Int): Bitmap
+    fun searchText(page: Int, query: String): Int = 0
+}
+
+data class SearchPageHits(val page: Int, val count: Int)
+
+fun interface PageTextSearch {
+    suspend fun search(query: String, onPageHits: (SearchPageHits) -> Unit)
 }
 
 class PdfPageSource(
@@ -52,6 +61,9 @@ class PdfPageSource(
         }
     }
 
+    override fun searchText(page: Int, query: String): Int =
+        pdf.openPage(page - 1).use { pdfPage -> pdfPage.searchText(query).size }
+
     override fun close() {
         pdf.close()
         pfd.close()
@@ -61,9 +73,9 @@ class PdfPageSource(
 class PageRenderer(
     private val source: PageSource,
     limitBytes: Long = cacheLimitBytes(Runtime.getRuntime().maxMemory()),
-) : PageBitmaps, Closeable {
+    private val renderDispatcher: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1),
+) : PageBitmaps, PageTextSearch, Closeable {
     private val mutex = Mutex()
-    private val renderDispatcher = Dispatchers.IO.limitedParallelism(1)
     private val scope = CoroutineScope(SupervisorJob() + renderDispatcher)
     private val jobLock = Any()
     private var prerenderJob: Job? = null
@@ -136,6 +148,19 @@ class PageRenderer(
                 cache.get(key)?.let { return@withLock it }
                 source.draw(key.page, key.maxWidth, key.maxHeight).also { cache.put(key, it) }
             }
+        }
+    }
+
+    override suspend fun search(query: String, onPageHits: (SearchPageHits) -> Unit) {
+        for (page in 1..pageCount) {
+            coroutineContext.ensureActive()
+            val count = withContext(renderDispatcher) {
+                mutex.withLock {
+                    if (closed) return@withLock 0
+                    source.searchText(page, query)
+                }
+            }
+            if (count > 0) onPageHits(SearchPageHits(page, count))
         }
     }
 
