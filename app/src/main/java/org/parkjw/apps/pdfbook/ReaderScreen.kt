@@ -255,12 +255,14 @@ private fun ReaderScreenContent(
         endNotice = null
     }
 
+    fun showNotice(notice: EndNotice) {
+        endNotice = notice
+        endNoticeToken++
+    }
+
     fun nextAtEnd() {
         when (val step = endStep(endNotice, currentVolumes.nextBook)) {
-            is EndStep.Show -> {
-                endNotice = step.notice
-                endNoticeToken++
-            }
+            is EndStep.Show -> showNotice(step.notice)
             is EndStep.Open -> {
                 endNotice = null
                 currentVolumes.onNext?.invoke()
@@ -343,28 +345,20 @@ private fun ReaderScreenContent(
     }
 
     fun showNextBookNotice() {
-        val step = endStep(null, currentVolumes.nextBook) as EndStep.Show
-        endNotice = step.notice
-        endNoticeToken++
+        val next = currentVolumes.nextBook
+        showNotice(if (next == null) EndNotice.NoNextBook else EndNotice.NextBook(next))
     }
 
     LaunchedEffect(autoTurnRunning, autoTurnSecondsState) {
         if (!autoTurnRunning) return@LaunchedEffect
         runAutoTurn(autoTurnIntervalMillis(autoTurnSecondsState)) {
-            val next = autoTurnNextIndex(pagerState.targetPage, pagerState.pageCount)
-            if (next == null) {
+            if (autoTurnNextIndex(pagerState.targetPage, pagerState.pageCount) == null) {
                 stopAutoTurn()
                 showNextBookNotice()
                 false
             } else {
                 goTo(TapZone.Next.pageDelta)
-                if (next >= pagerState.pageCount - 1) {
-                    stopAutoTurn()
-                    showNextBookNotice()
-                    false
-                } else {
-                    true
-                }
+                true
             }
         }
     }
@@ -385,8 +379,9 @@ private fun ReaderScreenContent(
 
     val view = LocalView.current
     DisposableEffect(autoTurnRunning) {
+        if (!autoTurnRunning) return@DisposableEffect onDispose {}
         val previous = view.keepScreenOn
-        view.keepScreenOn = autoTurnRunning
+        view.keepScreenOn = true
         onDispose { view.keepScreenOn = previous }
     }
 
@@ -720,7 +715,7 @@ private fun ReaderScreenContent(
         }
         AutoTurnStatusHost(
             text = autoTurnStatusText,
-            bottomInset = noticeInset + if (endNotice != null) 64.dp else 0.dp,
+            bottomInset = noticeInset + if (endNotice != null) AUTO_TURN_ABOVE_NOTICE else 0.dp,
         )
         if (showTitleToast) {
             BookChangedToast(

@@ -204,6 +204,38 @@ class AutoTurnComposeTest {
     }
 
     @Test
+    fun lastPageDwellsUntilTheNextIntervalBeforeTheNotice() {
+        var opened = 0
+        val next = BookInfo("doc:next", "다음 책.pdf", 10)
+        setReader(
+            start = pageCount - 1,
+            volumes = ReaderVolumes(onNext = { opened++ }, nextBook = next),
+        )
+        startAutoTurn(5)
+        advance(5_000)
+        advance(2_000)
+        assertEquals(pageCount, kept)
+        advance(1_500)
+        composeRule.onNodeWithTag("end_notice").assertDoesNotExist()
+        advance(2_000)
+        composeRule.onNodeWithText("다음 책: 다음 책").assertIsDisplayed()
+        advance(10_000)
+        assertEquals(pageCount, kept)
+        assertEquals(0, opened)
+    }
+
+    @Test
+    fun restoresTheKeepScreenOnValueItFound() {
+        setReader()
+        viewRef!!.keepScreenOn = true
+        startAutoTurn(5)
+        advance(100)
+        assertTrue(viewRef!!.keepScreenOn)
+        tapNext()
+        assertTrue(viewRef!!.keepScreenOn)
+    }
+
+    @Test
     fun stopsAtTheLastPageAndShowsTheNextBookNoticeWithoutOpeningIt() {
         var opened = 0
         val next = BookInfo("doc:next", "다음 책.pdf", 10)
