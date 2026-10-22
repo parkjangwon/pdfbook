@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private const val BOOK_PREFIX = "book:"
+private const val BOOKMARK_PREFIX = "bookmarks:"
 
 class BookStore(private val store: DataStore<Preferences>) {
     constructor(context: Context) : this(context.applicationContext.pdfbookDataStore)
@@ -21,6 +22,16 @@ class BookStore(private val store: DataStore<Preferences>) {
 
     suspend fun save(key: String, state: BookState) {
         store.edit { it[stringPreferencesKey(BOOK_PREFIX + key)] = encodeState(state) }
+    }
+
+    fun bookmarks(key: String): Flow<List<Int>> =
+        store.data.map { decodeBookmarks(it[stringPreferencesKey(BOOKMARK_PREFIX + key)]) }
+
+    suspend fun toggleBookmark(key: String, page: Int) {
+        store.edit {
+            val k = stringPreferencesKey(BOOKMARK_PREFIX + key)
+            it[k] = encodeBookmarks(toggledBookmark(decodeBookmarks(it[k]), page))
+        }
     }
 
     private fun decodeAll(prefs: Preferences): Map<String, BookState> =

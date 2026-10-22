@@ -7,7 +7,10 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -125,6 +128,8 @@ fun ReaderRoute(
                         ),
                     )
                 }
+                val bookmarkPages by store.bookmarks(key).collectAsState(emptyList())
+                val bookmarkScope = rememberCoroutineScope()
                 ReaderScreen(
                     renderer = renderer,
                     pagerState = pagerState,
@@ -145,6 +150,9 @@ fun ReaderRoute(
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,
+                    bookmarks = ReaderBookmarks(bookmarkPages) { page ->
+                        bookmarkScope.launch { store.toggleBookmark(key, page) }
+                    },
                 )
             }
         }
