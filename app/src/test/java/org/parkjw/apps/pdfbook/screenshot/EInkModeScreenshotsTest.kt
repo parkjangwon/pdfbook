@@ -8,7 +8,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.parkjw.apps.pdfbook.settings.AppSettings
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.SettingsSubScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode

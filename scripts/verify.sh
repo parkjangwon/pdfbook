@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list settings keep-zoom"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list settings keep-zoom e-ink"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -387,6 +387,21 @@ case "$FEATURE" in
     shot keep-zoom-off
     tap_node text "$keep_zoom"
     shot keep-zoom-on
+    ;;
+  e-ink)
+    open_library
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    e_ink='E-ink mode|전자잉크 모드'
+    for _ in 1 2 3; do
+      wait_node text "$e_ink" 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    shot e-ink-off
+    tap_node text "$e_ink"
+    shot e-ink-on
     ;;
 esac
 

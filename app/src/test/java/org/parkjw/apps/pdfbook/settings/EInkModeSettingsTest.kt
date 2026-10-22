@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -127,7 +128,39 @@ class EInkModeSettingsTest {
         composeRule.mainClock.autoAdvance = false
         composeRule.onRoot().performTouchInput { click(Offset(width * 0.9f, height / 2f)) }
         composeRule.mainClock.advanceTimeBy(16)
+        assertEquals(1, pagerState?.targetPage)
         assertEquals(1, pagerState?.currentPage)
+    }
+
+    @Test
+    fun eInkModeOffAnimatesPageTurn() {
+        var pagerState: PagerState? = null
+        val pageCount = 6
+        val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
+        composeRule.setContent {
+            val state = rememberPagerState(pageCount = { pageSpreads.size })
+            pagerState = state
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                ReaderScreen(
+                    renderer = SolidPageBitmaps(pageCount, 0, 0),
+                    pagerState = state,
+                    spreads = pageSpreads,
+                    title = "t",
+                    pageCount = pageCount,
+                    currentPage = 1,
+                    twoPage = false,
+                    onBack = {},
+                    onDirectionChange = {},
+                    direction = ReadingDirection.LTR,
+                    eInkMode = false,
+                )
+            }
+        }
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onRoot().performTouchInput { click(Offset(width * 0.9f, height / 2f)) }
+        composeRule.mainClock.advanceTimeBy(16)
+        assertEquals(1, pagerState?.targetPage)
+        assertEquals(0, pagerState?.currentPage)
     }
 
     @Test

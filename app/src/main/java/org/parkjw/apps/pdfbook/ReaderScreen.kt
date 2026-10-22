@@ -17,6 +17,7 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -199,6 +202,8 @@ private fun ReaderScreenContent(
     val zoomed = !zoom.allowsPageTurn
     val keepZoomRef = rememberUpdatedState(keepZoom)
     val directionRef = rememberUpdatedState(direction)
+    val eInkModeRef = rememberUpdatedState(eInkMode)
+    val pageTurnAnimationRef = rememberUpdatedState(pageTurnAnimation)
     var viewport by remember { mutableStateOf(Size.Zero) }
 
     var endNotice by remember { mutableStateOf(initialEndNotice) }
@@ -269,7 +274,7 @@ private fun ReaderScreenContent(
         if (target != pagerState.targetPage) {
             jumpBack = null
             scope.launch {
-                if (shouldAnimatePageTurn(eInkMode, pageTurnAnimation)) {
+                if (shouldAnimatePageTurn(eInkModeRef.value, pageTurnAnimationRef.value)) {
                     pagerState.animateScrollToPage(target)
                 } else {
                     pagerState.scrollToPage(target)
@@ -373,6 +378,15 @@ private fun ReaderScreenContent(
                     userScrollEnabled = !zoomed,
                     modifier = Modifier.fillMaxSize(),
                     beyondViewportPageCount = 1,
+                    flingBehavior = if (shouldAnimatePageTurn(eInkMode, pageTurnAnimation)) {
+                        PagerDefaults.flingBehavior(state = pagerState)
+                    } else {
+                        PagerDefaults.flingBehavior(
+                            state = pagerState,
+                            snapAnimationSpec = snap(),
+                            pagerSnapDistance = PagerSnapDistance.atMost(0),
+                        )
+                    },
                 ) { pageIndex ->
                     val spread = currentSpreads.getOrNull(pageIndex) ?: return@HorizontalPager
                     val layout = spreadLayout(spread, direction)
