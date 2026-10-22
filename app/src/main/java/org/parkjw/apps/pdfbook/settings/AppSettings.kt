@@ -31,6 +31,7 @@ enum class PageTurnAnimation {
     None,
 }
 
+// Persisted by name in SettingsRepository; renaming an entry resets users to Default.
 enum class DisplayMode {
     Default,
     Invert,

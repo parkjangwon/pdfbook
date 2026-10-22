@@ -1004,6 +1004,8 @@ internal fun PageBitmap(
             bitmap = renderer.render(page, maxWidth, maxHeight)
         }
     }
+    val displayMode = LocalDisplayMode.current
+    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val bmp = bitmap
         if (bmp != null && !bmp.isRecycled) {
@@ -1013,7 +1015,7 @@ internal fun PageBitmap(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 alignment = alignment,
-                colorFilter = LocalDisplayMode.current.colorFilter(),
+                colorFilter = colorFilter,
                 modifier = Modifier.fillMaxSize(),
             )
         }

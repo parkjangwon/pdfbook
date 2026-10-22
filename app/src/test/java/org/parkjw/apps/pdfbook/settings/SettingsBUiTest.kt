@@ -179,6 +179,26 @@ class SettingsBUiTest {
     }
 
     @Test
+    fun sb_displayModeRowOpensChoiceAndSaves() {
+        var settings by mutableStateOf(AppSettings())
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                SettingsScreen(
+                    settings = settings,
+                    onSettingsChange = { settings = it(settings) },
+                    versionName = "0.3.0",
+                    initialSubScreen = SettingsSubScreen.Reading,
+                )
+            }
+        }
+        composeRule.onNodeWithText(text(R.string.settings_display_default)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.settings_display_mode)).performClick()
+        composeRule.onNodeWithText(text(R.string.settings_display_sepia)).assertIsDisplayed().performClick()
+        assertEquals(DisplayMode.Sepia, settings.displayMode)
+        composeRule.onNodeWithText(text(R.string.settings_display_sepia)).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun sb_aboutShowsVersionAndCode() {
         composeRule.setContent {
             PdfBookTheme(themeMode = ThemeMode.Light) {
