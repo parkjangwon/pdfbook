@@ -1,6 +1,10 @@
 package org.parkjw.apps.pdfbook
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -197,6 +201,19 @@ private fun ReaderScreenContent(
     var endNoticeToken by remember { mutableIntStateOf(0) }
     val currentVolumes by rememberUpdatedState(volumes)
     var bottomBarHeight by remember { mutableIntStateOf(0) }
+    var sliderDragging by remember { mutableStateOf(false) }
+    var overlayInteractions by remember { mutableIntStateOf(0) }
+    val touchExploration = rememberTouchExplorationEnabled()
+    // Any touch on the overlay bars restarts the auto-hide countdown.
+    val overlayTouchResetter = Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            overlayInteractions++
+            do {
+                val event = awaitPointerEvent()
+            } while (event.changes.any { it.pressed })
+        }
+    }
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
@@ -229,6 +246,17 @@ private fun ReaderScreenContent(
         if (!jumpBackShown) return@LaunchedEffect
         delay(JUMP_BACK_MILLIS)
         jumpBack = null
+    }
+
+    LaunchedEffect(overlayVisible, sheetOpen, sliderDragging, touchExploration, overlayInteractions) {
+        if (!overlayVisible) return@LaunchedEffect
+        val timeout = overlayAutoHideDelayMillis(
+            sheetOpen = sheetOpen,
+            sliderDragging = sliderDragging,
+            touchExplorationEnabled = touchExploration,
+        ) ?: return@LaunchedEffect
+        delay(timeout)
+        overlayVisible = false
     }
 
     LaunchedEffect(endNotice, endNoticeToken) {
@@ -279,6 +307,7 @@ private fun ReaderScreenContent(
     }
 
     fun seekPage(page: Int) {
+        sliderDragging = true
         if (seekOrigin == null) {
             seekOrigin = pagerState.targetPage
             jumpBack = null
@@ -289,6 +318,7 @@ private fun ReaderScreenContent(
     }
 
     fun seekFinished() {
+        sliderDragging = false
         val origin = seekOrigin ?: return
         seekOrigin = null
         jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)
@@ -523,7 +553,14 @@ private fun ReaderScreenContent(
                 },
                 onDismiss = { bookListVisible = false },
             )
-        } else if (overlayVisible) {
+        }
+        val overlayShown = overlayVisible && !sheetOpen
+        AnimatedVisibility(
+            visible = overlayShown,
+            enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
+            exit = fadeOut(tween(END_NOTICE_FADE_MILLIS)),
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
             ReaderOverlayTop(
                 title = title,
                 twoPage = twoPage,
@@ -533,22 +570,41 @@ private fun ReaderScreenContent(
                 showPageMode = tabletop == null,
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
                     .then(
                         if (tabletop != null) {
                             Modifier.fillMaxWidth()
                         } else {
                             Modifier
                         },
-                    ),
+                    )
+                    .then(overlayTouchResetter),
             )
-            if (tabletop == null) {
-                val bookRight = book?.let {
-                    bookHalves(
-                        IntSize(viewport.width.roundToInt().coerceAtLeast(1), viewport.height.roundToInt().coerceAtLeast(1)),
-                        it.foldBounds,
-                    ).second
-                }
+        }
+        if (tabletop == null) {
+            val bookRight = book?.let {
+                bookHalves(
+                    IntSize(viewport.width.roundToInt().coerceAtLeast(1), viewport.height.roundToInt().coerceAtLeast(1)),
+                    it.foldBounds,
+                ).second
+            }
+            AnimatedVisibility(
+                visible = overlayShown,
+                enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
+                exit = fadeOut(tween(END_NOTICE_FADE_MILLIS)),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .then(
+                        if (bookRight != null && bookRight.width > foldExclusionPx) {
+                            Modifier
+                                .offset { IntOffset(bookRight.left + foldExclusionPx, 0) }
+                                .width(with(density) {
+                                    (bookRight.width - foldExclusionPx).coerceAtLeast(0).toDp()
+                                })
+                        } else {
+                            Modifier.fillMaxWidth()
+                        },
+                    ),
+            ) {
                 ReaderOverlayBottom(
                     pageCount = pageCount,
                     currentPage = currentPage,
@@ -563,19 +619,8 @@ private fun ReaderScreenContent(
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .then(
-                            if (bookRight != null && bookRight.width > foldExclusionPx) {
-                                Modifier
-                                    .offset { IntOffset(bookRight.left + foldExclusionPx, 0) }
-                                    .width(with(density) {
-                                        (bookRight.width - foldExclusionPx).coerceAtLeast(0).toDp()
-                                    })
-                            } else {
-                                Modifier.fillMaxWidth()
-                            },
-                        )
-                        .onSizeChanged { bottomBarHeight = it.height },
+                        .onSizeChanged { bottomBarHeight = it.height }
+                        .then(overlayTouchResetter),
                 )
             }
         }
