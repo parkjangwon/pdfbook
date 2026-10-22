@@ -73,3 +73,4 @@ PDFBook is a PDF book reader for Android (Android 15 or later).
 ## 개발
 
 빌드와 기여 방법은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+Design: [docs/DESIGN.md](docs/DESIGN.md) (synced team design system) and [docs/DESIGN-EXCEPTIONS.md](docs/DESIGN-EXCEPTIONS.md) (PDFBook rules).

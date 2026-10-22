@@ -1,52 +1,132 @@
-# PDFBook DESIGN.md
+> **Synced copy, do not edit here.** This file is synced from the team design system, v1.0 (2026-10-22).
+> Shared changes go to the team design system source, not to this file; they reach this repo through the next sync.
+> Project-specific rules live in [DESIGN-EXCEPTIONS.md](DESIGN-EXCEPTIONS.md).
 
-PDFBook UI 작업의 기준 문서. 색 값의 원본은 `ui/theme/Tokens.kt` 하나이고, 이 문서는 규칙을 적는다.
-바탕: Cursor 디자인 시스템을 PDF 책 리더에 맞게 옮김(파스텔·그라데이션·로고·CursorGothic 제외).
+# Team Design System
 
-## 1. 원칙
-1. 책 페이지가 주인공이다. 앱 크롬은 크림·잉크 두 색으로 조용히, 리더는 검정 바탕 + 중립 회색 오버레이.
-2. 강조색은 오렌지 하나. 진행·슬라이더·스위치 같은 표시에만 쓰고 글자 바탕으로 쓰지 않는다.
-3. 깊이는 그림자가 아니라 1dp 선과 바탕 단계로 만든다. 그라데이션 금지.
-4. 모든 색은 토큰으로. 화면 코드에 `Color(0x…)`를 쓰지 않는다. colorScheme 자리는 전부 채운다(빈 자리는 M3 기본 보라가 샌다).
-5. 루트는 항상 `Surface(color = colorScheme.background)`로 감싼다. 창 배경(windowBackground)도 같은 값.
+Version: v1.0 (2026-10-22)
 
-## 2. 색
-- 라이트: background #F7F7F4, 글자 #26251E, 보조 글자 #5A5852, 카드 #FFFFFF, 선 #E6E5E0, 오렌지 #F54E00.
-- 다크(따뜻한 톤): background #1B1A16, 글자 #EDEBE4, 보조 #B6B2A7, 카드 #23221D, 선 #36342D, 오렌지 #FF8A50.
-- 리더(테마 무관): 바탕 #000000, 오버레이 #161616(94%), 글자 #EDEDED, 보조 #A8A8A8, 트랙 #3A3A3A, 슬라이더 #FF8A50.
-- 전체 표: `design/tokens-v3.md` 참고(M3 36자리 + 확장 + 리더).
-- 대비: 본문 4.5:1 이상, 아이콘·막대·스위치 3:1 이상. muted(#807D72/#8F8B80)는 비활성 표시 전용.
+This is the shared design system for the team's Android apps (Kotlin, Jetpack Compose, Material 3).
+It sets the rules. Each project's color source is a single `ui/theme/Tokens.kt` file that must match the values here.
+Project-specific rules live in that project's `docs/DESIGN-EXCEPTIONS.md`. An exception must be written down there; anything not listed follows this document.
 
-## 3. 버튼
-- 주요 버튼(글자 있음): 잉크 버튼. 라이트 #26251E 위 #F7F7F4, 다크 #EDEBE4 위 #1B1A16. 높이 40, 모서리 8.
-- 보조 버튼: 카드색 바탕 + hairlineStrong 1dp 선 + 잉크 글자.
-- 텍스트 버튼: 잉크 글자만. 위험 동작(목록에서 삭제)은 error 색 글자.
-- FAB(폴더 추가): 잉크 버튼 모양, 모서리 12, 그림자 0.
-- 오렌지 바탕 + 흰 글자 버튼은 쓰지 않는다(3.52:1, 미달).
+Origin: adapted from the Cursor design system, without its pastels, gradients, logo or paid typeface.
 
-## 4. 글자
-- Pretendard. 제목은 굵기 400 + 음수 자간(24sp -0.5, 20sp -0.3), 카드 제목만 600.
-- 숫자(쪽수 `3 / 7`, `42%`, `책 12권`, `2.0×`, 버전)는 JetBrains Mono 숫자 서브셋(0-9 . , % / × : - 공백). 글자에는 쓰지 않는다.
-- 단계표는 tokens-v3.md 참고.
+## Changelog
+- v1.0 (2026-10-22): first shared version. Made project-neutral from the PDFBook design doc. The full token table (formerly a separate tokens file) is merged into section 2. Added the 12 Material 3 "fixed" color slots to the table. Wrote down two rules that were already practice: Korean copy uses the polite 해요 tone, and transient messages use Snackbar, not Toast. Added the dialog corner (16), "use the type scale, not raw fontSize", "no Bold or Medium weights", and the exceptions mechanism.
 
-## 5. 모양·간격
-- 모서리: 표지 6~8, 카드 12, 버튼·세그먼트 8, 칩·배지·스위치 완전 둥글게, 시트 위쪽 16.
-- 간격 4dp 단위. 화면 좌우 여백 16(접힘)·24(펼침).
-- 카드 = surfaceContainer + 1dp outlineVariant, 그림자 0.
+## 1. Principles
+1. Content is the hero. App chrome stays quiet in two colors, cream and ink.
+2. One accent color, orange. Use it only for indicators (progress, sliders, switches, a single stroke in illustrations), never as a background behind text.
+3. Depth comes from 1dp lines and surface steps, not shadows. No gradients.
+4. Every color comes from a token. Screen code never uses `Color(0x…)`. Fill every Material color slot; an empty slot leaks the default M3 purple.
+5. The root is always wrapped in `Surface(color = colorScheme.background)`, and the window background (`android:windowBackground`) uses the same value in light and dark.
 
-## 6. 화면별 규칙
-- 폴더 목록(F2): 카드마다 폴더 이름, 경로 한 줄, `책 %d권`, 표지 4장 미리보기, 이어 읽기 줄(오렌지 막대). 접근 불가 폴더는 표지를 흐리게 하고 "폴더 다시 고르기" 보조 버튼.
-- 서재: 표지 그리드, 표지 아래 제목·진행 막대·%(숫자 글꼴). 접힘 2열, 펼침 4열 이상.
-- 리더 오버레이: 위·아래 바만, 중립 회색. 오렌지는 슬라이더 손잡이와 채운 부분만. 아이콘 흰색 계열.
-- 설정: 섹션 라벨(labelSmall, 보조 글자색) + 12 모서리 그룹 카드. 테마는 세그먼트(시스템/라이트/다크), 선택 칸은 잉크 바탕.
-- 빈 화면: 선 그림 아이콘(오렌지 한 획) + titleLarge + bodyMedium + 잉크 주요 버튼.
+## 2. Color
+Summary
+- Light: background #F7F7F4, text #26251E, secondary text #5A5852, card #FFFFFF, line #E6E5E0, orange #F54E00.
+- Dark (warm): background #1B1A16, text #EDEBE4, secondary #B6B2A7, card #23221D, line #36342D, orange #FF8A50.
+- Contrast: body text at least 4.5:1; icons, bars and switches at least 3:1. `muted` (#807D72 / #8F8B80) is for disabled states only (4.1:1 on cards), never small text.
 
-## 7. 아이콘·모션
-- 아이콘은 SVG/벡터, 선 굵기 1.75~2dp, 24dp. 이모지 금지.
-- 모션은 `MotionScheme.standard()`. 리더 오버레이는 페이드만.
+Material 3 color scheme (all 48 slots; Material 3 1.4 or newer)
+| Slot | Light | Dark |
+|---|---|---|
+| background / surface / surfaceTint | #F7F7F4 | #1B1A16 |
+| onBackground / onSurface | #26251E | #EDEBE4 |
+| surfaceVariant | #E6E5E0 | #36342D |
+| onSurfaceVariant | #5A5852 | #B6B2A7 |
+| surfaceContainerLowest | #FFFFFF | #141310 |
+| surfaceContainerLow | #FAFAF7 | #1F1E1A |
+| surfaceContainer | #FFFFFF | #23221D |
+| surfaceContainerHigh | #F2F1EC | #2C2A24 |
+| surfaceContainerHighest | #EFEEE8 | #36342D |
+| surfaceBright | #FFFFFF | #3A3831 |
+| surfaceDim | #E6E5E0 | #1B1A16 |
+| primary | #F54E00 | #FF8A50 |
+| onPrimary | #FFFFFF | #2A1000 |
+| primaryContainer | #FDE3D6 | #4A1E08 |
+| onPrimaryContainer | #5A1C00 | #FFDCCB |
+| secondary, tertiary | #26251E | #EDEBE4 |
+| onSecondary, onTertiary | #F7F7F4 | #1B1A16 |
+| secondaryContainer, tertiaryContainer | #E6E5E0 | #36342D |
+| onSecondaryContainer, onTertiaryContainer | #26251E | #EDEBE4 |
+| outline | #807D72 | #8F8B80 |
+| outlineVariant | #E6E5E0 | #36342D |
+| error | #CF2D56 | #FF8FA8 |
+| onError | #FFFFFF | #4A0A1E |
+| errorContainer | #FBE1E7 | #6B1A33 |
+| onErrorContainer | #5C0A22 | #FFD9E1 |
+| inverseSurface | #26251E | #EDEBE4 |
+| inverseOnSurface | #F7F7F4 | #1B1A16 |
+| inversePrimary | #FF8A50 | #F54E00 |
+| scrim | #000000 | #000000 |
+| primaryFixed (= primaryContainer) | #FDE3D6 | #4A1E08 |
+| primaryFixedDim (= primary) | #F54E00 | #FF8A50 |
+| onPrimaryFixed, onPrimaryFixedVariant (= onPrimaryContainer) | #5A1C00 | #FFDCCB |
+| secondaryFixed, tertiaryFixed (= secondaryContainer) | #E6E5E0 | #36342D |
+| secondaryFixedDim, tertiaryFixedDim (= secondary) | #26251E | #EDEBE4 |
+| onSecondaryFixed, onSecondaryFixedVariant, onTertiaryFixed, onTertiaryFixedVariant (= onSecondaryContainer) | #26251E | #EDEBE4 |
 
-## 8. 하지 않는 것
-타임라인 파스텔, 그라데이션, 그림자 있는 카드, Cursor 로고, 다른 앱 UI·아이콘 복제, 동적 색(Material You).
+Extended tokens (outside M3, passed through a `CompositionLocal`, read as `MaterialTheme.extendedColors`)
+| Name | Light | Dark |
+|---|---|---|
+| hairline | #E6E5E0 | #36342D |
+| hairlineStrong | #CFCDC4 | #4A473F |
+| muted | #807D72 | #8F8B80 |
+| inkButton | #26251E | #EDEBE4 |
+| onInkButton | #F7F7F4 | #1B1A16 |
+| success | #1F8A65 | #5CC49A |
 
-## 9. 문구
-- 앱 안 문구에 "만화", "comic", "manga"를 쓰지 않는다. "책"(영어 book)으로 쓴다. 예: "책 폴더 / Book folders", "책 폴더를 골라 주세요 / Choose your book folder".
+Checked contrast (light/dark): body 14.3/14.6, body on card 15.4/13.4, secondary 6.6/8.2, orange indicator on background 3.28/7.47, orange on bar track 3.02/5.34, ink button 14.3/14.6.
+
+## 3. Type
+- Pretendard (Regular and SemiBold only). Headings use weight 400 with negative tracking; only card titles use 600. Don't use Bold or Medium (they are not bundled and get faked).
+- Numbers (page counts, `42%`, `$12.40`, counts, zoom, versions) use a JetBrains Mono subset (0-9 . , % / × : - and space; add a symbol such as `$` to the subset and the numeric regex if the project needs it). Never use it for letters.
+- Use the type scale through `MaterialTheme.typography`; avoid raw `fontSize` in screen code.
+
+| Style | Size (sp) | Weight | Tracking | Use |
+|---|---|---|---|---|
+| headlineSmall | 24 | 400 | -0.5 | Main list title |
+| titleLarge | 20 | 400 | -0.3 | Screen title, empty-state title |
+| titleMedium | 16 | 600 | 0 | Card title, item title |
+| bodyLarge | 15 | 400 | 0 | Settings items |
+| bodyMedium | 14 | 400 | 0 | Explanatory sentences |
+| bodySmall | 12 | 400 | 0 | Secondary lines |
+| labelSmall | 11 | 600 | +0.4 | Section labels, badges, chips |
+| numeric | 11–13 | 400 | -0.2 | JetBrains Mono, numbers only |
+
+## 4. Shape, spacing, elevation
+- Corners: covers/thumbnails 6–8, cards and grouped cards 12, buttons and segments 8, dialogs 16, bottom-sheet top 16, chips/badges/switches/pills fully rounded.
+- Spacing on a 4dp grid (4/8/12/16/20/24/32). Screen side margins 16 (compact) and 24 (expanded/unfolded).
+- Card = surfaceContainer + 1dp outlineVariant (hairline). Elevation and shadow 0 everywhere, including FABs, buttons and dragged items (show drag state with a border instead).
+
+## 5. Components
+- Primary button (with text): ink button. Light #26251E on #F7F7F4, dark #EDEBE4 on #1B1A16. Height 40, corner 8.
+- Secondary button: card color + 1dp hairlineStrong border + ink text.
+- Text button: ink text only. Destructive actions use error-colored text.
+- FAB: ink button style, corner 12, no shadow.
+- Never orange background with white text (3.52:1, fails).
+- Progress bar: primary fill on surfaceContainerHighest track, `StrokeCap.Butt`, no gap, no stop indicator.
+- Segmented control: selected segment uses inkButton/onInkButton; unselected uses surfaceContainer with hairlineStrong border.
+- Switch: on = primary.
+- Transient messages: Snackbar (the project's themed Snackbar host), not `Toast`.
+- Settings: section label (labelSmall, secondary text color) + grouped card with corner 12. If the app offers a theme choice, use a segment (System / Light / Dark).
+- Empty state: line illustration (one orange stroke) + titleLarge + bodyMedium + ink primary button.
+- Dialogs: corner 16 (`shapes.extraLarge`), a surfaceContainer-family background (the M3 default surfaceContainerHigh is fine), title at weight 400 (M3 default headlineSmall or titleLarge; never Bold).
+
+## 6. Icons and motion
+- Icons are SVG/vector line icons, stroke 1.75–2dp on a 24dp grid. No filled icon sets. No emoji anywhere in the UI.
+- Motion uses `MotionScheme.standard()`. Overlays on content only fade.
+
+## 7. Don't
+Pastels, gradients, cards with shadows, the Cursor logo, copies of other apps' UI or icons, dynamic color (Material You), emoji in the UI.
+
+## 8. Copy
+- Korean UI copy uses the polite 해요 tone ("골라 주세요", "최신 버전이에요", "받지 못했어요"). Not 합니다/습니다, not plain imperatives ("확인하세요" → "확인해 보세요"). Write "해 주세요" with a space.
+- This covers everything a user can read: labels, empty states, dialogs, Snackbars, notifications and error messages shown from data or network layers.
+- English copy is short and natural, in sentence case.
+- Every user-facing string lives in Android resources (Korean default, English in `values-en`), not in Kotlin literals.
+
+## 9. Implementation and checks
+- `ui/theme/Tokens.kt` is the only file with color values; `Theme.kt` wires the color scheme and extended colors; `Type.kt` and `Shape.kt` hold the scales above.
+- Recommended guard tests: no `Color(0x…)` outside Tokens.kt, token contrast, font charset, icon stroke geometry, and a scan for 합니다-style endings and emoji in user-facing strings.
