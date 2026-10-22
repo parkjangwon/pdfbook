@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
 import org.parkjw.apps.pdfbook.settings.TwoPageMode
 
 @Composable
@@ -38,6 +39,8 @@ fun ReaderRoute(
     onTitleToastShown: () -> Unit = {},
     keepZoom: Boolean = false,
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
+    pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
+    eInkMode: Boolean = false,
 ) {
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
@@ -145,6 +148,8 @@ fun ReaderRoute(
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,
+                    pageTurnAnimation = pageTurnAnimation,
+                    eInkMode = eInkMode,
                 )
             }
         }

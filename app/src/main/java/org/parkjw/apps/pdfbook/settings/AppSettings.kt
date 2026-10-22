@@ -47,4 +47,8 @@ data class AppSettings(
     val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     val showDotFiles: Boolean = false,
     val keepZoomOnTurn: Boolean = false,
+    val eInkMode: Boolean = false,
 )
+
+fun shouldAnimatePageTurn(eInkMode: Boolean, pageTurnAnimation: PageTurnAnimation): Boolean =
+    !eInkMode && pageTurnAnimation == PageTurnAnimation.Slide

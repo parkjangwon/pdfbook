@@ -1,6 +1,8 @@
 package org.parkjw.apps.pdfbook
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -51,14 +53,15 @@ fun JumpBackHost(
     bottomInset: Dp,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    animate: Boolean = true,
 ) {
     val last = remember { IntArray(1) }
     if (page != null) last[0] = page
     Box(modifier.fillMaxSize()) {
         AnimatedVisibility(
             visible = page != null,
-            enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
-            exit = fadeOut(tween(END_NOTICE_FADE_MILLIS)),
+            enter = if (animate) fadeIn(tween(END_NOTICE_FADE_MILLIS)) else EnterTransition.None,
+            exit = if (animate) fadeOut(tween(END_NOTICE_FADE_MILLIS)) else ExitTransition.None,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = bottomInset),

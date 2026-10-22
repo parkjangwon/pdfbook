@@ -1,6 +1,8 @@
 package org.parkjw.apps.pdfbook
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -66,6 +68,7 @@ fun EndNoticeHost(
     bottomInset: Dp,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    animate: Boolean = true,
 ) {
     val last = remember { arrayOfNulls<EndNotice>(1) }
     if (notice != null) last[0] = notice
@@ -81,8 +84,8 @@ fun EndNoticeHost(
         Box(area) {
             AnimatedVisibility(
                 visible = notice != null,
-                enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
-                exit = fadeOut(tween(END_NOTICE_FADE_MILLIS)),
+                enter = if (animate) fadeIn(tween(END_NOTICE_FADE_MILLIS)) else EnterTransition.None,
+                exit = if (animate) fadeOut(tween(END_NOTICE_FADE_MILLIS)) else ExitTransition.None,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = END_NOTICE_SIDE_MARGIN, end = END_NOTICE_SIDE_MARGIN, bottom = bottomInset),

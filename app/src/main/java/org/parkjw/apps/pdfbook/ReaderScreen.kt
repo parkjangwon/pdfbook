@@ -88,6 +88,8 @@ import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 import kotlin.math.roundToInt
+import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
+import org.parkjw.apps.pdfbook.settings.shouldAnimatePageTurn
 
 @Composable
 fun ReaderScreen(
@@ -116,6 +118,8 @@ fun ReaderScreen(
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
+    eInkMode: Boolean = false,
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -144,6 +148,8 @@ fun ReaderScreen(
             initialJumpBack = jumpBack,
             keepZoom = keepZoom,
             posture = posture,
+            pageTurnAnimation = pageTurnAnimation,
+            eInkMode = eInkMode,
         )
     }
 }
@@ -175,6 +181,8 @@ private fun ReaderScreenContent(
     initialJumpBack: JumpBack?,
     keepZoom: Boolean,
     posture: FoldPosture,
+    pageTurnAnimation: PageTurnAnimation,
+    eInkMode: Boolean,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -260,7 +268,13 @@ private fun ReaderScreenContent(
         val target = pagerTargetIndex(pagerState.targetPage, delta, pagerState.pageCount)
         if (target != pagerState.targetPage) {
             jumpBack = null
-            scope.launch { pagerState.animateScrollToPage(target) }
+            scope.launch {
+                if (shouldAnimatePageTurn(eInkMode, pageTurnAnimation)) {
+                    pagerState.animateScrollToPage(target)
+                } else {
+                    pagerState.scrollToPage(target)
+                }
+            }
         } else if (isTurnPastEnd(pagerState.targetPage, delta, pagerState.pageCount)) {
             nextAtEnd()
         }
@@ -592,11 +606,13 @@ private fun ReaderScreenContent(
             direction = direction,
             bottomInset = noticeInset,
             onOpen = ::openNextBook,
+            animate = !eInkMode,
         )
         JumpBackHost(
             page = if (jumpBackShown) jumpBack?.page else null,
             bottomInset = noticeInset,
             onClick = ::jumpBackNow,
+            animate = !eInkMode,
         )
         if (showTitleToast) {
             BookChangedToast(

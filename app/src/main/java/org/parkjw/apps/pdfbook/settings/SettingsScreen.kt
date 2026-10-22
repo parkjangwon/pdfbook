@@ -424,6 +424,13 @@ private fun ReadingSettingsScreen(
                 )
                 GroupDivider()
                 SwitchRow(
+                    title = stringResource(R.string.settings_e_ink_mode),
+                    supporting = stringResource(R.string.settings_e_ink_mode_desc),
+                    checked = settings.eInkMode,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(eInkMode = checked) } },
+                )
+                GroupDivider()
+                SwitchRow(
                     title = stringResource(R.string.settings_volume_key_paging),
                     checked = settings.volumeKeyPaging,
                     onCheckedChange = { checked -> onSettingsChange { it.copy(volumeKeyPaging = checked) } },
