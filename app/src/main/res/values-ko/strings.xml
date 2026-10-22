@@ -55,6 +55,8 @@
     <string name="settings_page_turn_animation">넘김 애니메이션</string>
     <string name="settings_animation_slide">슬라이드</string>
     <string name="settings_animation_none">없음</string>
+    <string name="settings_animation_curl">책 넘기기</string>
+    <string name="settings_animation_curl_desc">한쪽 보기에서만 써요. 두쪽 보기에서는 슬라이드로 넘겨요.</string>
     <string name="settings_volume_key_paging">볼륨 키로 넘기기</string>
     <string name="settings_keep_screen_on">화면 켜짐 유지</string>
     <string name="settings_tap_zone_guide">탭 영역 안내 표시</string>

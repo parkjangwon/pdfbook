@@ -29,6 +29,7 @@ enum class AppLanguage {
 enum class PageTurnAnimation {
     Slide,
     None,
+    Curl,
 }
 
 data class AppSettings(
