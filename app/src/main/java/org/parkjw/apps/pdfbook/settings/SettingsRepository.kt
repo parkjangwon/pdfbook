@@ -15,6 +15,7 @@ import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import org.parkjw.apps.pdfbook.autoTurnSecondsOrDefault
 import org.parkjw.apps.pdfbook.normalizeTapZoneSidePercent
 
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
@@ -50,6 +51,7 @@ class SettingsRepository(
         val TapZoneSidePercentKey = intPreferencesKey("tap_zone_side_percent")
         val ShowDotFilesKey = booleanPreferencesKey("show_dot_files")
         val KeepZoomOnTurnKey = booleanPreferencesKey("keep_zoom_on_turn")
+        val AutoTurnSecondsKey = intPreferencesKey("auto_turn_seconds")
     }
 }
 
@@ -80,6 +82,9 @@ internal fun Preferences.toAppSettings(): AppSettings {
         ),
         showDotFiles = this[SettingsRepository.ShowDotFilesKey] ?: defaults.showDotFiles,
         keepZoomOnTurn = this[SettingsRepository.KeepZoomOnTurnKey] ?: defaults.keepZoomOnTurn,
+        autoTurnSeconds = autoTurnSecondsOrDefault(
+            this[SettingsRepository.AutoTurnSecondsKey] ?: defaults.autoTurnSeconds,
+        ),
     )
 }
 
@@ -99,6 +104,7 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.TapZoneSidePercentKey] = normalizeTapZoneSidePercent(settings.tapZoneSidePercent)
     this[SettingsRepository.ShowDotFilesKey] = settings.showDotFiles
     this[SettingsRepository.KeepZoomOnTurnKey] = settings.keepZoomOnTurn
+    this[SettingsRepository.AutoTurnSecondsKey] = autoTurnSecondsOrDefault(settings.autoTurnSeconds)
 }
 
 private inline fun <reified T : Enum<T>> enumOrDefault(raw: String?, default: T): T {

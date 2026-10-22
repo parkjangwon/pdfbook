@@ -38,6 +38,8 @@ fun ReaderRoute(
     onTitleToastShown: () -> Unit = {},
     keepZoom: Boolean = false,
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
+    autoTurnSeconds: Int = AUTO_TURN_DEFAULT_SECONDS,
+    onAutoTurnSecondsChange: (Int) -> Unit = {},
 ) {
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
@@ -145,6 +147,8 @@ fun ReaderRoute(
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,
+                    autoTurnSeconds = autoTurnSeconds,
+                    onAutoTurnSecondsChange = onAutoTurnSecondsChange,
                 )
             }
         }

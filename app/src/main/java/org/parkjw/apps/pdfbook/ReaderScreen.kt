@@ -39,6 +39,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,11 +57,13 @@ import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,6 +75,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookReaderSlider
 import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
@@ -116,6 +121,8 @@ fun ReaderScreen(
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    autoTurnSeconds: Int = AUTO_TURN_DEFAULT_SECONDS,
+    onAutoTurnSecondsChange: (Int) -> Unit = {},
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -144,6 +151,8 @@ fun ReaderScreen(
             initialJumpBack = jumpBack,
             keepZoom = keepZoom,
             posture = posture,
+            autoTurnSeconds = autoTurnSeconds,
+            onAutoTurnSecondsChange = onAutoTurnSecondsChange,
         )
     }
 }
@@ -175,6 +184,8 @@ private fun ReaderScreenContent(
     initialJumpBack: JumpBack?,
     keepZoom: Boolean,
     posture: FoldPosture,
+    autoTurnSeconds: Int,
+    onAutoTurnSecondsChange: (Int) -> Unit,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -200,7 +211,14 @@ private fun ReaderScreenContent(
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
-    val sheetOpen = widthSheetVisible || (bookListVisible && volumes.bookList != null)
+    var autoTurnSheetVisible by remember { mutableStateOf(false) }
+    var autoTurnRunning by remember { mutableStateOf(false) }
+    var autoTurnSecondsState by remember(autoTurnSeconds) {
+        mutableIntStateOf(autoTurnSecondsOrDefault(autoTurnSeconds))
+    }
+    var autoTurnStatus by remember { mutableStateOf<AutoTurnStatus?>(null) }
+    val sheetOpen = widthSheetVisible || autoTurnSheetVisible ||
+        (bookListVisible && volumes.bookList != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
     TrimCacheOnMemoryPressure(renderer)
@@ -306,6 +324,72 @@ private fun ReaderScreenContent(
         zoom = zoom.toggleDoubleTap()
     }
 
+    fun stopAutoTurn() {
+        if (!autoTurnRunning) return
+        autoTurnRunning = false
+        autoTurnStatus = AutoTurnStatus.Stopped
+    }
+
+    fun startAutoTurn(seconds: Int) {
+        val value = autoTurnSecondsOrDefault(seconds)
+        autoTurnSecondsState = value
+        onAutoTurnSecondsChange(value)
+        autoTurnSheetVisible = false
+        overlayVisible = false
+        endNotice = null
+        jumpBack = null
+        autoTurnStatus = AutoTurnStatus.Running(value)
+        autoTurnRunning = true
+    }
+
+    fun showNextBookNotice() {
+        val step = endStep(null, currentVolumes.nextBook) as EndStep.Show
+        endNotice = step.notice
+        endNoticeToken++
+    }
+
+    LaunchedEffect(autoTurnRunning, autoTurnSecondsState) {
+        if (!autoTurnRunning) return@LaunchedEffect
+        runAutoTurn(autoTurnIntervalMillis(autoTurnSecondsState)) {
+            val next = autoTurnNextIndex(pagerState.targetPage, pagerState.pageCount)
+            if (next == null) {
+                stopAutoTurn()
+                showNextBookNotice()
+                false
+            } else {
+                goTo(TapZone.Next.pageDelta)
+                if (next >= pagerState.pageCount - 1) {
+                    stopAutoTurn()
+                    showNextBookNotice()
+                    false
+                } else {
+                    true
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(autoTurnStatus) {
+        if (autoTurnStatus == null) return@LaunchedEffect
+        delay(AUTO_TURN_STATUS_MILLIS)
+        autoTurnStatus = null
+    }
+
+    LaunchedEffect(overlayVisible) {
+        if (overlayVisible) stopAutoTurn()
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        stopAutoTurn()
+    }
+
+    val view = LocalView.current
+    DisposableEffect(autoTurnRunning) {
+        val previous = view.keepScreenOn
+        view.keepScreenOn = autoTurnRunning
+        onDispose { view.keepScreenOn = previous }
+    }
+
     val density = LocalDensity.current
     val foldExclusionPx = with(density) { FOLD_EXCLUSION_DP.dp.roundToPx() }
     val tabletop = posture as? FoldPosture.Tabletop
@@ -320,7 +404,16 @@ private fun ReaderScreenContent(
             .onSizeChanged { viewport = Size(it.width.toFloat(), it.height.toFloat()) }
             .background(ReaderBackground),
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        stopAutoTurn()
+                    }
+                },
+        ) {
             val window = IntSize(constraints.maxWidth, constraints.maxHeight)
             val tabletopSplit = tabletop?.let { tabletopHalves(window, it.foldBounds) }
             val pageArea = tabletopSplit?.first
@@ -511,6 +604,26 @@ private fun ReaderScreenContent(
                 onDone = { widthSheetVisible = false },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        } else if (autoTurnSheetVisible) {
+            BackHandler { autoTurnSheetVisible = false }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { autoTurnSheetVisible = false },
+                    ),
+            )
+            AutoTurnSheet(
+                seconds = autoTurnSecondsState,
+                onSecondsChange = { value ->
+                    autoTurnSecondsState = value
+                    onAutoTurnSecondsChange(value)
+                },
+                onStart = { startAutoTurn(autoTurnSecondsState) },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         } else if (bookListVisible && volumes.bookList != null) {
             BackHandler { bookListVisible = false }
             BookListSheet(
@@ -560,6 +673,8 @@ private fun ReaderScreenContent(
                         zoom = ZoomState()
                         widthSheetVisible = true
                     },
+                    autoTurnSeconds = autoTurnSecondsState,
+                    onOpenAutoTurn = { autoTurnSheetVisible = true },
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
                     modifier = Modifier
@@ -597,6 +712,15 @@ private fun ReaderScreenContent(
             page = if (jumpBackShown) jumpBack?.page else null,
             bottomInset = noticeInset,
             onClick = ::jumpBackNow,
+        )
+        val autoTurnStatusText = when (val status = autoTurnStatus) {
+            is AutoTurnStatus.Running -> stringResource(R.string.reader_auto_turn_running, status.seconds)
+            AutoTurnStatus.Stopped -> stringResource(R.string.reader_auto_turn_stopped)
+            null -> null
+        }
+        AutoTurnStatusHost(
+            text = autoTurnStatusText,
+            bottomInset = noticeInset + if (endNotice != null) 64.dp else 0.dp,
         )
         if (showTitleToast) {
             BookChangedToast(
@@ -888,6 +1012,8 @@ private fun ReaderOverlayBottom(
     onSeekFinished: () -> Unit,
     showTapZoneEntry: Boolean,
     onAdjustTapZones: () -> Unit,
+    autoTurnSeconds: Int,
+    onOpenAutoTurn: () -> Unit,
     modifier: Modifier = Modifier,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
@@ -906,6 +1032,7 @@ private fun ReaderOverlayBottom(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        AutoTurnEntry(seconds = autoTurnSeconds, onClick = onOpenAutoTurn)
         if (showTapZoneEntry) {
             TapZoneEntry(onClick = onAdjustTapZones)
         }
@@ -952,6 +1079,35 @@ private fun ReaderOverlayBottom(
             text = stringResource(R.string.progress, currentPage, pageCount),
             style = PdfBookNumeric.copy(fontSize = 13.sp, color = ReaderOnOverlay),
             modifier = Modifier.align(Alignment.CenterHorizontally).testTag("reader_progress"),
+        )
+    }
+}
+
+@Composable
+private fun AutoTurnEntry(seconds: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("reader_auto_turn")
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics(mergeDescendants = true) {}
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.reader_auto_turn),
+            color = ReaderOnOverlayVariant,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = stringResource(
+                R.string.reader_auto_turn_interval,
+                autoTurnSecondsOrDefault(seconds),
+            ),
+            color = ReaderOnOverlay,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
