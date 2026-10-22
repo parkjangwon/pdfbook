@@ -1,5 +1,6 @@
 package org.parkjw.apps.pdfbook.settings
 
+import android.content.pm.ActivityInfo
 import org.parkjw.apps.pdfbook.DEFAULT_TAP_ZONE_SIDE_PERCENT
 import org.parkjw.apps.pdfbook.ReadingDirection
 
@@ -31,6 +32,18 @@ enum class PageTurnAnimation {
     None,
 }
 
+enum class ScreenOrientation {
+    Auto,
+    Portrait,
+    Landscape,
+}
+
+fun ScreenOrientation.toActivityOrientation(): Int = when (this) {
+    ScreenOrientation.Auto -> ActivityInfo.SCREEN_ORIENTATION_USER
+    ScreenOrientation.Portrait -> ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+    ScreenOrientation.Landscape -> ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+}
+
 data class AppSettings(
     val startScreen: StartScreen = StartScreen.Folders,
     val themeMode: ThemeMode = ThemeMode.System,
@@ -42,6 +55,7 @@ data class AppSettings(
     val language: AppLanguage = AppLanguage.System,
     val showTapZoneGuide: Boolean = true,
     val pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
+    val screenOrientation: ScreenOrientation = ScreenOrientation.Auto,
     val doubleTapZoomScale: Float = 2f,
     val autoUpdateCheck: Boolean = true,
     val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
