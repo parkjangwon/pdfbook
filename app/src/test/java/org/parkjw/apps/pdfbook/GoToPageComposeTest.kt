@@ -7,20 +7,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -88,7 +92,15 @@ class GoToPageComposeTest {
     @Test
     fun tappingPageNumberOpensDialogWithRangeAndError() {
         setReader()
-        composeRule.onNodeWithContentDescription("쪽 번호로 이동").assertIsDisplayed()
+        val progress = composeRule.onNodeWithTag("reader_progress")
+        progress.assertTextEquals("12 / 120")
+        assertEquals(
+            "쪽 번호로 이동",
+            progress.fetchSemanticsNode().config[SemanticsActions.OnClick].label,
+        )
+        val progressBounds = progress.getUnclippedBoundsInRoot()
+        val progressHeight = progressBounds.bottom - progressBounds.top
+        assertTrue("progress touch target is $progressHeight", progressHeight >= 48.dp)
         openDialog()
         composeRule.onNodeWithTag(GO_TO_PAGE_FIELD_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("1~120").assertIsDisplayed()
@@ -141,6 +153,8 @@ class GoToPageComposeTest {
         composeRule.onNodeWithText("취소").performClick()
         composeRule.waitForIdle()
         composeRule.onAllNodesWithTag(GO_TO_PAGE_DIALOG_TAG).assertCountEquals(0)
+        // Also guards the reading position against focus falling back into an
+        // offscreen page's tap zone and scrolling the pager.
         assertEquals(12, kept)
         composeRule.onNodeWithText("12쪽으로 돌아가기").assertDoesNotExist()
     }

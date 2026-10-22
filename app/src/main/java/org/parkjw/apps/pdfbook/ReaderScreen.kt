@@ -54,7 +54,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -440,6 +439,9 @@ private fun ReaderScreenContent(
                                     modifier = Modifier
                                         .weight(span.width)
                                         .fillMaxHeight()
+                                        // Offscreen pages are pre-composed but invisible; letting them
+                                        // take focus makes bringIntoView scroll away when the go-to-page
+                                        // dialog releases focus.
                                         .focusProperties { canFocus = activePage }
                                         .testTag("reader_zone_" + span.zone.name)
                                         .then(
@@ -988,10 +990,13 @@ private fun ReaderOverlayBottom(
             style = PdfBookNumeric.copy(fontSize = 13.sp, color = ReaderOnOverlay),
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .testTag("reader_progress")
-                .clickable(role = Role.Button, onClick = onOpenGoToPage)
-                .semantics { contentDescription = goToPageLabel }
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = goToPageLabel,
+                    onClick = onOpenGoToPage,
+                )
+                .padding(horizontal = 16.dp, vertical = 22.dp)
+                .testTag("reader_progress"),
         )
     }
 }
