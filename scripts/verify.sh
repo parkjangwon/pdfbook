@@ -157,6 +157,9 @@ dismiss_foreign_anr() {
     sleep 2
     dump_raw
   done
+  if python3 "$ROOT/scripts/anr-wait.py" "$OUT/ui.xml" >/dev/null 2>&1; then
+    echo "verify: a system dialog is still on screen after 3 dismissals" >&2
+  fi
 }
 
 node_text() {
@@ -420,7 +423,9 @@ APP_PID="$("$ADB" shell pidof "$PKG" 2>/dev/null | tr -d '\r' || true)"
 if [ -n "$APP_PID" ]; then
   awk -v pid="$APP_PID" '$3 == pid' "$OUT/logcat.txt" >"$OUT/logcat-app.txt"
 fi
-grep -E 'FATAL EXCEPTION|ANR in' "$OUT/logcat.txt" >"$OUT/crashes.txt" || true
+# Only PDFBook's own crashes and ANRs fail the run. Other apps' (for example a
+# Pixel Launcher ANR dismissed above) are kept in foreign-crashes.txt.
+awk -v pkg="$PKG" -v foreign="$OUT/foreign-crashes.txt" -f "$ROOT/scripts/logcat-crashes.awk" "$OUT/logcat.txt" >"$OUT/crashes.txt" || true
 rm -f "$OUT/ui.xml"
 "$ADB" shell rm -rf "$DEVICE_DIR" /sdcard/pdfbook-ui.xml
 if [ -s "$OUT/crashes.txt" ]; then

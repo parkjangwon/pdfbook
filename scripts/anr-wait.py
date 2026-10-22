@@ -4,11 +4,17 @@
 Usage: anr-wait.py <ui.xml>
 Prints "<x> <y> <title>" and exits 0 when the dump shows a system ANR dialog
 for an app other than PDFBook. Exits 1 otherwise, including when the title is
-missing or empty, so PDFBook's own ANR is never dismissed.
+missing, empty or not a known ANR title, so PDFBook's own ANR is never dismissed.
 """
 import re
 import sys
 import xml.etree.ElementTree as ET
+
+# Only the known ANR title shapes count; anything else is left alone.
+ANR_TITLE = re.compile(
+    r"(?P<app>.+?) (?:isn't|is not|isn’t) responding"
+    r"|(?P<app_ko>.+?)(?:이\(가\)|이|가)? ?응답하지 않(?:음|습니다|아요)\.?"
+)
 
 
 def main(path: str) -> int:
@@ -24,7 +30,11 @@ def main(path: str) -> int:
     if wait is None or title is None:
         return 1
     text = title.get("text", "").strip()
-    if not text or re.search(r"pdfbook", text, re.IGNORECASE):
+    match = ANR_TITLE.fullmatch(text)
+    if not match:
+        return 1
+    app = match.group("app") or match.group("app_ko") or ""
+    if not app.strip() or re.search(r"pdfbook|parkjw", app, re.IGNORECASE):
         return 1
     coords = [int(n) for n in re.findall(r"\d+", wait.get("bounds", ""))]
     if len(coords) != 4:
