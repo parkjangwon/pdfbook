@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_page_nav">목차와 쪽 보기</string>
+    <string name="page_nav_tab_contents">목차</string>
+    <string name="page_nav_tab_pages">쪽</string>
+    <string name="page_nav_thumb_description">%1$d쪽으로 이동해요</string>
+</resources>
