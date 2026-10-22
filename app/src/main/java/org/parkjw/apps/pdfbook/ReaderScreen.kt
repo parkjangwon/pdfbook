@@ -115,8 +115,14 @@ fun ReaderScreen(
     endNotice: EndNotice? = null,
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
+    followSystemBrightness: Boolean = true,
+    brightnessPercent: Int = DEFAULT_READER_BRIGHTNESS_PERCENT,
+    onFollowSystemBrightnessChange: (Boolean) -> Unit = {},
+    onBrightnessChange: (Int) -> Unit = {},
+    brightnessSheetVisible: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
 ) {
+    ReaderBrightnessEffect(followSystemBrightness, brightnessPercent)
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
             renderer = renderer,
@@ -143,6 +149,11 @@ fun ReaderScreen(
             initialEndNotice = endNotice,
             initialJumpBack = jumpBack,
             keepZoom = keepZoom,
+            followSystemBrightness = followSystemBrightness,
+            brightnessPercent = brightnessPercent,
+            onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
+            onBrightnessChange = onBrightnessChange,
+            initialBrightnessSheetVisible = brightnessSheetVisible,
             posture = posture,
         )
     }
@@ -174,6 +185,11 @@ private fun ReaderScreenContent(
     initialEndNotice: EndNotice?,
     initialJumpBack: JumpBack?,
     keepZoom: Boolean,
+    followSystemBrightness: Boolean,
+    brightnessPercent: Int,
+    onFollowSystemBrightnessChange: (Boolean) -> Unit,
+    onBrightnessChange: (Int) -> Unit,
+    initialBrightnessSheetVisible: Boolean,
     posture: FoldPosture,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
@@ -182,6 +198,7 @@ private fun ReaderScreenContent(
     val scope = rememberCoroutineScope()
     var overlayVisible by remember { mutableStateOf(initialOverlayVisible) }
     var widthSheetVisible by remember { mutableStateOf(initialTapZoneWidthSheetVisible) }
+    var brightnessSheetVisible by remember { mutableStateOf(initialBrightnessSheetVisible) }
     var sidePercent by remember(tapZoneSidePercent) {
         mutableIntStateOf(normalizeTapZoneSidePercent(tapZoneSidePercent))
     }
@@ -200,7 +217,7 @@ private fun ReaderScreenContent(
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
-    val sheetOpen = widthSheetVisible || (bookListVisible && volumes.bookList != null)
+    val sheetOpen = widthSheetVisible || brightnessSheetVisible || (bookListVisible && volumes.bookList != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
     TrimCacheOnMemoryPressure(renderer)
@@ -511,6 +528,24 @@ private fun ReaderScreenContent(
                 onDone = { widthSheetVisible = false },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        } else if (brightnessSheetVisible) {
+            BackHandler { brightnessSheetVisible = false }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { brightnessSheetVisible = false },
+                    ),
+            )
+            ReaderBrightnessSheet(
+                followSystem = followSystemBrightness,
+                percent = brightnessPercent,
+                onFollowSystemChange = onFollowSystemBrightnessChange,
+                onPercentChange = onBrightnessChange,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         } else if (bookListVisible && volumes.bookList != null) {
             BackHandler { bookListVisible = false }
             BookListSheet(
@@ -560,6 +595,7 @@ private fun ReaderScreenContent(
                         zoom = ZoomState()
                         widthSheetVisible = true
                     },
+                    onOpenBrightness = { brightnessSheetVisible = true },
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
                     modifier = Modifier
@@ -888,6 +924,7 @@ private fun ReaderOverlayBottom(
     onSeekFinished: () -> Unit,
     showTapZoneEntry: Boolean,
     onAdjustTapZones: () -> Unit,
+    onOpenBrightness: () -> Unit,
     modifier: Modifier = Modifier,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
@@ -947,6 +984,16 @@ private fun ReaderOverlayBottom(
                 if (rightVolume == VolumeStep.Next) onNextBook else onPreviousBook,
                 Modifier.testTag("reader_volume_right"),
             )
+            IconButton(
+                onClick = onOpenBrightness,
+                colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+                modifier = Modifier.testTag("reader_brightness"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_brightness),
+                    contentDescription = stringResource(R.string.reader_brightness),
+                )
+            }
         }
         Text(
             text = stringResource(R.string.progress, currentPage, pageCount),

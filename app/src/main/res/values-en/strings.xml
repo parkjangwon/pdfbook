@@ -96,4 +96,7 @@
     <string name="reader_tap_width_value">%1$d%% · default %2$d%%</string>
     <string name="reader_tap_width_reset">Reset to default</string>
     <string name="reader_tap_width_done">Done</string>
+    <string name="reader_brightness">Brightness</string>
+    <string name="reader_brightness_system">Use system brightness</string>
+    <string name="reader_brightness_percent">%1$d%%</string>
 </resources>

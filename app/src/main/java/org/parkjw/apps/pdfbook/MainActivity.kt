@@ -691,6 +691,14 @@ private fun App(
                 tapZoneSidePercent = settings.tapZoneSidePercent,
                 keepZoom = settings.keepZoomOnTurn,
                 twoPageMode = settings.twoPageMode,
+                followSystemBrightness = settings.followSystemBrightness,
+                brightnessPercent = settings.readerBrightnessPercent,
+                onFollowSystemBrightnessChange = { follow ->
+                    onSettingsChange { it.copy(followSystemBrightness = follow) }
+                },
+                onBrightnessChange = { value ->
+                    onSettingsChange { it.copy(readerBrightnessPercent = normalizeReaderBrightnessPercent(value)) }
+                },
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 volumes = ReaderVolumes(
                     onPrevious = adjacent.previous?.let { { switchTo(it) } },

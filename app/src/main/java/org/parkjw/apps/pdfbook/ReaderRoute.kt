@@ -38,6 +38,10 @@ fun ReaderRoute(
     onTitleToastShown: () -> Unit = {},
     keepZoom: Boolean = false,
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
+    followSystemBrightness: Boolean = true,
+    brightnessPercent: Int = DEFAULT_READER_BRIGHTNESS_PERCENT,
+    onFollowSystemBrightnessChange: (Boolean) -> Unit = {},
+    onBrightnessChange: (Int) -> Unit = {},
 ) {
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
@@ -145,6 +149,10 @@ fun ReaderRoute(
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,
+                    followSystemBrightness = followSystemBrightness,
+                    brightnessPercent = brightnessPercent,
+                    onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
+                    onBrightnessChange = onBrightnessChange,
                 )
             }
         }
