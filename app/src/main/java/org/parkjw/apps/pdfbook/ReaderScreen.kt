@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -83,10 +84,17 @@ import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
 import kotlinx.coroutines.flow.Flow
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 @Composable
@@ -116,6 +124,8 @@ fun ReaderScreen(
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    autoCrop: Boolean = false,
+    onAutoCropChange: (Boolean) -> Unit = {},
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
@@ -144,6 +154,8 @@ fun ReaderScreen(
             initialJumpBack = jumpBack,
             keepZoom = keepZoom,
             posture = posture,
+            autoCrop = autoCrop,
+            onAutoCropChange = onAutoCropChange,
         )
     }
 }
@@ -175,7 +187,11 @@ private fun ReaderScreenContent(
     initialJumpBack: JumpBack?,
     keepZoom: Boolean,
     posture: FoldPosture,
+    autoCrop: Boolean,
+    onAutoCropChange: (Boolean) -> Unit,
 ) {
+    val cropRevision by renderer.cropUpdates.collectAsState(initial = 0)
+    SideEffect { renderer.setAutoCrop(autoCrop) }
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
@@ -413,6 +429,8 @@ private fun ReaderScreenContent(
                                 direction = direction,
                                 window = IntSize(constraints.maxWidth, constraints.maxHeight),
                                 tagged = activePage,
+                                autoCrop = autoCrop,
+                                cropRevision = cropRevision,
                             )
                         }
                         Row(Modifier.fillMaxSize()) {
@@ -562,6 +580,8 @@ private fun ReaderScreenContent(
                     },
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
+                    autoCrop = autoCrop,
+                    onAutoCropChange = onAutoCropChange,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .then(
@@ -616,6 +636,8 @@ private fun SpreadPageLayout(
     direction: ReadingDirection,
     window: IntSize,
     tagged: Boolean,
+    autoCrop: Boolean,
+    cropRevision: Int,
 ) {
     val book = posture as? FoldPosture.Book
     if (book != null) {
@@ -635,6 +657,10 @@ private fun SpreadPageLayout(
                     half = halves.first,
                     alignment = Alignment.CenterEnd,
                     tagged = tagged,
+                    spreadPages = layout,
+                    spreadIndex = 0,
+                    autoCrop = autoCrop,
+                    cropRevision = cropRevision,
                 )
                 BookHalfPage(
                     renderer = renderer,
@@ -642,6 +668,10 @@ private fun SpreadPageLayout(
                     half = halves.second,
                     alignment = Alignment.CenterStart,
                     tagged = tagged,
+                    spreadPages = layout,
+                    spreadIndex = 1,
+                    autoCrop = autoCrop,
+                    cropRevision = cropRevision,
                 )
             } else {
                 val half = bookSingleHalf(halves, direction)
@@ -651,6 +681,8 @@ private fun SpreadPageLayout(
                     half = half,
                     alignment = Alignment.Center,
                     tagged = tagged,
+                    autoCrop = autoCrop,
+                    cropRevision = cropRevision,
                 )
             }
         }
@@ -678,6 +710,10 @@ private fun SpreadPageLayout(
                     .fillMaxHeight()
                     .then(if (tagged) Modifier.testTag("reader_page_$page") else Modifier),
                 alignment = pageAlignment,
+                spreadPages = layout,
+                spreadIndex = index,
+                autoCrop = autoCrop,
+                cropRevision = cropRevision,
             )
         }
     }
@@ -690,6 +726,10 @@ private fun BookHalfPage(
     half: IntRect,
     alignment: Alignment,
     tagged: Boolean,
+    spreadPages: List<Int> = listOf(page),
+    spreadIndex: Int = 0,
+    autoCrop: Boolean = false,
+    cropRevision: Int = 0,
 ) {
     val density = LocalDensity.current
     if (half.width <= 0 || half.height <= 0) return
@@ -707,6 +747,10 @@ private fun BookHalfPage(
             maxHeight = half.height,
             modifier = Modifier.fillMaxSize(),
             alignment = alignment,
+            spreadPages = spreadPages,
+            spreadIndex = spreadIndex,
+            autoCrop = autoCrop,
+            cropRevision = cropRevision,
         )
     }
 }
@@ -891,6 +935,8 @@ private fun ReaderOverlayBottom(
     modifier: Modifier = Modifier,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
+    autoCrop: Boolean = false,
+    onAutoCropChange: (Boolean) -> Unit = {},
 ) {
     Column(
         modifier
@@ -909,6 +955,7 @@ private fun ReaderOverlayBottom(
         if (showTapZoneEntry) {
             TapZoneEntry(onClick = onAdjustTapZones)
         }
+        AutoCropEntry(checked = autoCrop, onCheckedChange = onAutoCropChange)
         Row(verticalAlignment = Alignment.CenterVertically) {
             val rtlBook = direction == ReadingDirection.RTL
             val leftVolume = volumeButtonAt(VolumeEnd.Left, rtlBook)
@@ -957,6 +1004,36 @@ private fun ReaderOverlayBottom(
 }
 
 @Composable
+private fun AutoCropEntry(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("reader_auto_crop")
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.reader_auto_crop_label),
+            color = ReaderOnOverlayVariant,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = ReaderOverlay,
+                checkedTrackColor = ReaderOnOverlay,
+                uncheckedThumbColor = ReaderOnOverlayVariant,
+                uncheckedTrackColor = ReaderTrack,
+                uncheckedBorderColor = ReaderTrack,
+            ),
+        )
+    }
+}
+
+@Composable
 private fun TapZoneEntry(onClick: () -> Unit) {
     Row(
         modifier = Modifier
@@ -990,11 +1067,15 @@ internal fun PageBitmap(
     maxHeight: Int,
     modifier: Modifier = Modifier,
     alignment: Alignment = Alignment.Center,
+    spreadPages: List<Int> = listOf(page),
+    spreadIndex: Int = 0,
+    autoCrop: Boolean = false,
+    cropRevision: Int = 0,
 ) {
-    var bitmap by remember(renderer, page, maxWidth, maxHeight) {
+    var bitmap by remember(renderer, page, maxWidth, maxHeight, cropRevision) {
         mutableStateOf(renderer.cached(page, maxWidth, maxHeight))
     }
-    LaunchedEffect(renderer, page, maxWidth, maxHeight) {
+    LaunchedEffect(renderer, page, maxWidth, maxHeight, cropRevision) {
         if (bitmap?.isRecycled != false) {
             bitmap = renderer.render(page, maxWidth, maxHeight)
         }
@@ -1003,14 +1084,74 @@ internal fun PageBitmap(
         val bmp = bitmap
         if (bmp != null && !bmp.isRecycled) {
             val imageBitmap = remember(bmp) { bmp.asImageBitmap() }
-            Image(
-                bitmap = imageBitmap,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                alignment = alignment,
-                modifier = Modifier.fillMaxSize(),
-            )
+            val crop = if (autoCrop) alignedCropFor(renderer, page, spreadPages, spreadIndex) else null
+            if (crop != null && !crop.isNone) {
+                CroppedPage(
+                    image = imageBitmap,
+                    width = bmp.width,
+                    height = bmp.height,
+                    crop = crop,
+                    alignment = alignment,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Image(
+                    bitmap = imageBitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    alignment = alignment,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
+    }
+}
+
+private fun alignedCropFor(
+    renderer: PageBitmaps,
+    page: Int,
+    spreadPages: List<Int>,
+    spreadIndex: Int,
+): CropMargins? {
+    if (spreadPages.size < 2) return renderer.cropMargins(page)
+    val left = renderer.cropMargins(spreadPages[0]) ?: return null
+    val right = renderer.cropMargins(spreadPages[1]) ?: return null
+    val aligned = alignedTwoPageMargins(left, right)
+    return if (spreadIndex == 0) aligned.first else aligned.second
+}
+
+@Composable
+private fun CroppedPage(
+    image: ImageBitmap,
+    width: Int,
+    height: Int,
+    crop: CropMargins,
+    alignment: Alignment,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier) {
+        val left = (crop.left * width).roundToInt().coerceIn(0, width - 1)
+        val top = (crop.top * height).roundToInt().coerceIn(0, height - 1)
+        val right = (crop.right * width).roundToInt().coerceIn(0, width - 1 - left)
+        val bottom = (crop.bottom * height).roundToInt().coerceIn(0, height - 1 - top)
+        val sourceWidth = (width - left - right).coerceAtLeast(1)
+        val sourceHeight = (height - top - bottom).coerceAtLeast(1)
+        val scale = min(size.width / sourceWidth, size.height / sourceHeight)
+        val drawWidth = (sourceWidth * scale).roundToInt().coerceAtLeast(1)
+        val drawHeight = (sourceHeight * scale).roundToInt().coerceAtLeast(1)
+        val offsetX = when {
+            alignment == Alignment.CenterStart -> 0
+            alignment == Alignment.CenterEnd -> size.width.roundToInt() - drawWidth
+            else -> (size.width.roundToInt() - drawWidth) / 2
+        }
+        val offsetY = (size.height.roundToInt() - drawHeight) / 2
+        drawImage(
+            image = image,
+            srcOffset = IntOffset(left, top),
+            srcSize = IntSize(sourceWidth, sourceHeight),
+            dstOffset = IntOffset(offsetX, offsetY),
+            dstSize = IntSize(drawWidth, drawHeight),
+        )
     }
 }
 

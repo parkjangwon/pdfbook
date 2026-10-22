@@ -10,6 +10,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -24,6 +28,9 @@ interface PageBitmaps {
     fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? = null
     fun prerender(current: List<PageRequest>, targets: List<PageRequest>) {}
     fun trimToCurrent() {}
+    fun setAutoCrop(enabled: Boolean) {}
+    fun cropMargins(page: Int): CropMargins? = null
+    val cropUpdates: Flow<Int> get() = emptyFlow()
 }
 
 interface PageSource : Closeable {
@@ -72,10 +79,32 @@ class PageRenderer(
 
     val cache = PageCache<Bitmap>(limitBytes) { it.byteCount.toLong() }
 
+    private val cropLock = Any()
+    private val crops = HashMap<Int, CropMargins>()
+    private val cropUpdatesFlow = MutableStateFlow(0)
+    @Volatile private var autoCrop = false
+
     override val pageCount: Int = source.pageCount
 
     override fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? =
         if (closed) null else cache.get(PageRequest(page, maxWidth, maxHeight))
+
+    override fun setAutoCrop(enabled: Boolean) {
+        if (autoCrop == enabled) return
+        autoCrop = enabled
+        if (enabled) {
+            // Pages cached before the toggle have no crop rect yet; redraw to detect them.
+            cache.clear()
+        }
+        cropUpdatesFlow.update { it + 1 }
+    }
+
+    override fun cropMargins(page: Int): CropMargins? {
+        if (!autoCrop) return null
+        return synchronized(cropLock) { crops[page] }
+    }
+
+    override val cropUpdates: Flow<Int> get() = cropUpdatesFlow
 
     override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
         val key = PageRequest(page, maxWidth, maxHeight)
@@ -134,7 +163,13 @@ class PageRenderer(
             mutex.withLock {
                 if (closed) return@withLock null
                 cache.get(key)?.let { return@withLock it }
-                source.draw(key.page, key.maxWidth, key.maxHeight).also { cache.put(key, it) }
+                val bitmap = source.draw(key.page, key.maxWidth, key.maxHeight)
+                if (autoCrop && synchronized(cropLock) { key.page !in crops }) {
+                    val margins = detectCropMargins(bitmap)
+                    synchronized(cropLock) { crops[key.page] = margins }
+                    cropUpdatesFlow.update { it + 1 }
+                }
+                bitmap.also { cache.put(key, it) }
             }
         }
     }
