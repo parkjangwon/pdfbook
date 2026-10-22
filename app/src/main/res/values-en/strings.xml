@@ -96,4 +96,23 @@
     <string name="reader_tap_width_value">%1$d%% · default %2$d%%</string>
     <string name="reader_tap_width_reset">Reset to default</string>
     <string name="reader_tap_width_done">Done</string>
+    <string name="book_info_title">Book info</string>
+    <string name="book_info_file_name">File name</string>
+    <string name="book_info_pages">Pages</string>
+    <string name="book_info_pages_loading">Checking the page count…</string>
+    <string name="book_info_pages_unreadable">Couldn\'t read the page count</string>
+    <string name="book_info_size">File size</string>
+    <string name="book_info_size_b">%1$s B</string>
+    <string name="book_info_size_kb">%1$s KB</string>
+    <string name="book_info_size_mb">%1$s MB</string>
+    <string name="book_info_size_gb">%1$s GB</string>
+    <string name="book_info_last_read">Last read</string>
+    <string name="book_info_not_read">Not read yet</string>
+    <string name="book_info_progress">Reading progress</string>
+    <string name="book_info_progress_value">%1$d / %2$d pages · %3$d%%</string>
+    <string name="book_info_unknown">-</string>
+    <plurals name="book_info_page_count">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
 </resources>

@@ -95,4 +95,22 @@
     <string name="reader_tap_width_value">%1$d%% · 기본 %2$d%%</string>
     <string name="reader_tap_width_reset">기본값으로</string>
     <string name="reader_tap_width_done">완료</string>
+    <string name="book_info_title">책 정보</string>
+    <string name="book_info_file_name">파일 이름</string>
+    <string name="book_info_pages">쪽 수</string>
+    <string name="book_info_pages_loading">쪽 수를 확인하는 중…</string>
+    <string name="book_info_pages_unreadable">쪽 수를 읽을 수 없어요</string>
+    <string name="book_info_size">파일 크기</string>
+    <string name="book_info_size_b">%1$s B</string>
+    <string name="book_info_size_kb">%1$s KB</string>
+    <string name="book_info_size_mb">%1$s MB</string>
+    <string name="book_info_size_gb">%1$s GB</string>
+    <string name="book_info_last_read">마지막으로 읽은 날</string>
+    <string name="book_info_not_read">아직 읽지 않았어요</string>
+    <string name="book_info_progress">읽은 분량</string>
+    <string name="book_info_progress_value">%1$d / %2$d쪽 · %3$d%%</string>
+    <string name="book_info_unknown">-</string>
+    <plurals name="book_info_page_count">
+        <item quantity="other">%d쪽</item>
+    </plurals>
 </resources>
