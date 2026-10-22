@@ -82,6 +82,7 @@ private enum class SettingsChoice {
     Direction,
     TwoPage,
     Animation,
+    Display,
 }
 
 @Composable
@@ -359,6 +360,11 @@ private fun ReadingSettingsScreen(
         PageTurnAnimation.Slide to stringResource(R.string.settings_animation_slide),
         PageTurnAnimation.None to stringResource(R.string.settings_animation_none),
     )
+    val displayOptions = listOf(
+        DisplayMode.Default to stringResource(R.string.settings_display_default),
+        DisplayMode.Invert to stringResource(R.string.settings_display_invert),
+        DisplayMode.Sepia to stringResource(R.string.settings_display_sepia),
+    )
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -414,6 +420,12 @@ private fun ReadingSettingsScreen(
                     label = stringResource(R.string.settings_page_turn_animation),
                     value = animationOptions.first { it.first == settings.pageTurnAnimation }.second,
                     onClick = { choice = SettingsChoice.Animation.name },
+                )
+                GroupDivider()
+                SecurityValueRow(
+                    label = stringResource(R.string.settings_display_mode),
+                    value = displayOptions.first { it.first == settings.displayMode }.second,
+                    onClick = { choice = SettingsChoice.Display.name },
                 )
                 GroupDivider()
                 SwitchRow(
@@ -501,6 +513,16 @@ private fun ReadingSettingsScreen(
             selected = settings.pageTurnAnimation,
             onSelect = { value ->
                 onSettingsChange { it.copy(pageTurnAnimation = value) }
+                choice = null
+            },
+            onDismiss = { choice = null },
+        )
+        SettingsChoice.Display.name -> SettingsChoiceDialog(
+            title = stringResource(R.string.settings_display_mode),
+            options = displayOptions,
+            selected = settings.displayMode,
+            onSelect = { value ->
+                onSettingsChange { it.copy(displayMode = value) }
                 choice = null
             },
             onDismiss = { choice = null },

@@ -55,6 +55,10 @@
     <string name="settings_page_turn_animation">넘김 애니메이션</string>
     <string name="settings_animation_slide">슬라이드</string>
     <string name="settings_animation_none">없음</string>
+    <string name="settings_display_mode">화면 모드</string>
+    <string name="settings_display_default">기본</string>
+    <string name="settings_display_invert">색 반전</string>
+    <string name="settings_display_sepia">세피아</string>
     <string name="settings_volume_key_paging">볼륨 키로 넘기기</string>
     <string name="settings_keep_screen_on">화면 켜짐 유지</string>
     <string name="settings_tap_zone_guide">탭 영역 안내 표시</string>

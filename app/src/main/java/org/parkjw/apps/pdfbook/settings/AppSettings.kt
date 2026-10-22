@@ -31,6 +31,12 @@ enum class PageTurnAnimation {
     None,
 }
 
+enum class DisplayMode {
+    Default,
+    Invert,
+    Sepia,
+}
+
 data class AppSettings(
     val startScreen: StartScreen = StartScreen.Folders,
     val themeMode: ThemeMode = ThemeMode.System,
@@ -47,4 +53,5 @@ data class AppSettings(
     val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     val showDotFiles: Boolean = false,
     val keepZoomOnTurn: Boolean = false,
+    val displayMode: DisplayMode = DisplayMode.Default,
 )

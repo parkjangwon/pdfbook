@@ -85,6 +85,7 @@ import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
 import androidx.compose.foundation.layout.Spacer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 import kotlin.math.roundToInt
@@ -116,8 +117,12 @@ fun ReaderScreen(
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    displayMode: DisplayMode = DisplayMode.Default,
 ) {
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Ltr,
+        LocalDisplayMode provides displayMode,
+    ) {
         ReaderScreenContent(
             renderer = renderer,
             pagerState = pagerState,
@@ -1008,6 +1013,7 @@ internal fun PageBitmap(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 alignment = alignment,
+                colorFilter = LocalDisplayMode.current.colorFilter(),
                 modifier = Modifier.fillMaxSize(),
             )
         }
