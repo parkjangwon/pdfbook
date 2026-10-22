@@ -49,6 +49,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -160,6 +161,10 @@ fun sortLabelRes(sort: BookSort): Int = when (sort) {
     BookSort.Name -> R.string.sort_name
 }
 
+/**
+ * [showSearch] and [searchQuery] seed the initial search state for previews and tests;
+ * the live search state survives configuration changes via rememberSaveable.
+ */
 @Composable
 fun LibraryScreen(
     listing: Listing,
@@ -232,6 +237,7 @@ fun LibraryScreen(
     }
     LaunchedEffect(searchActive) {
         if (searchActive) {
+            withFrameNanos { }
             focusRequester.requestFocus()
             keyboard?.show()
         }
