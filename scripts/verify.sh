@@ -134,6 +134,43 @@ boot_emulator() {
 dump_ui() {
   "$ADB" shell uiautomator dump /sdcard/pdfbook-ui.xml >/dev/null 2>&1 || true
   "$ADB" pull /sdcard/pdfbook-ui.xml "$OUT/ui.xml" >/dev/null 2>&1 || true
+  dismiss_foreign_anr
+}
+
+# A slow emulator sometimes shows "<other app> isn't responding" over the
+# screen under test (usually Pixel Launcher). Press Wait and dump again.
+# An ANR dialog that names PDFBook is left alone so the run still fails.
+dismiss_foreign_anr() {
+  local found
+  for _ in 1 2 3; do
+    found="$(python3 - "$OUT/ui.xml" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+try:
+    nodes = list(ET.parse(sys.argv[1]).getroot().iter("node"))
+except (ET.ParseError, FileNotFoundError):
+    sys.exit(1)
+ids = {n.get("resource-id", ""): n for n in nodes}
+wait = ids.get("android:id/aerr_wait")
+title = ids.get("android:id/alertTitle")
+if wait is None or title is None:
+    sys.exit(1)
+text = title.get("text", "")
+if re.search(r"pdfbook", text, re.IGNORECASE):
+    sys.exit(1)
+x1, y1, x2, y2 = map(int, re.findall(r"\d+", wait.get("bounds", "")))
+print((x1 + x2) // 2, (y1 + y2) // 2, text)
+PY
+)" || return 0
+    set -- $found
+    echo "verify: dismissing system dialog: ${*:3}" >&2
+    "$ADB" shell input tap "$1" "$2"
+    sleep 2
+    "$ADB" shell uiautomator dump /sdcard/pdfbook-ui.xml >/dev/null 2>&1 || true
+    "$ADB" pull /sdcard/pdfbook-ui.xml "$OUT/ui.xml" >/dev/null 2>&1 || true
+  done
 }
 
 node_text() {
