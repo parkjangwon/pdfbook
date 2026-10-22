@@ -325,6 +325,8 @@ private fun App(
     val lastBookUnavailable = stringResource(R.string.last_book_unavailable)
     val hiddenSnackbar = stringResource(R.string.hidden_snackbar)
     val unhiddenSnackbar = stringResource(R.string.unhidden_snackbar)
+    val markedFinishedSnackbar = stringResource(R.string.marked_finished_snackbar)
+    val progressResetSnackbar = stringResource(R.string.progress_reset_snackbar)
     val undoLabel = stringResource(R.string.action_undo)
 
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
@@ -767,6 +769,20 @@ private fun App(
                             folderUri = selectedFolderUri,
                         ),
                     )
+                }
+            },
+            onMarkFinished = { bookInfo ->
+                val key = bookKey(bookInfo.uri, bookInfo.size)
+                scope.launch {
+                    store.state(key)?.let { store.save(key, markFinished(it)) }
+                    snackbarMessage = markedFinishedSnackbar
+                }
+            },
+            onStartOver = { bookInfo ->
+                val key = bookKey(bookInfo.uri, bookInfo.size)
+                scope.launch {
+                    store.state(key)?.let { store.save(key, startOver(it)) }
+                    snackbarMessage = progressResetSnackbar
                 }
             },
             peekEnabled = peekEnabled,
