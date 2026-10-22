@@ -7,11 +7,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
@@ -33,72 +35,91 @@ fun PageCurlOverlay(
     val foldPath = remember { Path() }
     val curlPath = remember { Path() }
     val shadowPath = remember { Path() }
+    val pageClip = remember { Path() }
     Canvas(modifier.fillMaxSize()) {
-        val w = size.width
-        val h = size.height
-        drawImageFit(backImage, back.width, back.height, w, h)
-        val p = clampCurlProgress(progress)
-        if (p <= 0.001f) {
-            drawImageFit(frontImage, front.width, front.height, w, h)
-            return@Canvas
+        val fit = fittedPageRect(front.width, front.height, size.width, size.height)
+            ?: return@Canvas
+        val left = fit.left
+        val top = fit.top
+        val w = fit.width
+        val h = fit.height
+        pageClip.reset()
+        pageClip.addRect(Rect(left, top, left + w, top + h))
+        clipPath(pageClip, ClipOp.Intersect) {
+            drawImageFit(backImage, back.width, back.height, size.width, size.height)
+            val p = clampCurlProgress(progress)
+            if (p <= 0.001f) {
+                drawImageFit(frontImage, front.width, front.height, size.width, size.height)
+                return@clipPath
+            }
+            if (p >= 0.999f) return@clipPath
+            val geo = curlGeometry(w, h, p, side)
+            if (geo == null) {
+                drawImageFit(frontImage, front.width, front.height, size.width, size.height)
+                return@clipPath
+            }
+            val tip = Offset(left + geo.tip.x, top + geo.tip.y)
+            val foldTop = Offset(left + geo.foldTop.x, top + geo.foldTop.y)
+            val foldBottom = Offset(left + geo.foldBottom.x, top + geo.foldBottom.y)
+            foldPath.reset()
+            buildRemainingPagePath(foldPath, left, top, w, h, foldTop, foldBottom, side)
+            clipPath(foldPath, ClipOp.Intersect) {
+                drawImageFit(frontImage, front.width, front.height, size.width, size.height)
+            }
+            curlPath.reset()
+            curlPath.moveTo(foldTop.x, foldTop.y)
+            curlPath.lineTo(tip.x, tip.y)
+            curlPath.lineTo(foldBottom.x, foldBottom.y)
+            curlPath.close()
+            drawPath(curlPath, color = ReaderTrack.copy(alpha = 0.92f))
+            shadowPath.reset()
+            val shadowPad = 18f * (1f - p)
+            val foldDx = foldBottom.x - foldTop.x
+            val foldDy = foldBottom.y - foldTop.y
+            val fl = kotlin.math.hypot(foldDx, foldDy).coerceAtLeast(1f)
+            val sx = -foldDy / fl * shadowPad
+            val sy = foldDx / fl * shadowPad
+            val sign = if (side == CurlSide.Right) 1f else -1f
+            shadowPath.moveTo(foldTop.x, foldTop.y)
+            shadowPath.lineTo(foldBottom.x, foldBottom.y)
+            shadowPath.lineTo(foldBottom.x + sx * sign, foldBottom.y + sy * sign)
+            shadowPath.lineTo(foldTop.x + sx * sign, foldTop.y + sy * sign)
+            shadowPath.close()
+            // Keep shadow inside the fitted page (clipPath already active).
+            clipRect(left, top, left + w, top + h) {
+                drawPath(shadowPath, color = ReaderBackground.copy(alpha = 0.35f))
+            }
         }
-        if (p >= 0.999f) return@Canvas
-        val geo = curlGeometry(w, h, p, side)
-        if (geo == null) {
-            drawImageFit(frontImage, front.width, front.height, w, h)
-            return@Canvas
-        }
-        foldPath.reset()
-        buildRemainingPagePath(foldPath, w, h, geo, side)
-        clipPath(foldPath, ClipOp.Intersect) {
-            drawImageFit(frontImage, front.width, front.height, w, h)
-        }
-        curlPath.reset()
-        curlPath.moveTo(geo.foldTop.x, geo.foldTop.y)
-        curlPath.lineTo(geo.tip.x, geo.tip.y)
-        curlPath.lineTo(geo.foldBottom.x, geo.foldBottom.y)
-        curlPath.close()
-        drawPath(curlPath, color = ReaderTrack.copy(alpha = 0.92f))
-        shadowPath.reset()
-        val shadowPad = 18f * (1f - p)
-        val foldDx = geo.foldBottom.x - geo.foldTop.x
-        val foldDy = geo.foldBottom.y - geo.foldTop.y
-        val fl = kotlin.math.hypot(foldDx, foldDy).coerceAtLeast(1f)
-        val sx = -foldDy / fl * shadowPad
-        val sy = foldDx / fl * shadowPad
-        val sign = if (side == CurlSide.Right) 1f else -1f
-        shadowPath.moveTo(geo.foldTop.x, geo.foldTop.y)
-        shadowPath.lineTo(geo.foldBottom.x, geo.foldBottom.y)
-        shadowPath.lineTo(geo.foldBottom.x + sx * sign, geo.foldBottom.y + sy * sign)
-        shadowPath.lineTo(geo.foldTop.x + sx * sign, geo.foldTop.y + sy * sign)
-        shadowPath.close()
-        drawPath(shadowPath, color = ReaderBackground.copy(alpha = 0.35f))
     }
 }
 
 private fun buildRemainingPagePath(
     path: Path,
+    left: Float,
+    top: Float,
     width: Float,
     height: Float,
-    geo: CurlGeometry,
+    foldTop: Offset,
+    foldBottom: Offset,
     side: CurlSide,
 ) {
-    // Polygon covering the still-flat part of the front page.
+    val right = left + width
+    val bottom = top + height
     when (side) {
         CurlSide.Right -> {
-            path.moveTo(0f, 0f)
-            path.lineTo(geo.foldTop.x, geo.foldTop.y)
-            path.lineTo(geo.foldBottom.x, geo.foldBottom.y)
-            if (geo.foldBottom.y < height) path.lineTo(geo.foldBottom.x, height)
-            path.lineTo(0f, height)
+            path.moveTo(left, top)
+            path.lineTo(foldTop.x, foldTop.y)
+            path.lineTo(foldBottom.x, foldBottom.y)
+            if (foldBottom.y < bottom) path.lineTo(foldBottom.x, bottom)
+            path.lineTo(left, bottom)
             path.close()
         }
         CurlSide.Left -> {
-            path.moveTo(width, 0f)
-            path.lineTo(geo.foldTop.x, geo.foldTop.y)
-            path.lineTo(geo.foldBottom.x, geo.foldBottom.y)
-            if (geo.foldBottom.y < height) path.lineTo(geo.foldBottom.x, height)
-            path.lineTo(width, height)
+            path.moveTo(right, top)
+            path.lineTo(foldTop.x, foldTop.y)
+            path.lineTo(foldBottom.x, foldBottom.y)
+            if (foldBottom.y < bottom) path.lineTo(foldBottom.x, bottom)
+            path.lineTo(right, bottom)
             path.close()
         }
     }
@@ -111,14 +132,10 @@ private fun DrawScope.drawImageFit(
     dstW: Float,
     dstH: Float,
 ) {
-    if (srcW <= 0 || srcH <= 0 || dstW <= 0f || dstH <= 0f) return
-    val scale = minOf(dstW / srcW, dstH / srcH)
-    val dw = srcW * scale
-    val dh = srcH * scale
-    val left = (dstW - dw) / 2f
-    val top = (dstH - dh) / 2f
+    val fit = fittedPageRect(srcW, srcH, dstW, dstH) ?: return
+    val scale = fit.width / srcW
     withTransform({
-        translate(left, top)
+        translate(fit.left, fit.top)
         scale(scale, scale, pivot = Offset.Zero)
     }) {
         drawImage(image)

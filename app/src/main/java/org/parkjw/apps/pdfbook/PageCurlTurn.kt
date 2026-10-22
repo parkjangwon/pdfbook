@@ -3,9 +3,30 @@ package org.parkjw.apps.pdfbook
 import android.graphics.Bitmap
 import androidx.compose.ui.unit.IntSize
 
-fun pageSlotSize(window: IntSize, pagesInSpread: Int): Pair<Int, Int> {
-    val count = pagesInSpread.coerceAtLeast(1)
-    return (window.width / count).coerceAtLeast(1) to window.height.coerceAtLeast(1)
+/**
+ * Bitmap cache key size for the visible page slot.
+ * Tabletop uses the page pane; book single-page uses the half that [BookHalfPage] draws into.
+ */
+fun pageRenderSlot(
+    window: IntSize,
+    posture: FoldPosture,
+    direction: ReadingDirection,
+    twoPage: Boolean,
+): IntSize {
+    when (posture) {
+        is FoldPosture.Tabletop -> {
+            val page = tabletopHalves(window, posture.foldBounds).first
+            return IntSize(page.width.coerceAtLeast(1), page.height.coerceAtLeast(1))
+        }
+        is FoldPosture.Book -> {
+            if (!twoPage) {
+                val half = bookSingleHalf(bookHalves(window, posture.foldBounds), direction)
+                return IntSize(half.width.coerceAtLeast(1), half.height.coerceAtLeast(1))
+            }
+        }
+        FoldPosture.Flat -> Unit
+    }
+    return IntSize(window.width.coerceAtLeast(1), window.height.coerceAtLeast(1))
 }
 
 fun isSpreadCached(

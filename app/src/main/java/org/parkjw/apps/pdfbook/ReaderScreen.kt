@@ -1,10 +1,14 @@
 package org.parkjw.apps.pdfbook
 
+import android.database.ContentObserver
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -205,15 +209,29 @@ private fun ReaderScreenContent(
     val directionRef = rememberUpdatedState(direction)
     var viewport by remember { mutableStateOf(Size.Zero) }
     val context = LocalContext.current
-    val animatorScale = remember(context) {
-        Settings.Global.getFloat(
-            context.contentResolver,
-            Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f,
+    fun readAnimatorScale(): Float = Settings.Global.getFloat(
+        context.contentResolver,
+        Settings.Global.ANIMATOR_DURATION_SCALE,
+        1f,
+    )
+    var animatorScale by remember { mutableFloatStateOf(readAnimatorScale()) }
+    DisposableEffect(context) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                animatorScale = readAnimatorScale()
+            }
+        }
+        context.contentResolver.registerContentObserver(
+            Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
+            false,
+            observer,
         )
+        onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
     val animOff = animationsOff(animatorScale)
-    val curlGestures = pageTurnAnimation == PageTurnAnimation.Curl && !twoPage && !zoomed
+    val instantSwipes = animOff || pageTurnAnimation == PageTurnAnimation.None
+    val curlGestures =
+        pageTurnAnimation == PageTurnAnimation.Curl && !twoPage && !zoomed && !animOff
 
     var endNotice by remember { mutableStateOf(initialEndNotice) }
     var endNoticeToken by remember { mutableIntStateOf(0) }
@@ -230,8 +248,10 @@ private fun ReaderScreenContent(
     var curlSideState by remember { mutableStateOf(CurlSide.Right) }
     var curlProgress by remember { mutableFloatStateOf(0f) }
     var curlActive by remember { mutableStateOf(false) }
+    var curlEffect by remember { mutableStateOf<CurlEffectState?>(null) }
     var curlJob by remember { mutableStateOf<Job?>(null) }
     val curlProgressAnim = remember { Animatable(0f) }
+    var renderSlot by remember { mutableStateOf(IntSize(1, 1)) }
 
     TrimCacheOnMemoryPressure(renderer)
 
@@ -270,6 +290,7 @@ private fun ReaderScreenContent(
     fun nextAtEnd() {
         curlJob?.cancel()
         curlActive = false
+        curlEffect = null
         curlFront = null
         curlBack = null
         when (val step = endStep(endNotice, currentVolumes.nextBook)) {
@@ -291,24 +312,67 @@ private fun ReaderScreenContent(
 
     fun clearCurlOverlay() {
         curlActive = false
+        curlEffect = null
         curlFront = null
         curlBack = null
         curlProgress = 0f
     }
 
     fun settlePage(index: Int, mode: ResolvedPageTurn) {
+        val scale = readAnimatorScale()
+        val off = animationsOff(scale)
         scope.launch {
             when (mode) {
                 ResolvedPageTurn.Instant -> pagerState.scrollToPage(index)
                 ResolvedPageTurn.Slide -> {
-                    if (animOff) pagerState.scrollToPage(index) else pagerState.animateScrollToPage(index)
+                    if (off) pagerState.scrollToPage(index) else pagerState.animateScrollToPage(index)
                 }
                 ResolvedPageTurn.Curl -> pagerState.scrollToPage(index)
             }
         }
     }
 
-    fun runCurl(
+    suspend fun runCurl(
+        fromIndex: Int,
+        toIndex: Int,
+        side: CurlSide,
+        front: Bitmap,
+        back: Bitmap,
+        fromProgress: Float = 0f,
+        animateForward: Boolean = true,
+    ) {
+        curlSideState = side
+        curlFront = front
+        curlBack = back
+        curlActive = true
+        curlProgress = fromProgress
+        curlEffect = CurlEffectState(
+            fromIndex = fromIndex,
+            toIndex = toIndex,
+            side = side,
+            progress = fromProgress,
+            dragging = false,
+            completing = animateForward,
+        )
+        // Scroll first so TalkBack page announcements are not delayed by the effect.
+        if (animateForward) pagerState.scrollToPage(toIndex)
+        val duration = curlRemainingDurationMs(readAnimatorScale(), fromProgress, animateForward)
+        if (duration <= 0L) {
+            if (!animateForward) pagerState.scrollToPage(fromIndex)
+            clearCurlOverlay()
+            return
+        }
+        curlProgressAnim.snapTo(fromProgress)
+        val animTarget = if (animateForward) 1f else 0f
+        curlProgressAnim.animateTo(animTarget, tween(durationMillis = duration.toInt())) {
+            curlProgress = value
+            curlEffect = curlEffect?.copy(progress = value)
+        }
+        if (!animateForward) pagerState.scrollToPage(fromIndex)
+        clearCurlOverlay()
+    }
+
+    fun startCurl(
         fromIndex: Int,
         toIndex: Int,
         side: CurlSide,
@@ -318,72 +382,70 @@ private fun ReaderScreenContent(
         animateForward: Boolean = true,
     ) {
         curlJob?.cancel()
-        curlSideState = side
-        curlFront = front
-        curlBack = back
-        curlActive = true
-        curlProgress = fromProgress
         curlJob = scope.launch {
-            // Scroll first so TalkBack page announcements are not delayed by the effect.
-            if (animateForward) pagerState.scrollToPage(toIndex)
-            val duration = curlDurationMs(animatorScale)
-            if (duration <= 0L) {
-                if (!animateForward) pagerState.scrollToPage(fromIndex)
-                clearCurlOverlay()
-                return@launch
-            }
-            curlProgressAnim.snapTo(fromProgress)
-            val target = if (animateForward) 1f else 0f
-            curlProgressAnim.animateTo(target, tween(durationMillis = duration.toInt())) {
-                curlProgress = value
-            }
-            if (!animateForward) pagerState.scrollToPage(fromIndex)
-            clearCurlOverlay()
+            runCurl(fromIndex, toIndex, side, front, back, fromProgress, animateForward)
         }
     }
 
     fun goTo(delta: Int) {
         if (delta < 0) endNotice = null
-        // An in-flight curl already scrolled to its target; finish overlay then turn from there.
-        if (curlActive) {
-            curlJob?.cancel()
+        curlJob?.cancel()
+        curlJob = scope.launch {
+            val interrupted = curlEffect
             clearCurlOverlay()
+            val from = interrupted?.let { curlFinishIndex(it) } ?: pagerState.targetPage
+            if (interrupted != null && pagerState.targetPage != from) {
+                pagerState.scrollToPage(from)
+            }
+            val target = pagerTargetIndex(from, delta, pagerState.pageCount)
+            if (target == from) {
+                if (isTurnPastEnd(from, delta, pagerState.pageCount)) nextAtEnd()
+                return@launch
+            }
+            jumpBack = null
+            val forward = delta > 0
+            val side = curlSide(directionRef.value, forward)
+            val planned = interruptCurl(interrupted, from, target, side)
+            val slot = renderSlot
+            val slotW = slot.width
+            val slotH = slot.height
+            val nextSpread = currentSpreads.getOrNull(target).orEmpty()
+            val scale = readAnimatorScale()
+            val off = animationsOff(scale)
+            val cached = isSpreadCached(renderer, nextSpread, slotW, slotH)
+            val mode = resolvePageTurn(
+                preference = pageTurnAnimation,
+                twoPage = twoPage,
+                zoomed = zoomRef.value.allowsPageTurn.not(),
+                nextPageCached = cached,
+                animationsOff = off,
+                endNoticeOnly = false,
+            )
+            if (mode != ResolvedPageTurn.Curl) {
+                when (mode) {
+                    ResolvedPageTurn.Instant -> pagerState.scrollToPage(target)
+                    ResolvedPageTurn.Slide -> {
+                        if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
+                    }
+                    ResolvedPageTurn.Curl -> pagerState.scrollToPage(target)
+                }
+                return@launch
+            }
+            val fromSpread = currentSpreads.getOrNull(from).orEmpty()
+            val front = cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
+            val back = cachedSpreadBitmaps(renderer, nextSpread, slotW, slotH)
+            if (front == null || back == null) {
+                if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
+                return@launch
+            }
+            runCurl(
+                planned.next.fromIndex,
+                planned.next.toIndex,
+                planned.next.side,
+                front,
+                back,
+            )
         }
-        val from = pagerState.targetPage
-        val target = pagerTargetIndex(from, delta, pagerState.pageCount)
-        if (target == from) {
-            if (isTurnPastEnd(from, delta, pagerState.pageCount)) nextAtEnd()
-            return
-        }
-        jumpBack = null
-        val forward = delta > 0
-        val window = IntSize(
-            viewport.width.roundToInt().coerceAtLeast(1),
-            viewport.height.roundToInt().coerceAtLeast(1),
-        )
-        val (slotW, slotH) = pageSlotSize(window, 1)
-        val nextSpread = currentSpreads.getOrNull(target).orEmpty()
-        val cached = isSpreadCached(renderer, nextSpread, slotW, slotH)
-        val mode = resolvePageTurn(
-            preference = pageTurnAnimation,
-            twoPage = twoPage,
-            zoomed = zoomed,
-            nextPageCached = cached,
-            animationsOff = animOff,
-            endNoticeOnly = false,
-        )
-        if (mode != ResolvedPageTurn.Curl) {
-            settlePage(target, mode)
-            return
-        }
-        val fromSpread = currentSpreads.getOrNull(from).orEmpty()
-        val front = cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
-        val back = cachedSpreadBitmaps(renderer, nextSpread, slotW, slotH)
-        if (front == null || back == null) {
-            settlePage(target, ResolvedPageTurn.Slide)
-            return
-        }
-        runCurl(from, target, curlSide(directionRef.value, forward), front, back)
     }
 
     LaunchedEffect(volumeDelta, pagerState) {
@@ -449,8 +511,10 @@ private fun ReaderScreenContent(
             val padArea = tabletopSplit?.second
             val pagerWidth = (pageArea?.width ?: window.width).toFloat()
             val pagerHeight = (pageArea?.height ?: window.height).toFloat()
-            val prerenderWidth = (pageArea?.width ?: window.width).coerceAtLeast(1)
-            val prerenderHeight = (pageArea?.height ?: window.height).coerceAtLeast(1)
+            val slot = pageRenderSlot(window, posture, direction, twoPage)
+            val prerenderWidth = slot.width
+            val prerenderHeight = slot.height
+            renderSlot = slot
             LaunchedEffect(renderer, pagerState.settledPage, currentSpreads, prerenderWidth, prerenderHeight) {
                 renderer.prerender(
                     spreadRequests(
@@ -478,7 +542,8 @@ private fun ReaderScreenContent(
                 HorizontalPager(
                     state = pagerState,
                     reverseLayout = rtl,
-                    userScrollEnabled = !zoomed && !curlGestures,
+                    // Curl / None / animator-off own the swipe; pager slide only for Slide+animations.
+                    userScrollEnabled = !zoomed && !curlGestures && !instantSwipes && !curlActive,
                     modifier = Modifier.fillMaxSize(),
                     beyondViewportPageCount = 1,
                 ) { pageIndex ->
@@ -506,27 +571,52 @@ private fun ReaderScreenContent(
                                     },
                                 )
                             }
-                            .pointerInput(lastActive, direction, curlGestures) {
-                                if (!lastActive || curlGestures) return@pointerInput
+                            .pointerInput(lastActive, direction, curlGestures, instantSwipes) {
+                                if (!lastActive || curlGestures || instantSwipes) return@pointerInput
                                 detectSwipePastEnd(
                                     direction = direction,
                                     isZoomed = { !zoomRef.value.allowsPageTurn },
                                     onSwipe = { if (pagerState.targetPage == pageIndex) nextAtEnd() },
                                 )
                             }
-                            .pointerInput(activePage, curlGestures, direction, pagerWidth) {
+                            .pointerInput(activePage, instantSwipes, direction, pagerWidth) {
+                                if (!activePage || !instantSwipes || zoomed) return@pointerInput
+                                detectCurlSwipe(
+                                    direction = direction,
+                                    width = pagerWidth,
+                                    currentIndex = { pagerState.targetPage },
+                                    pageCount = { pagerState.pageCount },
+                                    onDragStart = { _, forward ->
+                                        if (!forward) endNotice = null
+                                        false
+                                    },
+                                    onDrag = { _, _ -> },
+                                    onRelease = { progress, from, targetIndex, _, _, forward ->
+                                        if (!forward) endNotice = null
+                                        if (shouldCompleteCurl(progress)) {
+                                            if (targetIndex != from) {
+                                                scope.launch { pagerState.scrollToPage(targetIndex) }
+                                            } else if (forward &&
+                                                isTurnPastEnd(from, 1, pagerState.pageCount)
+                                            ) {
+                                                nextAtEnd()
+                                            }
+                                        }
+                                    },
+                                    onSwipePastEnd = { nextAtEnd() },
+                                )
+                            }
+                            .pointerInput(activePage, curlGestures, direction, pagerWidth, prerenderWidth, prerenderHeight) {
                                 if (!activePage || !curlGestures) return@pointerInput
                                 detectCurlSwipe(
                                     direction = direction,
                                     width = pagerWidth,
                                     currentIndex = { pagerState.targetPage },
                                     pageCount = { pagerState.pageCount },
-                                    onDragStart = { targetIndex ->
-                                        val window = IntSize(
-                                            pagerWidth.roundToInt().coerceAtLeast(1),
-                                            pagerHeight.roundToInt().coerceAtLeast(1),
-                                        )
-                                        val (slotW, slotH) = pageSlotSize(window, 1)
+                                    onDragStart = { targetIndex, forward ->
+                                        if (!forward) endNotice = null
+                                        val slotW = renderSlot.width
+                                        val slotH = renderSlot.height
                                         val from = pagerState.targetPage
                                         val fromBmp = cachedSpreadBitmaps(
                                             renderer,
@@ -548,6 +638,14 @@ private fun ReaderScreenContent(
                                             curlBack = toBmp
                                             curlActive = true
                                             curlProgress = 0f
+                                            curlEffect = CurlEffectState(
+                                                fromIndex = from,
+                                                toIndex = targetIndex,
+                                                side = curlSide(direction, forward),
+                                                progress = 0f,
+                                                dragging = true,
+                                                completing = true,
+                                            )
                                             jumpBack = null
                                             true
                                         }
@@ -555,10 +653,16 @@ private fun ReaderScreenContent(
                                     onDrag = { progress, side ->
                                         curlSideState = side
                                         curlProgress = progress
+                                        curlEffect = curlEffect?.copy(
+                                            progress = progress,
+                                            side = side,
+                                            completing = shouldCompleteCurl(progress),
+                                        )
                                     },
-                                    onRelease = { progress, targetIndex, side, startedCurl, forward ->
-                                        val from = pagerState.targetPage
+                                    onRelease = { progress, from, targetIndex, side, startedCurl, forward ->
+                                        if (!forward) endNotice = null
                                         if (!startedCurl) {
+                                            // Uncached: finger-follow via pager, then settle.
                                             if (shouldCompleteCurl(progress)) {
                                                 if (targetIndex != from) {
                                                     settlePage(targetIndex, ResolvedPageTurn.Slide)
@@ -567,6 +671,8 @@ private fun ReaderScreenContent(
                                                 ) {
                                                     nextAtEnd()
                                                 }
+                                            } else if (targetIndex != from) {
+                                                scope.launch { pagerState.scrollToPage(from) }
                                             }
                                             return@detectCurlSwipe
                                         }
@@ -579,7 +685,7 @@ private fun ReaderScreenContent(
                                             }
                                             return@detectCurlSwipe
                                         }
-                                        runCurl(
+                                        startCurl(
                                             fromIndex = from,
                                             toIndex = targetIndex,
                                             side = side,
@@ -590,6 +696,12 @@ private fun ReaderScreenContent(
                                         )
                                     },
                                     onSwipePastEnd = { nextAtEnd() },
+                                    onSlideFollow = { from, _, progress, forward ->
+                                        val offset = curlSlideOffset(progress, forward)
+                                        scope.launch {
+                                            pagerState.scrollToPage(from, pageOffsetFraction = offset)
+                                        }
+                                    },
                                 )
                             },
                     ) {
@@ -1232,16 +1344,18 @@ private suspend fun PointerInputScope.detectCurlSwipe(
     width: Float,
     currentIndex: () -> Int,
     pageCount: () -> Int,
-    onDragStart: (targetIndex: Int) -> Boolean,
+    onDragStart: (targetIndex: Int, forward: Boolean) -> Boolean,
     onDrag: (progress: Float, side: CurlSide) -> Unit,
     onRelease: (
         progress: Float,
+        fromIndex: Int,
         targetIndex: Int,
         side: CurlSide,
         startedCurl: Boolean,
         forward: Boolean,
     ) -> Unit,
     onSwipePastEnd: () -> Unit,
+    onSlideFollow: ((from: Int, target: Int, progress: Float, forward: Boolean) -> Unit)? = null,
 ) {
     val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
@@ -1250,9 +1364,11 @@ private suspend fun PointerInputScope.detectCurlSwipe(
         var dragging = false
         var startedCurl = false
         var side = CurlSide.Right
-        var targetIndex = currentIndex()
+        var fromIndex = currentIndex()
+        var targetIndex = fromIndex
         var forward = true
         var progress = 0f
+        var followOffset = 0f
         var last = down.position
         var pressed = true
         while (pressed) {
@@ -1267,27 +1383,35 @@ private suspend fun PointerInputScope.detectCurlSwipe(
                 dragging = true
                 forward = if (direction == ReadingDirection.RTL) dx > 0f else dx < 0f
                 side = curlSide(direction, forward)
-                val from = currentIndex()
-                targetIndex = pagerTargetIndex(from, if (forward) 1 else -1, pageCount())
-                if (targetIndex != from) {
-                    startedCurl = onDragStart(targetIndex)
+                fromIndex = currentIndex()
+                targetIndex = pagerTargetIndex(fromIndex, if (forward) 1 else -1, pageCount())
+                if (targetIndex != fromIndex) {
+                    startedCurl = onDragStart(targetIndex, forward)
                     if (startedCurl) onDrag(0f, side)
                 }
             }
             if (dragging && !multiTouch) {
-                progress = curlProgressFromDrag(dx, width, side)
-                if (startedCurl) onDrag(progress, side)
-                if (targetIndex != currentIndex() || startedCurl) change.consume()
+                val raw = curlProgressFromDrag(dx, width, side)
+                val following = !startedCurl && targetIndex != fromIndex && onSlideFollow != null
+                progress = if (following) curlFollowProgress(raw, followOffset) else raw
+                when {
+                    startedCurl -> onDrag(progress, side)
+                    following && pressed -> {
+                        onSlideFollow(fromIndex, targetIndex, progress, forward)
+                        followOffset = curlSlideOffset(progress, forward)
+                    }
+                }
+                if (startedCurl || targetIndex != fromIndex) change.consume()
             }
         }
         if (multiTouch || !dragging) return@awaitEachGesture
-        if (targetIndex == currentIndex() && forward &&
-            isTurnPastEnd(currentIndex(), 1, pageCount())
+        if (targetIndex == fromIndex && forward &&
+            isTurnPastEnd(fromIndex, 1, pageCount())
         ) {
             onSwipePastEnd()
             return@awaitEachGesture
         }
-        onRelease(progress, targetIndex, side, startedCurl, forward)
+        onRelease(progress, fromIndex, targetIndex, side, startedCurl, forward)
     }
 }
 

@@ -1,6 +1,7 @@
 package org.parkjw.apps.pdfbook
 
 import androidx.compose.ui.geometry.Offset
+import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -65,6 +66,8 @@ data class CurlEffectState(
     val side: CurlSide,
     val progress: Float,
     val dragging: Boolean,
+    /** False while springing back to [fromIndex]. */
+    val completing: Boolean = true,
 )
 
 data class CurlInterrupt(
@@ -73,6 +76,13 @@ data class CurlInterrupt(
     val next: CurlEffectState,
 )
 
+/** Page the in-flight effect must settle on before a new turn starts. */
+fun curlFinishIndex(current: CurlEffectState): Int = when {
+    current.dragging -> if (shouldCompleteCurl(current.progress)) current.toIndex else current.fromIndex
+    current.completing -> current.toIndex
+    else -> current.fromIndex
+}
+
 /** Finish the in-flight curl immediately, then queue the next turn. Never drops input. */
 fun interruptCurl(
     current: CurlEffectState?,
@@ -80,8 +90,15 @@ fun interruptCurl(
     toIndex: Int,
     side: CurlSide,
 ): CurlInterrupt = CurlInterrupt(
-    finishToIndex = current?.toIndex,
-    next = CurlEffectState(fromIndex, toIndex, side, progress = 0f, dragging = false),
+    finishToIndex = current?.let { curlFinishIndex(it) },
+    next = CurlEffectState(
+        fromIndex,
+        toIndex,
+        side,
+        progress = 0f,
+        dragging = false,
+        completing = true,
+    ),
 )
 
 data class CurlGeometry(
@@ -165,6 +182,40 @@ fun curlDurationMs(animatorDurationScale: Float): Long {
     return max(1L, (CURL_BASE_DURATION_MS * animatorDurationScale).toLong())
 }
 
+/** Scales base duration by remaining travel (complete or spring-back). */
+fun curlRemainingDurationMs(
+    animatorDurationScale: Float,
+    fromProgress: Float,
+    animateForward: Boolean,
+): Long {
+    val full = curlDurationMs(animatorDurationScale)
+    if (full <= 0L) return 0L
+    val remaining = if (animateForward) 1f - fromProgress else fromProgress
+    return max(1L, (full * remaining.coerceIn(0f, 1f)).toLong())
+}
+
 fun animationsOff(animatorDurationScale: Float): Boolean = animatorDurationScale <= 0f
 
 fun clampCurlProgress(progress: Float): Float = min(1f, max(0f, progress))
+
+/** Pager offset that follows the finger when the next page is not cached (Slide fallback). */
+fun curlSlideOffset(progress: Float, forward: Boolean): Float =
+    clampCurlProgress(progress) * 0.5f * if (forward) 1f else -1f
+
+/**
+ * Compensates drag progress for the slide-follow displacement, which moves the
+ * pointer's local coordinates and would otherwise shrink the measured progress.
+ */
+fun curlFollowProgress(raw: Float, followOffset: Float): Float =
+    clampCurlProgress(raw + abs(followOffset))
+
+data class FittedPageRect(val left: Float, val top: Float, val width: Float, val height: Float)
+
+/** Destination rect for ContentScale.Fit inside a canvas. */
+fun fittedPageRect(srcW: Int, srcH: Int, dstW: Float, dstH: Float): FittedPageRect? {
+    if (srcW <= 0 || srcH <= 0 || dstW <= 0f || dstH <= 0f) return null
+    val scale = minOf(dstW / srcW, dstH / srcH)
+    val dw = srcW * scale
+    val dh = srcH * scale
+    return FittedPageRect((dstW - dw) / 2f, (dstH - dh) / 2f, dw, dh)
+}
