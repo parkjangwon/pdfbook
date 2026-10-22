@@ -289,6 +289,26 @@ show_overlay() {
   refresh_overlay
 }
 
+# Overlay nodes exist only while the bars are up, and the 4 s auto-hide (#10)
+# can close them between a dump and a read: re-open the overlay if a fresh dump
+# no longer has the node, then read from a dump taken right before the read.
+read_overlay_text() {
+  local tag="$1"
+  if wait_node resource-id "$tag" 1 >/dev/null; then
+    node_text "$tag"
+    return
+  fi
+  show_overlay
+  wait_node resource-id "$tag" >/dev/null || return 1
+  node_text "$tag"
+}
+
+# Same race for taps on overlay nodes: make sure the bars are up first.
+tap_overlay_id() {
+  wait_node resource-id "$1" 1 >/dev/null || show_overlay
+  tap_id "$1"
+}
+
 slider_tap() {
   local fraction="$1" progress slider
   for _ in $(seq 1 6); do
@@ -363,7 +383,7 @@ case "$FEATURE" in
   tap-width-sheet)
     open_book
     show_overlay
-    tap_id reader_tap_zone_entry
+    tap_overlay_id reader_tap_zone_entry
     expect_id tap_zone_width_sheet
     shot tap-width-sheet
     tap_id tap_zone_width_done
@@ -371,7 +391,7 @@ case "$FEATURE" in
   jump-back)
     open_book
     show_overlay
-    origin="$(node_text reader_progress)" || die "Reader progress not found (last dump: $OUT/ui.xml)"
+    origin="$(read_overlay_text reader_progress)" || die "Reader progress not found (last dump: $OUT/ui.xml)"
     slider_tap 80
     pill="$(wait_node resource-id jump_back_pill 5)" || die "Jump back pill did not appear (last dump: $OUT/ui.xml)"
     STEP=$((STEP + 1))
@@ -381,8 +401,8 @@ case "$FEATURE" in
     sleep 1
     returned=""
     for _ in 1 2 3 4 5; do
-      dump_ui
-      returned="$(node_text reader_progress || true)"
+      # The bars may have auto-hidden (#10) by now: re-open before reading.
+      returned="$(read_overlay_text reader_progress || true)"
       [ "$returned" = "$origin" ] && break
       sleep 1
     done
@@ -392,7 +412,7 @@ case "$FEATURE" in
   book-list)
     open_book
     show_overlay
-    tap_id reader_book_list_button
+    tap_overlay_id reader_book_list_button
     expect_id book_list_row
     shot book-list
     ;;
