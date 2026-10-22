@@ -26,6 +26,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -47,12 +49,11 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
+import org.parkjw.apps.pdfbook.ui.theme.ButtonCorner
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookMonoFamily
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
-import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
 import org.parkjw.apps.pdfbook.ui.theme.ReaderChip
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
@@ -73,21 +74,17 @@ fun BookSearchSheet(
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var hits by remember { mutableStateOf<List<SearchPageHits>>(emptyList()) }
+    val hits = remember { mutableStateListOf<SearchPageHits>() }
     var searching by remember { mutableStateOf(false) }
     var finished by remember { mutableStateOf(false) }
-    LaunchedEffect(query) {
+    LaunchedEffect(searcher, query) {
         val q = query.trim()
-        hits = emptyList()
+        hits.clear()
         searching = false
         finished = false
         if (q.isEmpty()) return@LaunchedEffect
         searching = true
-        val collected = mutableListOf<SearchPageHits>()
-        searcher.search(q) { pageHits ->
-            collected += pageHits
-            hits = collected.toList()
-        }
+        searcher.search(q) { hits += it }
         searching = false
         finished = true
     }
@@ -151,13 +148,14 @@ fun BookSearchSheet(
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 if (hits.isNotEmpty()) {
+                    val total = hits.sumOf { it.count }
                     Text(
                         text = withNumericSpans(
-                            stringResource(R.string.reader_search_matches, hits.sumOf { it.count }),
+                            pluralStringResource(R.plurals.reader_search_matches, total, total),
                             SpanStyle(fontFamily = PdfBookMonoFamily),
                         ),
                         color = ReaderOnOverlayVariant,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }
@@ -171,13 +169,13 @@ fun BookSearchSheet(
                     )
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(10.dp),
+                shape = ButtonCorner,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = ReaderOnOverlay,
                     unfocusedTextColor = ReaderOnOverlay,
-                    cursorColor = ReaderAccent,
-                    focusedBorderColor = ReaderAccent,
-                    unfocusedBorderColor = ReaderChip,
+                    cursorColor = ReaderOnOverlay,
+                    focusedBorderColor = ReaderOnOverlay,
+                    unfocusedBorderColor = ReaderTrack,
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,
                 ),
@@ -198,13 +196,13 @@ fun BookSearchSheet(
                 searching -> Text(
                     text = stringResource(R.string.reader_search_searching),
                     color = ReaderOnOverlayVariant,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(start = 20.dp, top = 12.dp),
                 )
                 finished -> Text(
                     text = stringResource(R.string.reader_search_no_text),
                     color = ReaderOnOverlayVariant,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(start = 20.dp, top = 12.dp),
                 )
             }
@@ -233,17 +231,17 @@ private fun SearchRow(
                 SpanStyle(fontFamily = PdfBookMonoFamily),
             ),
             color = ReaderOnOverlay,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(12.dp))
         Text(
             text = withNumericSpans(
-                stringResource(R.string.reader_search_matches, hit.count),
+                pluralStringResource(R.plurals.reader_search_matches, hit.count, hit.count),
                 SpanStyle(fontFamily = PdfBookMonoFamily),
             ),
             color = ReaderOnOverlayVariant,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
         )
     }

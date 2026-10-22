@@ -5,5 +5,8 @@
     <string name="reader_search_searching">Searching…</string>
     <string name="reader_search_no_text">No searchable text in this book.</string>
     <string name="reader_search_page">Page %1$d</string>
-    <string name="reader_search_matches">%1$d matches</string>
+    <plurals name="reader_search_matches">
+        <item quantity="one">%1$d match</item>
+        <item quantity="other">%1$d matches</item>
+    </plurals>
 </resources>

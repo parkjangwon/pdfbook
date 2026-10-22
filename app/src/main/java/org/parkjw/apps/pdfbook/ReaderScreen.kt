@@ -536,6 +536,7 @@ private fun ReaderScreenContent(
                 searcher = searcher,
                 onJump = { page ->
                     searchVisible = false
+                    overlayVisible = false
                     seekPage(page)
                     seekFinished()
                 },
