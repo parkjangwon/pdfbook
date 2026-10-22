@@ -42,6 +42,18 @@ class ReaderBrightnessWindowTest {
     }
 
     @Test
+    fun changingLevelWhileReaderOpenUpdatesWindow() {
+        val open = mutableStateOf(false)
+        val level = setReader(open, followSystem = false, percent = 40)
+
+        composeRule.runOnUiThread { open.value = true }
+        composeRule.runOnIdle { assertEquals(0.4f, windowBrightness(), 0.001f) }
+
+        composeRule.runOnUiThread { level.intValue = 75 }
+        composeRule.runOnIdle { assertEquals(0.75f, windowBrightness(), 0.001f) }
+    }
+
+    @Test
     fun readerFollowingSystemLeavesWindowBrightnessAlone() {
         val open = mutableStateOf(false)
         setReader(open, followSystem = true, percent = 40)
@@ -50,7 +62,11 @@ class ReaderBrightnessWindowTest {
         composeRule.runOnIdle { assertEquals(brightnessNone(), windowBrightness(), 0f) }
     }
 
-    private fun setReader(open: androidx.compose.runtime.MutableState<Boolean>, followSystem: Boolean, percent: Int) {
+    private fun setReader(
+        open: androidx.compose.runtime.MutableState<Boolean>,
+        followSystem: Boolean,
+        percent: Int,
+    ): androidx.compose.runtime.MutableIntState {
         val level = mutableIntStateOf(percent)
         val pageCount = 3
         val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
@@ -79,6 +95,7 @@ class ReaderBrightnessWindowTest {
                 }
             }
         }
+        return level
     }
 
     private fun windowBrightness(): Float = composeRule.activity.window.attributes.screenBrightness
