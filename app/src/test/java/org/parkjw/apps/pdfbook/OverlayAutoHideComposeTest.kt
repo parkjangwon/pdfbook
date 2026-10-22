@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
@@ -55,7 +56,7 @@ class OverlayAutoHideComposeTest {
         composeRule.mainClock.advanceTimeBy(100)
         composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
         composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS)
-        composeRule.mainClock.advanceTimeBy(END_NOTICE_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(OVERLAY_FADE_MILLIS + 500L)
         composeRule.waitForIdle()
         composeRule.onAllNodesWithTag("reader_overlay_top").assertCountEquals(0)
         composeRule.onAllNodesWithTag("reader_overlay_bottom").assertCountEquals(0)
@@ -66,15 +67,35 @@ class OverlayAutoHideComposeTest {
         composeRule.mainClock.autoAdvance = false
         setReader()
         composeRule.mainClock.advanceTimeBy(100)
+        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS - 500)
+        composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
         composeRule.onNodeWithTag("reader_overlay_top").performTouchInput {
             down(center)
             up()
         }
-        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS - 1_000)
+        // Past 4 s from composition yet before 4 s from the touch: only a real
+        // timer reset keeps the bars visible here.
+        composeRule.mainClock.advanceTimeBy(1_000)
         composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
-        composeRule.mainClock.advanceTimeBy(1_000 + END_NOTICE_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
+        composeRule.mainClock.advanceTimeBy(1_000 + OVERLAY_FADE_MILLIS + 500L)
         composeRule.waitForIdle()
         composeRule.onAllNodesWithTag("reader_overlay_top").assertCountEquals(0)
+    }
+
+    @Test
+    fun overlaySurvivesTimeoutWhileSheetOpenThenResumesAfterDismiss() {
+        composeRule.mainClock.autoAdvance = false
+        setReader()
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_tap_zone_entry").performClick()
+        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + OVERLAY_FADE_MILLIS + 500L)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("tap_zone_width_done").performClick()
+        composeRule.mainClock.advanceTimeBy(1_000L)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
     }
 
     @Test
@@ -86,12 +107,12 @@ class OverlayAutoHideComposeTest {
             down(center)
             moveBy(Offset(width / 4f, 0f))
         }
-        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + END_NOTICE_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + OVERLAY_FADE_MILLIS + 500L)
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("reader_overlay_top").assertIsDisplayed()
         composeRule.onNodeWithTag("reader_slider").performTouchInput { up() }
-        composeRule.mainClock.advanceTimeBy(END_NOTICE_FADE_MILLIS + 500L)
-        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + END_NOTICE_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(OVERLAY_FADE_MILLIS + 500L)
+        composeRule.mainClock.advanceTimeBy(OVERLAY_AUTO_HIDE_MILLIS + OVERLAY_FADE_MILLIS + 500L)
         composeRule.waitForIdle()
         composeRule.onAllNodesWithTag("reader_overlay_top").assertCountEquals(0)
     }

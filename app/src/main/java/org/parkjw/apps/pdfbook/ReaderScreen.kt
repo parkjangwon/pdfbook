@@ -204,7 +204,9 @@ private fun ReaderScreenContent(
     var sliderDragging by remember { mutableStateOf(false) }
     var overlayInteractions by remember { mutableIntStateOf(0) }
     val touchExploration = rememberTouchExplorationEnabled()
-    // Any touch on the overlay bars restarts the auto-hide countdown.
+    val lifecycleResumed = rememberLifecycleResumed()
+    // Any pointer down on the overlay bars restarts the auto-hide countdown. A finger
+    // held still on a bar for >4 s still hides the bars mid-press (accepted in spec).
     val overlayTouchResetter = Modifier.pointerInput(Unit) {
         awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false)
@@ -248,14 +250,16 @@ private fun ReaderScreenContent(
         jumpBack = null
     }
 
-    LaunchedEffect(overlayVisible, sheetOpen, sliderDragging, touchExploration, overlayInteractions) {
-        if (!overlayVisible) return@LaunchedEffect
-        val timeout = overlayAutoHideDelayMillis(
-            sheetOpen = sheetOpen,
-            sliderDragging = sliderDragging,
-            touchExplorationEnabled = touchExploration,
-        ) ?: return@LaunchedEffect
-        delay(timeout)
+    // Keyed on lifecycleResumed so the countdown pauses in background and restarts
+    // full on return, instead of expiring while the reader is hidden.
+    LaunchedEffect(overlayVisible, sheetOpen, sliderDragging, touchExploration, lifecycleResumed, overlayInteractions) {
+        if (!overlayVisible || !lifecycleResumed) return@LaunchedEffect
+        // This effect restarts on an overlay touch or a pause change; the timer
+        // counts from that instant (injected clock: interaction at t=0).
+        val timer = OverlayAutoHideTimer()
+        timer.onInteraction(0L)
+        val expiry = timer.update(sheetOpen, sliderDragging, touchExploration) ?: return@LaunchedEffect
+        delay(expiry)
         overlayVisible = false
     }
 
@@ -557,8 +561,8 @@ private fun ReaderScreenContent(
         val overlayShown = overlayVisible && !sheetOpen
         AnimatedVisibility(
             visible = overlayShown,
-            enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
-            exit = fadeOut(tween(END_NOTICE_FADE_MILLIS)),
+            enter = fadeIn(tween(OVERLAY_FADE_MILLIS)),
+            exit = fadeOut(tween(OVERLAY_FADE_MILLIS)),
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
             ReaderOverlayTop(
@@ -589,8 +593,8 @@ private fun ReaderScreenContent(
             }
             AnimatedVisibility(
                 visible = overlayShown,
-                enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
-                exit = fadeOut(tween(END_NOTICE_FADE_MILLIS)),
+                enter = fadeIn(tween(OVERLAY_FADE_MILLIS)),
+                exit = fadeOut(tween(OVERLAY_FADE_MILLIS)),
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .then(
