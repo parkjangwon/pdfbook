@@ -101,6 +101,7 @@ fun SettingsScreen(
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.Main,
     initiallyShowStartChoice: Boolean = false,
     initiallyShowTapWidthSheet: Boolean = false,
+    // Test hook: opens the animation choice dialog on first composition.
     initiallyShowAnimationChoice: Boolean = false,
 ) {
     var subScreen by rememberSaveable { mutableStateOf(initialSubScreen.name) }

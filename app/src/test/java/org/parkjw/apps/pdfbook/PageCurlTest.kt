@@ -72,25 +72,14 @@ class PageCurlTest {
 
     @Test
     fun interruptOnNewInputFinishesCurrentThenStartsNext() {
-        val current = CurlEffectState(0, 1, CurlSide.Left, progress = 0.4f, dragging = false)
-        val action = interruptCurl(current, fromIndex = 1, toIndex = 2, side = CurlSide.Left)
-        assertEquals(1, action.finishToIndex)
-        assertEquals(1, action.next.fromIndex)
-        assertEquals(2, action.next.toIndex)
-        assertEquals(0f, action.next.progress, 0f)
-        assertFalse(action.next.dragging)
-        assertTrue(action.next.completing)
-
         val draggingPast = CurlEffectState(0, 1, CurlSide.Right, 0.5f, dragging = true)
         assertEquals(1, curlFinishIndex(draggingPast))
         val draggingShort = draggingPast.copy(progress = 0.1f)
         assertEquals(0, curlFinishIndex(draggingShort))
         val springBack = CurlEffectState(2, 3, CurlSide.Left, 0.2f, dragging = false, completing = false)
         assertEquals(2, curlFinishIndex(springBack))
-
-        val fresh = interruptCurl(null, fromIndex = 0, toIndex = 1, side = CurlSide.Right)
-        assertNull(fresh.finishToIndex)
-        assertEquals(CurlSide.Right, fresh.next.side)
+        val settling = CurlEffectState(0, 1, CurlSide.Left, progress = 0.4f, dragging = false)
+        assertEquals(1, curlFinishIndex(settling))
     }
 
     @Test

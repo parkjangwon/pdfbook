@@ -70,36 +70,12 @@ data class CurlEffectState(
     val completing: Boolean = true,
 )
 
-data class CurlInterrupt(
-    /** Page index the interrupted effect must land on before the next starts. */
-    val finishToIndex: Int?,
-    val next: CurlEffectState,
-)
-
 /** Page the in-flight effect must settle on before a new turn starts. */
 fun curlFinishIndex(current: CurlEffectState): Int = when {
     current.dragging -> if (shouldCompleteCurl(current.progress)) current.toIndex else current.fromIndex
     current.completing -> current.toIndex
     else -> current.fromIndex
 }
-
-/** Finish the in-flight curl immediately, then queue the next turn. Never drops input. */
-fun interruptCurl(
-    current: CurlEffectState?,
-    fromIndex: Int,
-    toIndex: Int,
-    side: CurlSide,
-): CurlInterrupt = CurlInterrupt(
-    finishToIndex = current?.let { curlFinishIndex(it) },
-    next = CurlEffectState(
-        fromIndex,
-        toIndex,
-        side,
-        progress = 0f,
-        dragging = false,
-        completing = true,
-    ),
-)
 
 data class CurlGeometry(
     val tip: Offset,

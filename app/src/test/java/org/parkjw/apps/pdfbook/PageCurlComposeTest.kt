@@ -160,6 +160,41 @@ class PageCurlComposeTest {
     }
 
     @Test
+    fun uncachedDragBeforeThresholdSpringsBackAnimated() {
+        setReader(renderer = UncachedPages(PAGE_COUNT))
+        freezeClock()
+        startDrag(ReadingDirection.LTR, fromFraction = 0.9f, toFraction = 0.75f)
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        assertTrue(pagerState.currentPageOffsetFraction > 0f)
+        endDrag()
+        composeRule.mainClock.advanceTimeByFrame()
+        // Animated spring-back, not an instant snap to the resting offset.
+        assertTrue(pagerState.currentPageOffsetFraction > 0f)
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        assertEquals(0f, pagerState.currentPageOffsetFraction, 0.001f)
+        assertEquals(0, pagerState.currentPage)
+    }
+
+    @Test
+    fun volumeKeyDuringCurlDragKeepsTheInterruptedTurn() {
+        setReader()
+        freezeClock()
+        startDrag(ReadingDirection.LTR, fromFraction = 0.9f, toFraction = 0.5f)
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        runBlocking { volume.emit(1) }
+        composeRule.mainClock.advanceTimeByFrame()
+        // The stale drag release must not settle back to its original target (page 1).
+        endDrag()
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(2, pagerState.currentPage)
+    }
+
+    @Test
     fun twoPageViewUsesSlideWithoutCurl() {
         setReader(twoPage = true)
         freezeClock()
