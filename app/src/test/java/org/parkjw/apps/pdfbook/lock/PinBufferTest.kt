@@ -40,7 +40,7 @@ class PinBufferTest {
     }
 }
 
-class PinCreateSessionTest {
+class PinCreateSessionFlowTest {
     private fun PinCreateSession.type(s: String): CharArray? {
         var out: CharArray? = null
         s.forEach { out = digit(it) ?: out }
