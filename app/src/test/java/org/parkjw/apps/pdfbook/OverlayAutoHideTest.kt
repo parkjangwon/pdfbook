@@ -16,6 +16,24 @@ class OverlayAutoHideTest {
     }
 
     @Test
+    fun longerRecommendedTimeoutDelaysHiding() {
+        val timer = OverlayAutoHideTimer(timeoutMillis = { 120_000L })
+        timer.onInteraction(0L)
+        assertEquals(
+            120_000L,
+            timer.nextDelay(0L, sheetOpen = false, sliderDragging = false, touchExploration = false),
+        )
+        assertEquals(
+            70_000L,
+            timer.nextDelay(50_000L, sheetOpen = false, sliderDragging = false, touchExploration = false),
+        )
+        assertEquals(
+            0L,
+            timer.nextDelay(120_000L, sheetOpen = false, sliderDragging = false, touchExploration = false),
+        )
+    }
+
+    @Test
     fun interactionResetsCountdown() {
         val timer = OverlayAutoHideTimer()
         timer.onInteraction(0L)

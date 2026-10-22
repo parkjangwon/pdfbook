@@ -19,8 +19,11 @@ const val OVERLAY_AUTO_HIDE_MILLIS = 4_000L
  * Pure auto-hide state machine for the reader overlay. All times come from the
  * caller's monotonic clock, and the screen drives this same [nextDelay] sequence
  * the unit tests assert, so a pause and a reset behave identically in both.
+ *
+ * [timeoutMillis] is injected so the screen can honor the user's accessibility
+ * "Time to take action" setting while tests stay on the 4 s default.
  */
-class OverlayAutoHideTimer(private val timeoutMillis: Long = OVERLAY_AUTO_HIDE_MILLIS) {
+class OverlayAutoHideTimer(private val timeoutMillis: () -> Long = { OVERLAY_AUTO_HIDE_MILLIS }) {
     private var lastInteractionAt = 0L
 
     /** A touch (or the overlay opening) restarts the countdown from [now]. */
@@ -42,7 +45,30 @@ class OverlayAutoHideTimer(private val timeoutMillis: Long = OVERLAY_AUTO_HIDE_M
         resumed: Boolean = true,
     ): Long? {
         if (sheetOpen || sliderDragging || touchExploration || pointerPressed || !resumed) return null
-        return (lastInteractionAt + timeoutMillis - now).coerceAtLeast(0L)
+        return (lastInteractionAt + timeoutMillis() - now).coerceAtLeast(0L)
+    }
+}
+
+/**
+ * The 4 s default extended by the accessibility "Time to take action" setting
+ * (e.g. a 2 minute interactive UI timeout), which also covers slow uiautomator
+ * dumps in emulator verification.
+ */
+@Composable
+fun rememberOverlayAutoHideMillis(): Long {
+    val context = LocalContext.current
+    val manager = remember(context) {
+        context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+    }
+    return remember(manager) {
+        manager
+            ?.getRecommendedTimeoutMillis(
+                OVERLAY_AUTO_HIDE_MILLIS.toInt(),
+                AccessibilityManager.FLAG_CONTENT_CONTROLS or AccessibilityManager.FLAG_CONTENT_ICONS,
+            )
+            ?.toLong()
+            ?.coerceAtLeast(OVERLAY_AUTO_HIDE_MILLIS)
+            ?: OVERLAY_AUTO_HIDE_MILLIS
     }
 }
 

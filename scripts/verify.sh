@@ -350,6 +350,7 @@ echo "verify: device $DEVICE"
 "$ADB" shell settings put global window_animation_scale 0 >/dev/null 2>&1 || true
 "$ADB" shell settings put global transition_animation_scale 0 >/dev/null 2>&1 || true
 "$ADB" shell settings put global animator_duration_scale 0 >/dev/null 2>&1 || true
+"$ADB" shell settings put secure accessibility_interactive_ui_timeout_ms 120000 >/dev/null 2>&1 || true
 "$ADB" install -r -g "$APK" >/dev/null
 "$ADB" shell pm clear "$PKG" >/dev/null
 prepare_book

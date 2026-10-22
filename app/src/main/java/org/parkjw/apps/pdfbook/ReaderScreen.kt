@@ -207,7 +207,8 @@ private fun ReaderScreenContent(
     var overlayInteractions by remember { mutableIntStateOf(0) }
     val touchExploration = rememberTouchExplorationEnabled()
     val lifecycleResumed = rememberLifecycleResumed()
-    val autoHideTimer = remember { OverlayAutoHideTimer() }
+    val autoHideMillis = rememberOverlayAutoHideMillis()
+    val autoHideTimer = remember(autoHideMillis) { OverlayAutoHideTimer { autoHideMillis } }
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
@@ -253,6 +254,7 @@ private fun ReaderScreenContent(
         touchExploration,
         lifecycleResumed,
         overlayInteractions,
+        autoHideMillis,
     ) {
         if (!overlayVisible) return@LaunchedEffect
         val now = SystemClock.elapsedRealtime()
