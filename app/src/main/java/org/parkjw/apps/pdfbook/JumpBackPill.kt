@@ -104,7 +104,7 @@ fun JumpBackPill(page: Int, onClick: () -> Unit, modifier: Modifier = Modifier) 
             text = text,
             color = ReaderOnOverlay,
             fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Normal,
             maxLines = 1,
         )
     }
