@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list settings keep-zoom"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -395,6 +395,16 @@ case "$FEATURE" in
     tap_id reader_book_list_button
     expect_id book_list_row
     shot book-list
+    ;;
+  bookmarks)
+    open_book
+    show_overlay
+    tap_id reader_bookmark_toggle
+    shot bookmark-added
+    tap_id reader_bookmark_list_button
+    expect_id bookmark_sheet
+    expect_id bookmark_row
+    shot bookmark-list
     ;;
   settings)
     open_library

@@ -54,7 +54,10 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -118,6 +121,7 @@ fun ReaderScreen(
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    bookmarks: ReaderBookmarks? = null,
     keepScreenOn: Boolean = true,
 ) {
     val view = LocalView.current
@@ -153,6 +157,7 @@ fun ReaderScreen(
             initialJumpBack = jumpBack,
             keepZoom = keepZoom,
             posture = posture,
+            bookmarks = bookmarks,
         )
     }
 }
@@ -184,7 +189,9 @@ private fun ReaderScreenContent(
     initialJumpBack: JumpBack?,
     keepZoom: Boolean,
     posture: FoldPosture,
+    bookmarks: ReaderBookmarks?,
 ) {
+    var bookmarkSheetVisible by rememberSaveable { mutableStateOf(false) }
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
@@ -209,7 +216,8 @@ private fun ReaderScreenContent(
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
-    val sheetOpen = widthSheetVisible || (bookListVisible && volumes.bookList != null)
+    val sheetOpen = widthSheetVisible || (bookListVisible && volumes.bookList != null) ||
+        (bookmarkSheetVisible && bookmarks != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
     TrimCacheOnMemoryPressure(renderer)
@@ -520,6 +528,18 @@ private fun ReaderScreenContent(
                 onDone = { widthSheetVisible = false },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        } else if (bookmarkSheetVisible && bookmarks != null) {
+            BackHandler { bookmarkSheetVisible = false }
+            BookmarkSheet(
+                pages = bookmarks.pages,
+                onPick = { page ->
+                    bookmarkSheetVisible = false
+                    jumpBack = null
+                    scrollTo(spreadIndexOf(currentSpreads, page))
+                },
+                onDelete = bookmarks.onToggle,
+                onDismiss = { bookmarkSheetVisible = false },
+            )
         } else if (bookListVisible && volumes.bookList != null) {
             BackHandler { bookListVisible = false }
             BookListSheet(
@@ -533,6 +553,7 @@ private fun ReaderScreenContent(
                 onDismiss = { bookListVisible = false },
             )
         } else if (overlayVisible) {
+            val currentSpread = currentSpreads.getOrElse(spreadIndexOf(currentSpreads, currentPage)) { listOf(currentPage) }
             ReaderOverlayTop(
                 title = title,
                 twoPage = twoPage,
@@ -541,6 +562,9 @@ private fun ReaderScreenContent(
                 onDirectionChange = onDirectionChange,
                 showPageMode = tabletop == null,
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
+                bookmarked = bookmarks?.let { spreadBookmarked(it.pages, currentSpread) },
+                onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
+                onOpenBookmarks = bookmarks?.let { { bookmarkSheetVisible = true } },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .then(
@@ -803,6 +827,9 @@ private fun ReaderOverlayTop(
     showPageMode: Boolean = true,
     modifier: Modifier = Modifier,
     onOpenBookList: (() -> Unit)? = null,
+    bookmarked: Boolean? = null,
+    onToggleBookmark: () -> Unit = {},
+    onOpenBookmarks: (() -> Unit)? = null,
 ) {
     Row(
         modifier
@@ -837,6 +864,39 @@ private fun ReaderOverlayTop(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (bookmarked != null) {
+            IconButton(
+                onClick = onToggleBookmark,
+                colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+                modifier = Modifier
+                    .testTag("reader_bookmark_toggle")
+                    .semantics {
+                        role = Role.Checkbox
+                        toggleableState = ToggleableState(bookmarked)
+                    },
+            ) {
+                Icon(
+                    painter = painterResource(if (bookmarked) R.drawable.ic_bookmark_on else R.drawable.ic_bookmark),
+                    contentDescription = stringResource(
+                        if (bookmarked) R.string.reader_bookmark_remove else R.string.reader_bookmark_add,
+                    ),
+                    tint = ReaderOnOverlay,
+                )
+            }
+        }
+        if (onOpenBookmarks != null) {
+            IconButton(
+                onClick = onOpenBookmarks,
+                colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+                modifier = Modifier.testTag("reader_bookmark_list_button"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_bookmark_list),
+                    contentDescription = stringResource(R.string.reader_bookmark_list),
+                    tint = ReaderOnOverlay,
+                )
+            }
+        }
         if (onOpenBookList != null) {
             IconButton(
                 onClick = onOpenBookList,

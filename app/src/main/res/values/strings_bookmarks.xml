@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_bookmark_add">책갈피 추가</string>
+    <string name="reader_bookmark_remove">책갈피 해제</string>
+    <string name="reader_bookmark_list">책갈피 목록</string>
+    <string name="bookmark_list_title">책갈피</string>
+    <string name="bookmark_page">%1$d쪽</string>
+    <string name="bookmark_delete">%1$d쪽 책갈피 해제</string>
+    <string name="bookmark_empty">아직 책갈피가 없어요</string>
+</resources>

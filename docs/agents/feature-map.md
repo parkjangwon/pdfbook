@@ -50,6 +50,8 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Tap zone width sheet, reader (SPEC-2 TW-3) | Overlay → `reader_tap_zone_entry` | `tap_zone_width_sheet`, `tap_zone_width_slider`, `tap_zone_width_reset`, `tap_zone_width_done`, `tap_zone_width_preview` | `TapZoneWidthSheet.kt`, `ReaderScreen.kt` | `TapZoneWidthSheetTest`, `TapZoneWidthPixelTest`, `TapZoneWidthTest` |
 | Previous / next volume buttons | Overlay → `reader_volume_left` / `reader_volume_right` | `reader_volume_left`, `reader_volume_right`, `reader_book_changed_toast` | `VolumeNav.kt`, `ReaderScreen.kt` | `VolumeNavTest`, `ReaderVolumesScreenshotsTest` |
 | Book list sheet (SPEC-3) | Overlay → `reader_book_list_button` | `book_list_sheet`, `book_list_row` | `BookListSheet.kt` | `ReaderVolumesComposeTest` |
+| Bookmark toggle (#56) | Overlay → `reader_bookmark_toggle` (two-page: acts on the whole spread) | `reader_bookmark_toggle` | `Bookmarks.kt`, `ReaderScreen.kt`, `ReaderRoute.kt`, `BookStore.kt` | `BookmarksTest` |
+| Bookmark list sheet (#56) | Overlay → `reader_bookmark_list_button` → tap `bookmark_row` to jump, `bookmark_delete` to remove | `reader_bookmark_list_button`, `bookmark_sheet`, `bookmark_row`, `bookmark_delete` | `Bookmarks.kt`, `ReaderScreen.kt` | `BookmarksTest` |
 | Next book notice at the last page (SPEC-8) | Last page → `reader_zone_Next` (again to open) | `end_notice`, `end_notice_open` | `NextBook.kt`, `NextBookNotice.kt`, `NoticeSlot.kt` | `NextBookTest`, `NextBookComposeTest`, `NextBookScreenshotsTest` |
 | Two-page spreads and foldable posture | Wide screen or unfolded device; setting under Reading → two-page | `reader_page_mode` | `TwoPage.kt`, `Spreads.kt`, `FoldPosture.kt`, `ReadingAnchor.kt` | `TwoPageTest`, `SpreadsTest`, `SpreadLayoutTest`, `SpreadIndexOfTest`, `FoldPostureTest`, `ReadingAnchorTest` |
 | Tabletop posture pads (SPEC-7) | Foldable half-opened, horizontal hinge | `tabletop_pads`, `tabletop_pad_Previous`, `tabletop_pad_Menu`, `tabletop_pad_Next`, `tabletop_page_number`, `reader_page_area` | `TabletopPads.kt`, `FoldLayout.kt`, `ReaderScreen.kt` | `FoldPostureComposeTest`, `FoldPostureScreenshotsTest`, `FoldLayoutTest` |
@@ -84,6 +86,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | `scripts/verify.sh tap-width-sheet` | Tap zone width sheet opened from the reader | TW-3 |
 | `scripts/verify.sh jump-back` | Slider jump to about 80%, the pill, then the return | JB-1, JB-2 |
 | `scripts/verify.sh book-list` | Book list sheet with both generated books | BM-1 |
+| `scripts/verify.sh bookmarks` | Bookmarks the current page, then opens the bookmark list | – |
 | `scripts/verify.sh settings` | Settings, then reading settings | – |
 | `scripts/verify.sh keep-zoom` | Reading settings with "Keep zoom when turning pages" off, then on | ZL-3/ZL-4 setting |
 
