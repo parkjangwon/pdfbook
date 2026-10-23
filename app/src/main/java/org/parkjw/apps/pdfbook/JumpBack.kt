@@ -14,6 +14,14 @@ fun jumpBackAfterSeek(spreads: List<List<Int>>, fromIndex: Int, toIndex: Int): J
     return JumpBack(page = from, shownAt = toIndex)
 }
 
+data class PageJump(val targetIndex: Int, val jumpBack: JumpBack?)
+
+/** Contents and thumbnail picks use the same return pill as a slider seek. */
+fun pageJump(spreads: List<List<Int>>, fromIndex: Int, page: Int): PageJump {
+    val target = spreadIndexOf(spreads, page)
+    return PageJump(target, jumpBackAfterSeek(spreads, fromIndex, target))
+}
+
 data class JumpBackStep(val targetIndex: Int, val next: JumpBack?)
 
 fun jumpBackStep(spreads: List<List<Int>>, jumpBack: JumpBack, currentIndex: Int): JumpBackStep {

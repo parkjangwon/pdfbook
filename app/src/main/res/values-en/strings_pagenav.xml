@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_page_nav">Contents and pages</string>
+    <string name="page_nav_tab_contents">Contents</string>
+    <string name="page_nav_tab_pages">Pages</string>
+    <string name="page_nav_thumb_description">Go to page %1$d</string>
+</resources>

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import android.util.LruCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,11 +25,16 @@ interface PageBitmaps {
     fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? = null
     fun prerender(current: List<PageRequest>, targets: List<PageRequest>) {}
     fun trimToCurrent() {}
+    suspend fun outline(): List<OutlineEntry> = emptyList()
+    suspend fun thumbnail(request: PageRequest): Bitmap? = null
 }
 
 interface PageSource : Closeable {
     val pageCount: Int
     fun draw(page: Int, maxWidth: Int, maxHeight: Int): Bitmap
+
+    // PdfRenderer has no outline API on minSdk 35, so PdfPageSource keeps this empty and the contents tab stays hidden.
+    fun outline(): List<OutlineNode> = emptyList()
 }
 
 class PdfPageSource(
@@ -61,6 +67,7 @@ class PdfPageSource(
 class PageRenderer(
     private val source: PageSource,
     limitBytes: Long = cacheLimitBytes(Runtime.getRuntime().maxMemory()),
+    thumbLimitBytes: Long = THUMB_CACHE_BYTES,
 ) : PageBitmaps, Closeable {
     private val mutex = Mutex()
     private val renderDispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -72,7 +79,34 @@ class PageRenderer(
 
     val cache = PageCache<Bitmap>(limitBytes) { it.byteCount.toLong() }
 
+    private val thumbs = object : LruCache<PageRequest, Bitmap>(thumbLimitBytes.toInt()) {
+        override fun sizeOf(key: PageRequest, value: Bitmap) = value.byteCount
+    }
+
     override val pageCount: Int = source.pageCount
+
+    // Thumbnails queue behind the page mutex without cancelling prerender, so the reader's own page never waits on a strip.
+    override suspend fun thumbnail(request: PageRequest): Bitmap? {
+        thumbs.get(request)?.let { return it }
+        if (closed || request.page < 1 || request.page > pageCount) return null
+        return withContext(renderDispatcher) {
+            mutex.withLock {
+                if (closed) return@withLock null
+                thumbs.get(request)?.let { return@withLock it }
+                source.draw(request.page, request.maxWidth, request.maxHeight).also { thumbs.put(request, it) }
+            }
+        }
+    }
+
+    override suspend fun outline(): List<OutlineEntry> = withContext(renderDispatcher) {
+        mutex.withLock {
+            if (closed) {
+                emptyList()
+            } else {
+                outlineEntries(runCatching { source.outline() }.getOrDefault(emptyList()), pageCount)
+            }
+        }
+    }
 
     override fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? =
         if (closed) null else cache.get(PageRequest(page, maxWidth, maxHeight))
@@ -147,6 +181,7 @@ class PageRenderer(
                 if (closed) return@withLock
                 closed = true
                 cache.clear()
+                thumbs.evictAll()
                 source.close()
             }
         }
