@@ -1,6 +1,7 @@
 package org.parkjw.apps.pdfbook
 
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -26,6 +27,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -43,16 +47,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -63,6 +74,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -135,7 +147,14 @@ fun FolderPickScreen(
 
 const val SORT_BUTTON_TAG = "library_sort_button"
 const val SORT_CHECK_TAG = "library_sort_check"
+const val SEARCH_BUTTON_TAG = "library_search_button"
+const val SEARCH_FIELD_TAG = "library_search_field"
+const val SEARCH_CLEAR_TAG = "library_search_clear"
+const val SEARCH_CLOSE_TAG = "library_search_close"
+const val SEARCH_EMPTY_TAG = "library_search_empty"
+const val LIBRARY_TITLE_TAG = "library_title"
 private val SORT_MENU_WIDTH = 176.dp
+private val COMPACT_BAR_MAX_WIDTH = 480.dp
 
 fun sortOptionTag(sort: BookSort): String = "library_sort_option_" + sort.name
 
@@ -144,6 +163,10 @@ fun sortLabelRes(sort: BookSort): Int = when (sort) {
     BookSort.Name -> R.string.sort_name
 }
 
+/**
+ * [showSearch] and [searchQuery] seed the initial search state for previews and tests;
+ * the live search state survives configuration changes via rememberSaveable.
+ */
 @Composable
 fun LibraryScreen(
     listing: Listing,
@@ -173,13 +196,25 @@ fun LibraryScreen(
     onUnhideSubfolder: (SubfolderItem) -> Unit = {},
     pathLine: String? = null,
     resumeBooks: List<BookInfo>? = null,
+    showSearch: Boolean = false,
+    searchQuery: String = "",
 ) {
     val byName = sort == BookSort.Name
     var menuBookUri by remember { mutableStateOf<String?>(null) }
     var peekMenuOpen by remember { mutableStateOf(showPeekMenu) }
     var sortMenuOpen by remember { mutableStateOf(showSortMenu) }
     val snackbarHostState = remember { SnackbarHostState() }
+    var searchActive by rememberSaveable { mutableStateOf(showSearch) }
+    var query by rememberSaveable { mutableStateOf(searchQuery) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val queryActive = searchActive && query.isNotBlank()
     val sorted = remember(listing, states, byName) { sortBooks(listing.books, states, byName) }
+    val matches = remember(sorted, subfolders, searchActive, query) {
+        if (searchActive) filterLibrary(sorted, subfolders, query) else LibraryMatches(sorted, subfolders)
+    }
+    val noMatches = queryActive && matches.books.isEmpty() && matches.subfolders.isEmpty()
     val resume = remember(byName, resumeBooks, sorted, states, peekHiddenBookIds) {
         when {
             byName -> null
@@ -196,8 +231,24 @@ fun LibraryScreen(
         if (result == SnackbarResult.ActionPerformed) currentOnSnackbarAction()
         currentOnSnackbarShown()
     }
+    val closeSearch = {
+        searchActive = false
+        query = ""
+        keyboard?.hide()
+        focusManager.clearFocus()
+    }
+    LaunchedEffect(searchActive) {
+        if (searchActive) {
+            withFrameNanos { }
+            focusRequester.requestFocus()
+            keyboard?.show()
+        }
+    }
+    BackHandler(enabled = searchActive) { closeSearch() }
     Box(modifier.fillMaxSize().testTag("library_screen")) {
     Column(Modifier.fillMaxSize()) {
+        BoxWithConstraints {
+        val compactBar = maxWidth < COMPACT_BAR_MAX_WIDTH
         SafeTopBar(
             modifier = Modifier.padding(horizontal = PdfBookSpacing.screenHorizontalFolded),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -206,6 +257,59 @@ fun LibraryScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f),
             ) {
+                if (searchActive) {
+                    IconButton(
+                        onClick = closeSearch,
+                        colors = pdfBookIconButtonColors(),
+                        modifier = Modifier.testTag(SEARCH_CLOSE_TAG),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_arrow_back),
+                            contentDescription = stringResource(R.string.library_search_close),
+                        )
+                    }
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.titleLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester)
+                            .testTag(SEARCH_FIELD_TAG),
+                        decorationBox = { innerTextField ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (query.isEmpty()) {
+                                    Text(
+                                        text = stringResource(R.string.library_search_hint),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
+                    )
+                    if (query.isNotEmpty()) {
+                        IconButton(
+                            onClick = { query = "" },
+                            colors = pdfBookIconButtonColors(),
+                            modifier = Modifier.testTag(SEARCH_CLEAR_TAG),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_close),
+                                contentDescription = stringResource(R.string.library_search_clear),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                } else {
                 if (onBack != null) {
                     IconButton(
                         onClick = onBack,
@@ -224,6 +328,7 @@ fun LibraryScreen(
                         style = MaterialTheme.typography.titleLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag(LIBRARY_TITLE_TAG),
                     )
                     if (pathLine != null) {
                         Text(
@@ -235,8 +340,20 @@ fun LibraryScreen(
                         )
                     }
                 }
+                }
             }
+            if (!searchActive) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { searchActive = true },
+                    colors = pdfBookIconButtonColors(),
+                    modifier = Modifier.testTag(SEARCH_BUTTON_TAG),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_search),
+                        contentDescription = stringResource(R.string.library_search),
+                    )
+                }
                 Box {
                     val sortTitle = stringResource(R.string.sort_menu_title)
                     val sortLabel = stringResource(sortLabelRes(sort))
@@ -254,23 +371,37 @@ fun LibraryScreen(
                                 contentDescription = sortTitle
                                 stateDescription = sortLabel
                             }
-                            .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+                            .padding(
+                                start = if (compactBar) 15.dp else 12.dp,
+                                end = if (compactBar) 15.dp else 6.dp,
+                                top = if (compactBar) 11.dp else 10.dp,
+                                bottom = if (compactBar) 11.dp else 10.dp,
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
-                        Text(
-                            text = sortLabel,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                        )
-                        Icon(
-                            painter = painterResource(R.drawable.ic_expand_more),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(18.dp),
-                        )
+                        if (compactBar) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_sort),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        } else {
+                            Text(
+                                text = sortLabel,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.ic_expand_more),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
                     PdfBookDropdownMenu(
                         expanded = sortMenuOpen,
@@ -365,18 +496,29 @@ fun LibraryScreen(
                     }
                 }
             }
+            }
+        }
         }
         if (peekEnabled) {
             PeekHiddenBanner(onStop = onPeekToggle)
         }
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingHorizontalPadding()) {
+            if (noMatches) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stringResource(R.string.library_search_empty),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.testTag(SEARCH_EMPTY_TAG),
+                    )
+                }
+            } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columnsFor(maxWidth.value.toInt())),
                 contentPadding = safeDrawingGridContentPadding(),
                 horizontalArrangement = Arrangement.spacedBy(PdfBookSpacing.sm),
                 verticalArrangement = Arrangement.spacedBy(PdfBookSpacing.md),
             ) {
-                if (resume != null) {
+                if (resume != null && !queryActive) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         ResumeCard(
                             resume,
@@ -394,7 +536,7 @@ fun LibraryScreen(
                         )
                     }
                 }
-                items(subfolders, key = { "folder:" + it.node.uri }) { item ->
+                items(matches.subfolders, key = { "folder:" + it.node.uri }) { item ->
                     SubfolderCell(
                         item = item,
                         covers = covers,
@@ -412,7 +554,7 @@ fun LibraryScreen(
                         },
                     )
                 }
-                items(sorted, key = { it.uri }) { book ->
+                items(matches.books, key = { it.uri }) { book ->
                     val isHidden = book.uri in peekHiddenBookIds
                     BookCell(
                         book,
@@ -431,6 +573,7 @@ fun LibraryScreen(
                         isHidden = isHidden,
                     )
                 }
+            }
             }
         }
     }
