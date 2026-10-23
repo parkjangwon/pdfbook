@@ -38,6 +38,8 @@ fun ReaderRoute(
     onTitleToastShown: () -> Unit = {},
     keepZoom: Boolean = false,
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
+    autoTurnSeconds: Int = AUTO_TURN_DEFAULT_SECONDS,
+    onAutoTurnSecondsChange: (Int) -> Unit = {},
     coverAlone: Boolean = true,
     rendererOverride: PageBitmaps? = null,
     keepScreenOn: Boolean = true,
@@ -153,6 +155,8 @@ fun ReaderRoute(
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,
+                    autoTurnSeconds = autoTurnSeconds,
+                    onAutoTurnSecondsChange = onAutoTurnSecondsChange,
                     keepScreenOn = keepScreenOn,
                 )
             }

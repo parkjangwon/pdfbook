@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
+import org.parkjw.apps.pdfbook.AUTO_TURN_DEFAULT_SECONDS
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
@@ -47,6 +48,21 @@ class SettingsRepositoryTest {
         assertEquals(TwoPageMode.AlwaysDouble, loaded.twoPageMode)
         assertEquals(StartScreen.LastBook, loaded.startScreen)
         assertEquals(2f, loaded.doubleTapZoomScale, 0f)
+    }
+
+    @Test
+    fun autoTurnIntervalPersistsAndFallsBackToDefault() = runTest {
+        val repo = repository()
+        assertEquals(AUTO_TURN_DEFAULT_SECONDS, repo.settings.first().autoTurnSeconds)
+        repo.update { it.copy(autoTurnSeconds = 30) }
+        assertEquals(30, repo.settings.first().autoTurnSeconds)
+    }
+
+    @Test
+    fun unknownAutoTurnIntervalFallsBackToDefault() {
+        val prefs = androidx.datastore.preferences.core.emptyPreferences().toMutablePreferences()
+        prefs[SettingsRepository.AutoTurnSecondsKey] = 7
+        assertEquals(AUTO_TURN_DEFAULT_SECONDS, prefs.toAppSettings().autoTurnSeconds)
     }
 
     @Test

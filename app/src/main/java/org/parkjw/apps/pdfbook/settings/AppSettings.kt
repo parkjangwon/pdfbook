@@ -1,5 +1,6 @@
 package org.parkjw.apps.pdfbook.settings
 
+import org.parkjw.apps.pdfbook.AUTO_TURN_DEFAULT_SECONDS
 import org.parkjw.apps.pdfbook.DEFAULT_TAP_ZONE_SIDE_PERCENT
 import org.parkjw.apps.pdfbook.ReadingDirection
 
@@ -47,4 +48,5 @@ data class AppSettings(
     val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     val showDotFiles: Boolean = false,
     val keepZoomOnTurn: Boolean = false,
+    val autoTurnSeconds: Int = AUTO_TURN_DEFAULT_SECONDS,
 )
