@@ -102,6 +102,7 @@ fun ReaderRoute(
                 mutableStateOf(initialDirection)
             }
             LaunchedEffect(initialDirection) { direction = initialDirection }
+            var autoCrop by rememberSaveable(key) { mutableStateOf(saved?.autoCrop == true) }
             if (!hasReadableSpreads(spreadList)) {
                 Box(Modifier.fillMaxSize())
             } else {
@@ -122,7 +123,7 @@ fun ReaderRoute(
                         if (sync.page != anchorPage) anchorPage = sync.page
                     }
                 }
-                LaunchedEffect(anchorPage, direction) {
+                LaunchedEffect(anchorPage, direction, autoCrop) {
                     store.save(
                         key,
                         state.copy(
@@ -130,6 +131,7 @@ fun ReaderRoute(
                             pageCount = renderer.pageCount,
                             direction = direction,
                             openedAt = System.currentTimeMillis(),
+                            autoCrop = autoCrop,
                         ),
                     )
                 }
@@ -153,6 +155,8 @@ fun ReaderRoute(
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,
+                    autoCrop = autoCrop,
+                    onAutoCropChange = { autoCrop = it },
                     keepScreenOn = keepScreenOn,
                 )
             }
