@@ -691,6 +691,7 @@ private fun App(
                 tapZoneSidePercent = settings.tapZoneSidePercent,
                 keepZoom = settings.keepZoomOnTurn,
                 twoPageMode = settings.twoPageMode,
+                screenOrientation = settings.screenOrientation,
                 fullScreenReading = settings.fullScreenReading,
                 coverAlone = settings.coverAlone,
                 keepScreenOn = settings.keepScreenOn,
