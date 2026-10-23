@@ -46,6 +46,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Reader overlay | Reader → `reader_zone_Menu` | `reader_overlay_top`, `reader_overlay_bottom`, `reader_back`, `reader_progress`, `reader_page_mode` | `ReaderScreen.kt` | `ReaderVolumesComposeTest` |
 | Reading direction toggle | Overlay → `reader_direction_toggle` | `reader_direction_toggle` | `ReadingDirection.kt`, `BookStore.kt` | `PagerNavTest` |
 | Page slider | Overlay → drag or tap `reader_slider` | `reader_slider` | `ReaderScreen.kt`, `PagerNav.kt` | `PagerNavTest` |
+| Go to page (#116) | Overlay → tap `reader_progress` → type a page → "이동" | `reader_progress`, `go_to_page_dialog`, `go_to_page_field` | `ReaderScreen.kt`, `GoToPageDialog.kt` | `GoToPageTest`, `GoToPageComposeTest`, `GoToPageScreenshotsTest` |
 | Jump back pill (SPEC-4) | Overlay → tap `reader_slider` far from the current page → close overlay | `jump_back_pill` | `JumpBack.kt`, `JumpBackPill.kt` | `JumpBackTest`, `JumpBackComposeTest`, `JumpBackScreenshotsTest` |
 | Tap zone guide | Overlay open with "Tap zone guide" on in reading settings | `tap_zone_guide` | `TapZoneGuide.kt` | `TapZoneGuideTest`, `TapZoneGuidePixelTest` |
 | Tap zone width sheet, reader (SPEC-2 TW-3) | Overlay → `reader_tap_zone_entry` | `tap_zone_width_sheet`, `tap_zone_width_slider`, `tap_zone_width_reset`, `tap_zone_width_done`, `tap_zone_width_preview` | `TapZoneWidthSheet.kt`, `ReaderScreen.kt` | `TapZoneWidthSheetTest`, `TapZoneWidthPixelTest`, `TapZoneWidthTest` |
