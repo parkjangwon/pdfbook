@@ -112,6 +112,8 @@ fun ReaderScreen(
     tapZoneWidthSheetVisible: Boolean = false,
     volumes: ReaderVolumes = ReaderVolumes(),
     bookListVisible: Boolean = false,
+    searchVisible: Boolean = false,
+    searcher: PageTextSearch? = null,
     showTitleToast: Boolean = false,
     onTitleToastShown: () -> Unit = {},
     endNotice: EndNotice? = null,
@@ -147,6 +149,8 @@ fun ReaderScreen(
             initialTapZoneWidthSheetVisible = tapZoneWidthSheetVisible,
             volumes = volumes,
             initialBookListVisible = bookListVisible,
+            initialSearchVisible = searchVisible,
+            searcher = searcher,
             showTitleToast = showTitleToast,
             onTitleToastShown = onTitleToastShown,
             initialEndNotice = endNotice,
@@ -178,6 +182,8 @@ private fun ReaderScreenContent(
     initialTapZoneWidthSheetVisible: Boolean,
     volumes: ReaderVolumes,
     initialBookListVisible: Boolean,
+    initialSearchVisible: Boolean,
+    searcher: PageTextSearch?,
     showTitleToast: Boolean,
     onTitleToastShown: () -> Unit,
     initialEndNotice: EndNotice?,
@@ -186,6 +192,7 @@ private fun ReaderScreenContent(
     posture: FoldPosture,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
+    var searchVisible by rememberSaveable { mutableStateOf(initialSearchVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
     val scope = rememberCoroutineScope()
@@ -209,7 +216,7 @@ private fun ReaderScreenContent(
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
-    val sheetOpen = widthSheetVisible || (bookListVisible && volumes.bookList != null)
+    val sheetOpen = widthSheetVisible || (bookListVisible && volumes.bookList != null) || searchVisible
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
     TrimCacheOnMemoryPressure(renderer)
@@ -532,6 +539,18 @@ private fun ReaderScreenContent(
                 },
                 onDismiss = { bookListVisible = false },
             )
+        } else if (searchVisible && searcher != null) {
+            BackHandler { searchVisible = false }
+            BookSearchSheet(
+                searcher = searcher,
+                onJump = { page ->
+                    searchVisible = false
+                    overlayVisible = false
+                    seekPage(page)
+                    seekFinished()
+                },
+                onDismiss = { searchVisible = false },
+            )
         } else if (overlayVisible) {
             ReaderOverlayTop(
                 title = title,
@@ -540,6 +559,7 @@ private fun ReaderScreenContent(
                 onBack = onBack,
                 onDirectionChange = onDirectionChange,
                 showPageMode = tabletop == null,
+                onOpenSearch = searcher?.let { { searchVisible = true } },
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -802,6 +822,7 @@ private fun ReaderOverlayTop(
     onDirectionChange: (ReadingDirection) -> Unit,
     showPageMode: Boolean = true,
     modifier: Modifier = Modifier,
+    onOpenSearch: (() -> Unit)? = null,
     onOpenBookList: (() -> Unit)? = null,
 ) {
     Row(
@@ -837,6 +858,19 @@ private fun ReaderOverlayTop(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (onOpenSearch != null) {
+            IconButton(
+                onClick = onOpenSearch,
+                colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+                modifier = Modifier.testTag("reader_search"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_search),
+                    contentDescription = stringResource(R.string.reader_search),
+                    tint = ReaderOnOverlay,
+                )
+            }
+        }
         if (onOpenBookList != null) {
             IconButton(
                 onClick = onOpenBookList,

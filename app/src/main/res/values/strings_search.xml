@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_search">본문 검색</string>
+    <string name="reader_search_hint">찾을 내용을 입력해 주세요</string>
+    <string name="reader_search_searching">찾는 중이에요…</string>
+    <string name="reader_search_no_text">이 책에서는 글자를 찾을 수 없어요.</string>
+    <string name="reader_search_page">%1$d쪽</string>
+    <plurals name="reader_search_matches">
+        <item quantity="other">%1$d곳</item>
+    </plurals>
+</resources>

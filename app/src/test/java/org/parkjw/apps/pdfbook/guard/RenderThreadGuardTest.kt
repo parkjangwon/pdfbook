@@ -27,11 +27,12 @@ class RenderThreadGuardTest {
     }
 
     @Test
-    fun pageDrawOnlyInsideWithContext() {
+    fun pageDrawAndSearchOnlyInsideWithContext() {
         val source = File(SourceFiles.javaRoot, "PageRenderer.kt").readText()
-        assertTrue("PageRenderer.kt draws no pages", Regex("""\bsource\.draw\s*\(""").containsMatchIn(source))
+        assertTrue("PageRenderer.kt draws no pages", drawCall.containsMatchIn(source))
+        assertTrue("PageRenderer.kt searches no pages", searchCall.containsMatchIn(source))
         val offenders = findDrawCallsOutsideWithContext(source).map { "PageRenderer.kt:$it" }
-        assertEquals("PageSource.draw outside withContext:\n${offenders.joinToString("\n")}", emptyList<String>(), offenders)
+        assertEquals("PageSource draw/searchText outside withContext:\n${offenders.joinToString("\n")}", emptyList<String>(), offenders)
     }
 
     @Test
@@ -58,6 +59,8 @@ class RenderThreadGuardTest {
         assertEquals(2, findPdfPageCallsOutsidePageSource("ReaderScreen.kt", inside).size)
         assertEquals(emptyList<String>(), findDrawCallsOutsideWithContext("withContext(d) { source.draw(1, 2, 3) }"))
         assertEquals(1, findDrawCallsOutsideWithContext("fun f() { source.draw(1, 2, 3) }").size)
+        assertEquals(emptyList<String>(), findDrawCallsOutsideWithContext("withContext(d) { source.searchText(1, \"q\") }"))
+        assertEquals(1, findDrawCallsOutsideWithContext("fun f() { source.searchText(1, \"q\") }").size)
     }
 
     private class ThreadRecordingSource : PageSource {
@@ -84,6 +87,8 @@ class RenderThreadGuardTest {
     companion object {
         private val pdfPageCall = Regex("""\.openPage\s*\(|\bRENDER_MODE_\w+""")
         private val drawCall = Regex("""\bsource\.draw\s*\(""")
+        private val searchCall = Regex("""\bsource\.searchText\s*\(""")
+        private val sourceCall = Regex("""\bsource\.(?:draw|searchText)\s*\(""")
 
         fun findPdfPageCallsOutsidePageSource(fileName: String, source: String): List<String> {
             val allowed = if (fileName == "PageRenderer.kt") {
@@ -99,7 +104,7 @@ class RenderThreadGuardTest {
 
         fun findDrawCallsOutsideWithContext(source: String): List<String> {
             val allowed = SourceFiles.blocks(source, Regex("""\bwithContext\s*\([^)]*\)\s*"""))
-            return drawCall.findAll(source)
+            return sourceCall.findAll(source)
                 .filter { hit -> allowed.none { hit.range.first in it } }
                 .map { "${SourceFiles.lineOf(source, it.range.first)}: ${it.value}" }
                 .toList()
