@@ -693,6 +693,8 @@ private fun App(
                 twoPageMode = settings.twoPageMode,
                 autoTurnSeconds = settings.autoTurnSeconds,
                 onAutoTurnSecondsChange = { value -> onSettingsChange { it.copy(autoTurnSeconds = value) } },
+                coverAlone = settings.coverAlone,
+                keepScreenOn = settings.keepScreenOn,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 volumes = ReaderVolumes(
                     onPrevious = adjacent.previous?.let { { switchTo(it) } },

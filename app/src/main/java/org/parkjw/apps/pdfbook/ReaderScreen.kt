@@ -123,7 +123,14 @@ fun ReaderScreen(
     posture: FoldPosture = FoldPosture.Flat,
     autoTurnSeconds: Int = AUTO_TURN_DEFAULT_SECONDS,
     onAutoTurnSecondsChange: (Int) -> Unit = {},
+    keepScreenOn: Boolean = true,
 ) {
+    val view = LocalView.current
+    DisposableEffect(view, keepScreenOn) {
+        val previous = view.keepScreenOn
+        view.keepScreenOn = keepScreenOn
+        onDispose { view.keepScreenOn = previous }
+    }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
             renderer = renderer,
