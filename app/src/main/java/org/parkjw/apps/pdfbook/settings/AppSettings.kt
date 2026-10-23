@@ -30,6 +30,7 @@ enum class AppLanguage {
 enum class PageTurnAnimation {
     Slide,
     None,
+    Curl,
 }
 
 enum class ScreenOrientation {

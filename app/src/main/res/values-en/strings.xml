@@ -57,6 +57,8 @@
     <string name="settings_page_turn_animation">Page turn animation</string>
     <string name="settings_animation_slide">Slide</string>
     <string name="settings_animation_none">None</string>
+    <string name="settings_animation_curl">Page curl</string>
+    <string name="settings_animation_curl_desc">Single-page view only. Two-page view uses Slide.</string>
     <string name="settings_screen_orientation">Screen orientation</string>
     <string name="settings_orientation_auto">Auto</string>
     <string name="settings_orientation_portrait">Portrait</string>
