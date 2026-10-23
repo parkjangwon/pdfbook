@@ -57,6 +57,38 @@ class TapZonesTest {
     }
 
     @Test
+    fun snapClampsRoundsAndHandlesNaN() {
+        assertEquals(DEFAULT_TAP_ZONE_SIDE_PERCENT, snapTapZoneSidePercent(Float.NaN))
+        assertEquals(20, snapTapZoneSidePercent(-5f))
+        assertEquals(45, snapTapZoneSidePercent(Float.POSITIVE_INFINITY))
+        assertEquals(35, snapTapZoneSidePercent(33f))
+        assertEquals(30, snapTapZoneSidePercent(28f))
+    }
+
+    @Test
+    fun normalizeKeepsDefaultAndSnapsOthers() {
+        assertEquals(33, normalizeTapZoneSidePercent(33))
+        assertEquals(20, normalizeTapZoneSidePercent(0))
+        assertEquals(45, normalizeTapZoneSidePercent(100))
+        assertEquals(1f / 3f, tapZoneSideFraction(33), 0f)
+        assertEquals(0.25f, tapZoneSideFraction(25), 0f)
+        assertEquals(0.45f, tapZoneSideFraction(99), 0f)
+    }
+
+    @Test
+    fun sideFractionIsCoercedAndBoundariesBelongToNextZone() {
+        val wide = tapZoneSpans(ReadingDirection.LTR, 0.9f)
+        assertEquals(0.5f, wide[0].end, 0f)
+        assertEquals(0f, wide[1].width, 0f)
+        assertEquals(TapZone.Next, tapZoneAt(450f, 900f, ReadingDirection.LTR, 0.9f))
+        assertEquals(TapZone.Menu, tapZoneAt(450f, 900f, ReadingDirection.LTR, 0.25f))
+        assertEquals(TapZone.Menu, tapZoneAt(225f, 900f, ReadingDirection.LTR, 0.25f))
+        assertEquals(TapZone.Next, tapZoneAt(675f, 900f, ReadingDirection.LTR, 0.25f))
+        assertEquals(TapZone.Menu, tapZoneAt(450f, 900f, ReadingDirection.LTR, -1f))
+        assertEquals(TapZone.Menu, tapZoneAt(10f, -5f, ReadingDirection.RTL))
+    }
+
+    @Test
     fun onlyMenuWaitsForDoubleTapAtBaseScale() {
         assertEquals(false, TapZone.Previous.acceptsDoubleTapAtBaseScale)
         assertEquals(true, TapZone.Menu.acceptsDoubleTapAtBaseScale)
