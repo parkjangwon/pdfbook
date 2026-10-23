@@ -98,6 +98,8 @@ class AutoTurnComposeTest {
                 seconds = it
                 savedSeconds = it
             },
+            // Setting off, so these tests see only auto turn's own keep-awake.
+            keepScreenOn = false,
             modifier = Modifier.fillMaxSize(),
         )
     }
