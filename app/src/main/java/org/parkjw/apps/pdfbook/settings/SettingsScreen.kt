@@ -429,6 +429,13 @@ private fun ReadingSettingsScreen(
                 )
                 GroupDivider()
                 SwitchRow(
+                    title = stringResource(R.string.settings_full_screen_reading),
+                    supporting = stringResource(R.string.settings_full_screen_reading_desc),
+                    checked = settings.fullScreenReading,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(fullScreenReading = checked) } },
+                )
+                GroupDivider()
+                SwitchRow(
                     title = stringResource(R.string.settings_keep_zoom),
                     supporting = stringResource(R.string.settings_keep_zoom_desc),
                     checked = settings.keepZoomOnTurn,
