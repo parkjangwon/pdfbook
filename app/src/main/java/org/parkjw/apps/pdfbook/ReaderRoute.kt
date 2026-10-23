@@ -38,6 +38,8 @@ fun ReaderRoute(
     onTitleToastShown: () -> Unit = {},
     keepZoom: Boolean = false,
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
+    coverAlone: Boolean = true,
+    rendererOverride: PageBitmaps? = null,
     keepScreenOn: Boolean = true,
 ) {
     val key = bookKey(book.uri, book.size)
@@ -53,7 +55,12 @@ fun ReaderRoute(
 
     val context = LocalContext.current
     val uri = remember(key) { Uri.parse(book.uri) }
-    val openResult by produceState<PdfOpenResult>(PdfOpenResult.Loading, uri, context) {
+    val openResult by produceState<PdfOpenResult>(
+        initialValue = rendererOverride?.let { PdfOpenResult.Ready(it) } ?: PdfOpenResult.Loading,
+        uri,
+        context,
+    ) {
+        if (rendererOverride != null) return@produceState
         value = PdfOpenResult.Loading
         val pfd = context.contentResolver.openFileDescriptor(uri, "r")
         if (pfd == null) {
@@ -82,8 +89,8 @@ fun ReaderRoute(
             val renderer = result.renderer
             val posture = rememberFoldPosture()
             val twoPage = rememberTwoPage(twoPageMode, posture)
-            val spreadList = remember(renderer.pageCount, twoPage) {
-                spreads(renderer.pageCount, twoPage = twoPage, coverAlone = true)
+            val spreadList = remember(renderer.pageCount, twoPage, coverAlone) {
+                spreads(renderer.pageCount, twoPage = twoPage, coverAlone = coverAlone)
             }
             var anchorPage by rememberSaveable(key) {
                 mutableIntStateOf(state.page.coerceIn(1, renderer.pageCount.coerceAtLeast(1)))
@@ -156,5 +163,5 @@ fun ReaderRoute(
 private sealed class PdfOpenResult {
     data object Loading : PdfOpenResult()
     data object Failed : PdfOpenResult()
-    data class Ready(val renderer: PageRenderer) : PdfOpenResult()
+    data class Ready(val renderer: PageBitmaps) : PdfOpenResult()
 }
