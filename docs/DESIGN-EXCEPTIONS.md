@@ -21,6 +21,7 @@ The book page is the hero. The reader is always on black with neutral gray overl
 - Overlay: top and bottom bars only, neutral gray, white-family icons. Orange only on the slider thumb and filled track. Overlays fade only.
 - Contrast: overlay text 15.5:1, secondary 7.6:1, slider 4.9:1.
 - The reader uses `PdfBookReaderProgressBar` and `PdfBookReaderSlider` (reader tokens, no stop indicator, no ticks).
+- Reader dialogs (go to page) use `readerOnOverlayVariant` for hints and validation messages (7.6:1 on `readerOverlay`); there is no reader error color.
 
 ## Screens
 - Folder list: each card shows the folder name, a one-line path, `책 %d권` / book count, a 4-cover preview and a continue-reading row (orange bar). Inaccessible folders dim their covers and show a "choose folder again" secondary button.
