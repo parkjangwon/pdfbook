@@ -38,6 +38,10 @@ fun ReaderRoute(
     onTitleToastShown: () -> Unit = {},
     keepZoom: Boolean = false,
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
+    followSystemBrightness: Boolean = true,
+    brightnessPercent: Int = DEFAULT_READER_BRIGHTNESS_PERCENT,
+    onFollowSystemBrightnessChange: (Boolean) -> Unit = {},
+    onBrightnessChange: (Int) -> Unit = {},
     coverAlone: Boolean = true,
     rendererOverride: PageBitmaps? = null,
     keepScreenOn: Boolean = true,
@@ -153,6 +157,10 @@ fun ReaderRoute(
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,
+                    followSystemBrightness = followSystemBrightness,
+                    brightnessPercent = brightnessPercent,
+                    onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
+                    onBrightnessChange = onBrightnessChange,
                     keepScreenOn = keepScreenOn,
                 )
             }
