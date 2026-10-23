@@ -68,6 +68,15 @@ class ReaderBookmarksScreenshotsTest {
         title = "샘플 시리즈 5권",
     )
 
+    // Review-only capture: brightness, auto turn and bookmarks together in the shared tool row.
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun bottomBarCombinedLightFolded() = captureOverlay(
+        file = "reader-bottom-bar-combined-light-folded.png",
+        bookmarkedPages = listOf(1),
+        title = "샘플 시리즈 5권",
+    )
+
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
     fun bookmarksSheetLightFolded() = captureSheet(

@@ -49,6 +49,15 @@ class ReaderToolRowTest {
     }
 
     @Test
+    fun autoTurnToolShownAndOpensSheet() {
+        setReader()
+        composeRule.onNodeWithTag("reader_auto_turn").assertIsDisplayed()
+        composeRule.onNodeWithText("자동 넘김").assertIsDisplayed()
+        composeRule.onNodeWithTag("reader_auto_turn").performClick()
+        composeRule.onNodeWithTag(AUTO_TURN_SHEET_TAG).assertIsDisplayed()
+    }
+
+    @Test
     fun brightnessToolTouchTargetAtLeast48dp() {
         setReader()
         val bounds = composeRule.onNodeWithTag("reader_brightness").getUnclippedBoundsInRoot()

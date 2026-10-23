@@ -95,6 +95,13 @@
     <string name="reader_tap_width_value">%1$d%% · 기본 %2$d%%</string>
     <string name="reader_tap_width_reset">기본값으로</string>
     <string name="reader_tap_width_done">완료</string>
+    <string name="reader_auto_turn">자동 넘김</string>
+    <string name="reader_auto_turn_body">몇 초마다 넘길지 골라 주세요.</string>
+    <string name="reader_auto_turn_interval">%1$d초</string>
+    <string name="reader_auto_turn_interval_desc">%1$d초 간격</string>
+    <string name="reader_auto_turn_start">자동 넘김 시작</string>
+    <string name="reader_auto_turn_running">자동 넘김 %1$d초</string>
+    <string name="reader_auto_turn_stopped">자동 넘김을 멈췄어요</string>
     <string name="reader_brightness">밝기</string>
     <string name="reader_brightness_system">시스템 밝기 따르기</string>
     <string name="reader_brightness_percent">%1$d%%</string>

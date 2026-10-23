@@ -691,6 +691,8 @@ private fun App(
                 tapZoneSidePercent = settings.tapZoneSidePercent,
                 keepZoom = settings.keepZoomOnTurn,
                 twoPageMode = settings.twoPageMode,
+                autoTurnSeconds = settings.autoTurnSeconds,
+                onAutoTurnSecondsChange = { value -> onSettingsChange { it.copy(autoTurnSeconds = value) } },
                 followSystemBrightness = settings.followSystemBrightness,
                 brightnessPercent = settings.readerBrightnessPercent,
                 onFollowSystemBrightnessChange = { follow ->

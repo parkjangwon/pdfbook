@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -61,11 +62,13 @@ import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,7 +80,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookReaderSlider
 import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
@@ -130,6 +134,8 @@ fun ReaderScreen(
     bookmarkSheetVisible: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
     bookmarks: ReaderBookmarks? = null,
+    autoTurnSeconds: Int = AUTO_TURN_DEFAULT_SECONDS,
+    onAutoTurnSecondsChange: (Int) -> Unit = {},
     keepScreenOn: Boolean = true,
 ) {
     ReaderBrightnessEffect(followSystemBrightness, brightnessPercent)
@@ -173,6 +179,8 @@ fun ReaderScreen(
             initialBookmarkSheetVisible = bookmarkSheetVisible,
             posture = posture,
             bookmarks = bookmarks,
+            autoTurnSeconds = autoTurnSeconds,
+            onAutoTurnSecondsChange = onAutoTurnSecondsChange,
         )
     }
 }
@@ -211,6 +219,8 @@ private fun ReaderScreenContent(
     initialBookmarkSheetVisible: Boolean,
     posture: FoldPosture,
     bookmarks: ReaderBookmarks?,
+    autoTurnSeconds: Int,
+    onAutoTurnSecondsChange: (Int) -> Unit,
 ) {
     var bookmarkSheetVisible by rememberSaveable { mutableStateOf(initialBookmarkSheetVisible) }
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
@@ -238,8 +248,15 @@ private fun ReaderScreenContent(
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
+    var autoTurnSheetVisible by remember { mutableStateOf(false) }
+    var autoTurnRunning by remember { mutableStateOf(false) }
+    var autoTurnSecondsState by remember(autoTurnSeconds) {
+        mutableIntStateOf(autoTurnSecondsOrDefault(autoTurnSeconds))
+    }
+    var autoTurnStatus by remember { mutableStateOf<AutoTurnStatus?>(null) }
     var goToPageVisible by remember { mutableStateOf(false) }
-    val sheetOpen = widthSheetVisible || goToPageVisible || brightnessSheetVisible ||
+    val sheetOpen = widthSheetVisible || goToPageVisible || autoTurnSheetVisible ||
+        brightnessSheetVisible ||
         (bookListVisible && volumes.bookList != null) ||
         (bookmarkSheetVisible && bookmarks != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
@@ -278,12 +295,14 @@ private fun ReaderScreenContent(
         endNotice = null
     }
 
+    fun showNotice(notice: EndNotice) {
+        endNotice = notice
+        endNoticeToken++
+    }
+
     fun nextAtEnd() {
         when (val step = endStep(endNotice, currentVolumes.nextBook)) {
-            is EndStep.Show -> {
-                endNotice = step.notice
-                endNoticeToken++
-            }
+            is EndStep.Show -> showNotice(step.notice)
             is EndStep.Open -> {
                 endNotice = null
                 currentVolumes.onNext?.invoke()
@@ -353,6 +372,65 @@ private fun ReaderScreenContent(
         zoom = zoom.toggleDoubleTap()
     }
 
+    fun stopAutoTurn() {
+        if (!autoTurnRunning) return
+        autoTurnRunning = false
+        autoTurnStatus = AutoTurnStatus.Stopped
+    }
+
+    fun startAutoTurn(seconds: Int) {
+        val value = autoTurnSecondsOrDefault(seconds)
+        autoTurnSecondsState = value
+        onAutoTurnSecondsChange(value)
+        autoTurnSheetVisible = false
+        overlayVisible = false
+        endNotice = null
+        jumpBack = null
+        autoTurnStatus = AutoTurnStatus.Running(value)
+        autoTurnRunning = true
+    }
+
+    fun showNextBookNotice() {
+        val next = currentVolumes.nextBook
+        showNotice(if (next == null) EndNotice.NoNextBook else EndNotice.NextBook(next))
+    }
+
+    LaunchedEffect(autoTurnRunning, autoTurnSecondsState) {
+        if (!autoTurnRunning) return@LaunchedEffect
+        runAutoTurn(autoTurnIntervalMillis(autoTurnSecondsState)) {
+            if (autoTurnNextIndex(pagerState.targetPage, pagerState.pageCount) == null) {
+                stopAutoTurn()
+                showNextBookNotice()
+                false
+            } else {
+                goTo(TapZone.Next.pageDelta)
+                true
+            }
+        }
+    }
+
+    LaunchedEffect(autoTurnStatus) {
+        if (autoTurnStatus == null) return@LaunchedEffect
+        delay(AUTO_TURN_STATUS_MILLIS)
+        autoTurnStatus = null
+    }
+
+    LaunchedEffect(overlayVisible) {
+        if (overlayVisible) stopAutoTurn()
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        stopAutoTurn()
+    }
+
+    val view = LocalView.current
+    DisposableEffect(autoTurnRunning) {
+        if (!autoTurnRunning) return@DisposableEffect onDispose {}
+        val previous = view.keepScreenOn
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = previous }
+    }
+
     val density = LocalDensity.current
     val foldExclusionPx = with(density) { FOLD_EXCLUSION_DP.dp.roundToPx() }
     val tabletop = posture as? FoldPosture.Tabletop
@@ -367,7 +445,16 @@ private fun ReaderScreenContent(
             .onSizeChanged { viewport = Size(it.width.toFloat(), it.height.toFloat()) }
             .background(ReaderBackground),
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        stopAutoTurn()
+                    }
+                },
+        ) {
             val window = IntSize(constraints.maxWidth, constraints.maxHeight)
             val tabletopSplit = tabletop?.let { tabletopHalves(window, it.foldBounds) }
             val pageArea = tabletopSplit?.first
@@ -562,6 +649,26 @@ private fun ReaderScreenContent(
                 onDone = { widthSheetVisible = false },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        } else if (autoTurnSheetVisible) {
+            BackHandler { autoTurnSheetVisible = false }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { autoTurnSheetVisible = false },
+                    ),
+            )
+            AutoTurnSheet(
+                seconds = autoTurnSecondsState,
+                onSecondsChange = { value ->
+                    autoTurnSecondsState = value
+                    onAutoTurnSecondsChange(value)
+                },
+                onStart = { startAutoTurn(autoTurnSecondsState) },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         } else if (brightnessSheetVisible) {
             BackHandler { brightnessSheetVisible = false }
             Box(
@@ -645,6 +752,9 @@ private fun ReaderScreenContent(
                         zoom = ZoomState()
                         widthSheetVisible = true
                     },
+                    autoTurnSeconds = autoTurnSecondsState,
+                    autoTurnRunning = autoTurnRunning,
+                    onOpenAutoTurn = { autoTurnSheetVisible = true },
                     onOpenBrightness = { brightnessSheetVisible = true },
                     onOpenBookmarks = bookmarks?.let { { bookmarkSheetVisible = true } },
                     onPreviousBook = volumes.onPrevious,
@@ -684,6 +794,15 @@ private fun ReaderScreenContent(
             page = if (jumpBackShown) jumpBack?.page else null,
             bottomInset = noticeInset,
             onClick = ::jumpBackNow,
+        )
+        val autoTurnStatusText = when (val status = autoTurnStatus) {
+            is AutoTurnStatus.Running -> stringResource(R.string.reader_auto_turn_running, status.seconds)
+            AutoTurnStatus.Stopped -> stringResource(R.string.reader_auto_turn_stopped)
+            null -> null
+        }
+        AutoTurnStatusHost(
+            text = autoTurnStatusText,
+            bottomInset = noticeInset + if (endNotice != null) AUTO_TURN_ABOVE_NOTICE else 0.dp,
         )
         if (showTitleToast) {
             BookChangedToast(
@@ -1018,12 +1137,20 @@ private fun ReaderOverlayBottom(
     onOpenGoToPage: () -> Unit,
     showTapZoneEntry: Boolean,
     onAdjustTapZones: () -> Unit,
+    autoTurnSeconds: Int,
+    autoTurnRunning: Boolean,
+    onOpenAutoTurn: () -> Unit,
     onOpenBrightness: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenBookmarks: (() -> Unit)? = null,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
 ) {
+    val intervalSeconds = autoTurnSecondsOrDefault(autoTurnSeconds)
+    val autoTurnStateDescription = stringResource(
+        R.string.reader_auto_turn_interval_desc,
+        intervalSeconds,
+    )
     Column(
         modifier
             .fillMaxWidth()
@@ -1093,6 +1220,17 @@ private fun ReaderOverlayBottom(
                         onClick = onOpenBrightness,
                     ),
                 )
+                add(
+                    ReaderToolItem.Action(
+                        tool = ReaderTool.AutoTurn,
+                        iconRes = R.drawable.ic_auto_turn,
+                        label = stringResource(R.string.reader_auto_turn),
+                        testTag = "reader_auto_turn",
+                        onClick = onOpenAutoTurn,
+                        stateDescription = autoTurnStateDescription,
+                        selected = autoTurnRunning,
+                    ),
+                )
                 if (onOpenBookmarks != null) {
                     add(
                         ReaderToolItem.Action(
@@ -1128,6 +1266,7 @@ private fun TapZoneEntry(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .testTag("reader_tap_zone_entry")
             .clickable(role = Role.Button, onClick = onClick)
             .padding(vertical = 8.dp),

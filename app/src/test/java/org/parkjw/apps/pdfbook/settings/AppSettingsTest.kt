@@ -21,6 +21,7 @@ class AppSettingsTest {
         assertEquals(PageTurnAnimation.Slide, s.pageTurnAnimation)
         assertEquals(2f, s.doubleTapZoomScale, 0f)
         assertEquals(false, s.showDotFiles)
+        assertEquals(15, s.autoTurnSeconds)
         assertTrue(s.followSystemBrightness)
         assertEquals(100, s.readerBrightnessPercent)
     }

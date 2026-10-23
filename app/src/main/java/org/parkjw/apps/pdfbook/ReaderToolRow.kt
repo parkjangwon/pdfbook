@@ -1,6 +1,7 @@
 package org.parkjw.apps.pdfbook
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,16 +19,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
+import org.parkjw.apps.pdfbook.ui.theme.ReaderChip
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 
 /**
@@ -53,6 +58,8 @@ sealed interface ReaderToolItem {
         override val label: String,
         override val testTag: String,
         val onClick: () -> Unit,
+        val stateDescription: String? = null,
+        val selected: Boolean = false,
     ) : ReaderToolItem
 
     data class Toggle(
@@ -104,9 +111,15 @@ private fun ReaderToolSlot(
     modifier: Modifier = Modifier,
 ) {
     // Label Text is the accessible name (merged by clickable/toggleable).
+    val selected = item is ReaderToolItem.Action && item.selected
     val interaction = when (item) {
         is ReaderToolItem.Action ->
-            Modifier.clickable(role = Role.Button, onClick = item.onClick)
+            Modifier
+                .clickable(role = Role.Button, onClick = item.onClick)
+                .semantics {
+                    item.stateDescription?.let { stateDescription = it }
+                    if (item.selected) this.selected = true
+                }
         is ReaderToolItem.Toggle ->
             Modifier
                 .toggleable(
@@ -121,6 +134,15 @@ private fun ReaderToolSlot(
     Column(
         modifier = modifier
             .heightIn(min = 56.dp)
+            .then(
+                if (selected) {
+                    Modifier
+                        .clip(PdfBookShapeTokens.pill)
+                        .background(ReaderChip)
+                } else {
+                    Modifier
+                },
+            )
             .then(interaction)
             .testTag(item.testTag)
             .padding(vertical = 4.dp, horizontal = 2.dp),

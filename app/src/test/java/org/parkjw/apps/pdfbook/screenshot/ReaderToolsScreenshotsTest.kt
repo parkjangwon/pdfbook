@@ -85,7 +85,7 @@ class ReaderToolsScreenshotsTest {
                             ),
                             ReaderToolItem.Action(
                                 tool = ReaderTool.AutoTurn,
-                                iconRes = R.drawable.ic_brightness,
+                                iconRes = R.drawable.ic_auto_turn,
                                 label = "자동 넘김",
                                 testTag = "reader_auto_turn",
                                 onClick = {},
