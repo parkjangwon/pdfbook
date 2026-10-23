@@ -99,6 +99,7 @@
     <string name="reader_auto_turn">Auto turn</string>
     <string name="reader_auto_turn_body">Choose how often pages turn.</string>
     <string name="reader_auto_turn_interval">%1$d s</string>
+    <string name="reader_auto_turn_interval_desc">%1$d s interval</string>
     <string name="reader_auto_turn_start">Start auto turn</string>
     <string name="reader_auto_turn_running">Auto turn %1$d s</string>
     <string name="reader_auto_turn_stopped">Auto turn stopped</string>

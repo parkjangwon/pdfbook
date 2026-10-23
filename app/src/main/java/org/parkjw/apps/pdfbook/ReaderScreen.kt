@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -726,6 +727,7 @@ private fun ReaderScreenContent(
                         widthSheetVisible = true
                     },
                     autoTurnSeconds = autoTurnSecondsState,
+                    autoTurnRunning = autoTurnRunning,
                     onOpenAutoTurn = { autoTurnSheetVisible = true },
                     onOpenBrightness = { brightnessSheetVisible = true },
                     onPreviousBook = volumes.onPrevious,
@@ -1087,12 +1089,18 @@ private fun ReaderOverlayBottom(
     showTapZoneEntry: Boolean,
     onAdjustTapZones: () -> Unit,
     autoTurnSeconds: Int,
+    autoTurnRunning: Boolean,
     onOpenAutoTurn: () -> Unit,
     onOpenBrightness: () -> Unit,
     modifier: Modifier = Modifier,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
 ) {
+    val intervalSeconds = autoTurnSecondsOrDefault(autoTurnSeconds)
+    val autoTurnStateDescription = stringResource(
+        R.string.reader_auto_turn_interval_desc,
+        intervalSeconds,
+    )
     Column(
         modifier
             .fillMaxWidth()
@@ -1107,7 +1115,6 @@ private fun ReaderOverlayBottom(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        AutoTurnEntry(seconds = autoTurnSeconds, onClick = onOpenAutoTurn)
         if (showTapZoneEntry) {
             TapZoneEntry(onClick = onAdjustTapZones)
         }
@@ -1161,6 +1168,15 @@ private fun ReaderOverlayBottom(
                     testTag = "reader_brightness",
                     onClick = onOpenBrightness,
                 ),
+                ReaderToolItem.Action(
+                    tool = ReaderTool.AutoTurn,
+                    iconRes = R.drawable.ic_auto_turn,
+                    label = stringResource(R.string.reader_auto_turn),
+                    testTag = "reader_auto_turn",
+                    onClick = onOpenAutoTurn,
+                    stateDescription = autoTurnStateDescription,
+                    selected = autoTurnRunning,
+                ),
             ),
         )
         val goToPageLabel = stringResource(R.string.go_to_page_title)
@@ -1181,39 +1197,11 @@ private fun ReaderOverlayBottom(
 }
 
 @Composable
-private fun AutoTurnEntry(seconds: Int, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("reader_auto_turn")
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics(mergeDescendants = true) {}
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.reader_auto_turn),
-            color = ReaderOnOverlayVariant,
-            fontSize = 12.sp,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = stringResource(
-                R.string.reader_auto_turn_interval,
-                autoTurnSecondsOrDefault(seconds),
-            ),
-            color = ReaderOnOverlay,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-
-@Composable
 private fun TapZoneEntry(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .testTag("reader_tap_zone_entry")
             .clickable(role = Role.Button, onClick = onClick)
             .padding(vertical = 8.dp),

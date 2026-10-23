@@ -98,6 +98,7 @@
     <string name="reader_auto_turn">자동 넘김</string>
     <string name="reader_auto_turn_body">몇 초마다 넘길지 골라 주세요.</string>
     <string name="reader_auto_turn_interval">%1$d초</string>
+    <string name="reader_auto_turn_interval_desc">%1$d초 간격</string>
     <string name="reader_auto_turn_start">자동 넘김 시작</string>
     <string name="reader_auto_turn_running">자동 넘김 %1$d초</string>
     <string name="reader_auto_turn_stopped">자동 넘김을 멈췄어요</string>

@@ -27,11 +27,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.theme.ButtonCorner
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookMonoFamily
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
 import org.parkjw.apps.pdfbook.ui.theme.ReaderChip
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
@@ -39,6 +41,7 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
 import org.parkjw.apps.pdfbook.ui.theme.SheetTopCorner
+import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 
 const val AUTO_TURN_SHEET_TAG = "auto_turn_sheet"
 const val AUTO_TURN_START_TAG = "auto_turn_start"
@@ -144,7 +147,7 @@ private fun AutoTurnIntervalOption(
     val shape = PdfBookShapeTokens.pill
     Box(
         modifier = modifier
-            .height(44.dp)
+            .height(48.dp)
             .testTag(autoTurnIntervalTag(seconds))
             .clip(shape)
             .background(if (selected) ReaderOnOverlay else ReaderChip)
@@ -153,7 +156,10 @@ private fun AutoTurnIntervalOption(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = stringResource(R.string.reader_auto_turn_interval, seconds),
+            text = withNumericSpans(
+                stringResource(R.string.reader_auto_turn_interval, seconds),
+                SpanStyle(fontFamily = PdfBookMonoFamily),
+            ),
             color = if (selected) ReaderOverlay else ReaderOnOverlay,
             fontSize = 14.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
