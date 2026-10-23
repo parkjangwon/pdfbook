@@ -45,6 +45,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Reader overlay | Reader → `reader_zone_Menu` | `reader_overlay_top`, `reader_overlay_bottom`, `reader_back`, `reader_progress`, `reader_page_mode` | `ReaderScreen.kt` | `ReaderVolumesComposeTest` |
 | Reading direction toggle | Overlay → `reader_direction_toggle` | `reader_direction_toggle` | `ReadingDirection.kt`, `BookStore.kt` | `PagerNavTest` |
 | Page slider | Overlay → drag or tap `reader_slider` | `reader_slider` | `ReaderScreen.kt`, `PagerNav.kt` | `PagerNavTest` |
+| Go to page (#116) | Overlay → tap `reader_progress` → type a page → "이동" | `reader_progress`, `go_to_page_dialog`, `go_to_page_field` | `ReaderScreen.kt`, `GoToPageDialog.kt` | `GoToPageTest`, `GoToPageComposeTest`, `GoToPageScreenshotsTest` |
 | Jump back pill (SPEC-4) | Overlay → tap `reader_slider` far from the current page → close overlay | `jump_back_pill` | `JumpBack.kt`, `JumpBackPill.kt` | `JumpBackTest`, `JumpBackComposeTest`, `JumpBackScreenshotsTest` |
 | Tap zone guide | Overlay open with "Tap zone guide" on in reading settings | `tap_zone_guide` | `TapZoneGuide.kt` | `TapZoneGuideTest`, `TapZoneGuidePixelTest` |
 | Tap zone width sheet, reader (SPEC-2 TW-3) | Overlay → `reader_tap_zone_entry` | `tap_zone_width_sheet`, `tap_zone_width_slider`, `tap_zone_width_reset`, `tap_zone_width_done`, `tap_zone_width_preview` | `TapZoneWidthSheet.kt`, `ReaderScreen.kt` | `TapZoneWidthSheetTest`, `TapZoneWidthPixelTest`, `TapZoneWidthTest` |
@@ -57,6 +58,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Pinch / double-tap zoom | Reader → pinch, or double-tap a page | `reader_screen` | `ZoomPan.kt` | `ZoomPanTest` |
 | Zoom lock and keep zoom (SPEC-6) | Reader → zoom in; swipes only pan, tap zones and volume keys still turn | `reader_screen` (`ReaderZoomKey` semantics), `reader_zone_Next` | `ZoomPan.kt`, `ReaderScreen.kt` | `ZoomLockComposeTest`, `ZoomPanTest`, `TapZoneTimingTest` |
 | Volume key paging | Reader → volume up / down | – | `MainActivity.kt`, `VolumeNav.kt` | `VolumeNavTest` |
+| Full screen reading (#115) | Reader with full screen reading on (default) | – | `ReaderSystemBars.kt`, `ReaderScreen.kt` | `ReaderSystemBarsTest`, `ReaderImmersiveComposeTest` |
 | Prerender and memory trim (SPEC-5) | Reader → turn pages | – | `PageCache.kt`, `MemoryTrim.kt`, `PageRenderer.kt` | `PageCacheTest`, `PrerenderTargetsTest`, `LargeBookPrerenderTest` |
 
 ## Settings
@@ -68,6 +70,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Reading settings | Settings → `settings_reading_entry` | `settings_reading_screen`, `settings_reading_back` | `settings/SettingsScreen.kt` | `SettingsBUiTest` |
 | Keep zoom when turning pages (SPEC-6) | Reading settings → "Keep zoom when turning pages" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt` | `KeepZoomSettingsTest`, `SettingsBUiTest` |
 | Page curl turn animation (#103) | Reading settings → "넘김 애니메이션" → "책장 넘김"; reader tap/swipe/volume at scale 1, single-page | `settings_animation_option_Curl`, `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `ReaderScreen.kt`, `settings/AppSettings.kt` | `PageCurlTest`, `PageCurlComposeTest`, `PageCurlSettingsTest`, `PageCurlScreenshotsTest` |
+| Full screen reading (#115) | Reading settings → "전체 화면으로 읽기" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt` | `FullScreenReadingSettingsTest` |
 | Keep screen on | Reading settings → "화면 켜짐 유지" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt`, `ReaderScreen.kt` | `KeepScreenOnTest` |
 | Tap zone width, settings (SPEC-2 TW-1/2/4) | Reading settings → `settings_tap_width_row` | `settings_tap_width_row`, `tap_zone_width_sheet` | `settings/SettingsScreen.kt`, `TapZoneWidthSheet.kt` | `TapZoneWidthSettingsTest`, `TapZoneWidthSheetThemeTest` |
 | Storage: hidden items, dot files | Settings → `settings_hidden_items` | `settings_hidden_items` | `settings/StorageSettings.kt`, `hidden/HiddenItemsScreen.kt` | `StorageSettingsTest`, `HiddenItemsScreenTest` |
