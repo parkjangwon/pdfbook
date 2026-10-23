@@ -67,6 +67,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | General: start screen, theme, language | Settings → rows by text | text only | `settings/SettingsScreen.kt`, `settings/AppLocale.kt` | `AppLocaleTest`, `SettingsBUiTest` |
 | Reading settings | Settings → `settings_reading_entry` | `settings_reading_screen`, `settings_reading_back` | `settings/SettingsScreen.kt` | `SettingsBUiTest` |
 | Keep zoom when turning pages (SPEC-6) | Reading settings → "Keep zoom when turning pages" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt` | `KeepZoomSettingsTest`, `SettingsBUiTest` |
+| Keep screen on | Reading settings → "화면 켜짐 유지" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt`, `ReaderScreen.kt` | `KeepScreenOnTest` |
 | Tap zone width, settings (SPEC-2 TW-1/2/4) | Reading settings → `settings_tap_width_row` | `settings_tap_width_row`, `tap_zone_width_sheet` | `settings/SettingsScreen.kt`, `TapZoneWidthSheet.kt` | `TapZoneWidthSettingsTest`, `TapZoneWidthSheetThemeTest` |
 | Screen orientation lock (#117) | Reading settings → "화면 방향" row → choose 자동/세로/가로 | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt`, `ReaderRoute.kt` | `ScreenOrientationTest`, `ScreenOrientationSettingsTest`, `ReaderOrientationTest`, `SettingsOrientationScreenshotsTest` |
 | Storage: hidden items, dot files | Settings → `settings_hidden_items` | `settings_hidden_items` | `settings/StorageSettings.kt`, `hidden/HiddenItemsScreen.kt` | `StorageSettingsTest`, `HiddenItemsScreenTest` |
