@@ -43,6 +43,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Open book | Library → `library_book` | `reader_screen` | `ReaderRoute.kt`, `ReaderScreen.kt`, `PageRenderer.kt` | `PrerenderReaderTest` |
 | Tap zones | Reader → tap left / centre / right | `reader_zone_Previous`, `reader_zone_Menu`, `reader_zone_Next` | `TapZones.kt`, `ReaderScreen.kt` | `TapZonesTest`, `TapZoneTimingTest` |
 | Reader overlay | Reader → `reader_zone_Menu` | `reader_overlay_top`, `reader_overlay_bottom`, `reader_back`, `reader_progress`, `reader_page_mode` | `ReaderScreen.kt` | `ReaderVolumesComposeTest` |
+| Overlay auto-hide (#10) | Overlay open → hides by itself after 4 s without touch; touching the bars resets, slider drag / sheet open / TalkBack pause it | `reader_overlay_top`, `reader_overlay_bottom` | `OverlayAutoHide.kt`, `ReaderScreen.kt` | `OverlayAutoHideTest`, `OverlayAutoHideComposeTest` |
 | Reading direction toggle | Overlay → `reader_direction_toggle` | `reader_direction_toggle` | `ReadingDirection.kt`, `BookStore.kt` | `PagerNavTest` |
 | Page slider | Overlay → drag or tap `reader_slider` | `reader_slider` | `ReaderScreen.kt`, `PagerNav.kt` | `PagerNavTest` |
 | Jump back pill (SPEC-4) | Overlay → tap `reader_slider` far from the current page → close overlay | `jump_back_pill` | `JumpBack.kt`, `JumpBackPill.kt` | `JumpBackTest`, `JumpBackComposeTest`, `JumpBackScreenshotsTest` |

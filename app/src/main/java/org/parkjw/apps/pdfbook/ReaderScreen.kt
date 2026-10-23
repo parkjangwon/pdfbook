@@ -1,6 +1,11 @@
 package org.parkjw.apps.pdfbook
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -206,6 +211,13 @@ private fun ReaderScreenContent(
     var endNoticeToken by remember { mutableIntStateOf(0) }
     val currentVolumes by rememberUpdatedState(volumes)
     var bottomBarHeight by remember { mutableIntStateOf(0) }
+    var sliderDragging by remember { mutableStateOf(false) }
+    var overlayPressed by remember { mutableStateOf(false) }
+    var overlayInteractions by remember { mutableIntStateOf(0) }
+    val touchExploration = rememberTouchExplorationEnabled()
+    val lifecycleResumed = rememberLifecycleResumed()
+    val autoHideMillis = rememberOverlayAutoHideMillis()
+    val autoHideTimer = remember(autoHideMillis) { OverlayAutoHideTimer { autoHideMillis } }
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
@@ -238,6 +250,34 @@ private fun ReaderScreenContent(
         if (!jumpBackShown) return@LaunchedEffect
         delay(JUMP_BACK_MILLIS)
         jumpBack = null
+    }
+
+    // One timer instance, driven by the monotonic clock. Every restart of this
+    // effect (the overlay opening, a touch, or a pause ending) is an interaction,
+    // so the countdown starts from now; while paused [nextDelay] returns null.
+    LaunchedEffect(
+        overlayVisible,
+        sheetOpen,
+        sliderDragging,
+        overlayPressed,
+        touchExploration,
+        lifecycleResumed,
+        overlayInteractions,
+        autoHideMillis,
+    ) {
+        if (!overlayVisible) return@LaunchedEffect
+        val now = SystemClock.elapsedRealtime()
+        autoHideTimer.onInteraction(now)
+        val wait = autoHideTimer.nextDelay(
+            now = now,
+            sheetOpen = sheetOpen,
+            sliderDragging = sliderDragging,
+            touchExploration = touchExploration,
+            pointerPressed = overlayPressed,
+            resumed = lifecycleResumed,
+        ) ?: return@LaunchedEffect
+        delay(wait)
+        overlayVisible = false
     }
 
     LaunchedEffect(endNotice, endNoticeToken) {
@@ -288,6 +328,7 @@ private fun ReaderScreenContent(
     }
 
     fun seekPage(page: Int) {
+        sliderDragging = true
         if (seekOrigin == null) {
             seekOrigin = pagerState.targetPage
             jumpBack = null
@@ -298,9 +339,25 @@ private fun ReaderScreenContent(
     }
 
     fun seekFinished() {
+        sliderDragging = false
         val origin = seekOrigin ?: return
         seekOrigin = null
         jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)
+    }
+
+    // A pointer down on the bars restarts the countdown and pauses it while held;
+    // a drag that ends without onValueChangeFinished still clears [sliderDragging].
+    val overlayTouchResetter = Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            overlayPressed = true
+            overlayInteractions++
+            do {
+                val event = awaitPointerEvent()
+            } while (event.changes.any { it.pressed })
+            overlayPressed = false
+            if (sliderDragging) seekFinished()
+        }
     }
 
     fun jumpBackNow() {
@@ -532,7 +589,17 @@ private fun ReaderScreenContent(
                 },
                 onDismiss = { bookListVisible = false },
             )
-        } else if (overlayVisible) {
+        }
+        val overlayShown = overlayVisible && !sheetOpen
+        // A sheet must cover the bars at once instead of fading them out on top
+        // of its scrim; the auto-hide itself keeps the overlay fade.
+        val overlayExit = fadeOut(tween(if (sheetOpen) 0 else END_NOTICE_FADE_MILLIS))
+        AnimatedVisibility(
+            visible = overlayShown,
+            enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
+            exit = overlayExit,
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
             ReaderOverlayTop(
                 title = title,
                 twoPage = twoPage,
@@ -542,22 +609,41 @@ private fun ReaderScreenContent(
                 showPageMode = tabletop == null,
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
                     .then(
                         if (tabletop != null) {
                             Modifier.fillMaxWidth()
                         } else {
                             Modifier
                         },
-                    ),
+                    )
+                    .then(overlayTouchResetter),
             )
-            if (tabletop == null) {
-                val bookRight = book?.let {
-                    bookHalves(
-                        IntSize(viewport.width.roundToInt().coerceAtLeast(1), viewport.height.roundToInt().coerceAtLeast(1)),
-                        it.foldBounds,
-                    ).second
-                }
+        }
+        if (tabletop == null) {
+            val bookRight = book?.let {
+                bookHalves(
+                    IntSize(viewport.width.roundToInt().coerceAtLeast(1), viewport.height.roundToInt().coerceAtLeast(1)),
+                    it.foldBounds,
+                ).second
+            }
+            AnimatedVisibility(
+                visible = overlayShown,
+                enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
+                exit = overlayExit,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .then(
+                        if (bookRight != null && bookRight.width > foldExclusionPx) {
+                            Modifier
+                                .offset { IntOffset(bookRight.left + foldExclusionPx, 0) }
+                                .width(with(density) {
+                                    (bookRight.width - foldExclusionPx).coerceAtLeast(0).toDp()
+                                })
+                        } else {
+                            Modifier.fillMaxWidth()
+                        },
+                    ),
+            ) {
                 ReaderOverlayBottom(
                     pageCount = pageCount,
                     currentPage = currentPage,
@@ -572,19 +658,8 @@ private fun ReaderScreenContent(
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .then(
-                            if (bookRight != null && bookRight.width > foldExclusionPx) {
-                                Modifier
-                                    .offset { IntOffset(bookRight.left + foldExclusionPx, 0) }
-                                    .width(with(density) {
-                                        (bookRight.width - foldExclusionPx).coerceAtLeast(0).toDp()
-                                    })
-                            } else {
-                                Modifier.fillMaxWidth()
-                            },
-                        )
-                        .onSizeChanged { bottomBarHeight = it.height },
+                        .onSizeChanged { bottomBarHeight = it.height }
+                        .then(overlayTouchResetter),
                 )
             }
         }

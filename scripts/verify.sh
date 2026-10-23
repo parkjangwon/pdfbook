@@ -299,21 +299,74 @@ open_book() {
   sleep 2
 }
 
+# Touch the bars to restart the 4 s auto-hide (#10), re-opening them if the
+# previous dump was slow enough for them to hide.
+refresh_overlay() {
+  local found
+  found="$(wait_node resource-id reader_progress 1)" || {
+    tap_id reader_zone_Menu
+    expect_id reader_overlay_bottom
+    found="$(wait_node resource-id reader_progress)" || die "Overlay progress not found (last dump: $OUT/ui.xml)"
+  }
+  set -- $found
+  "$ADB" shell input tap "$1" "$2"
+  sleep 1
+}
+
 show_overlay() {
   if ! wait_node resource-id reader_overlay_bottom 1 >/dev/null; then
     tap_id reader_zone_Menu
+    expect_id reader_overlay_bottom
   fi
-  expect_id reader_overlay_bottom
+  refresh_overlay
+}
+
+# Overlay nodes exist only while the bars are up, and the 4 s auto-hide (#10)
+# can close them between a dump and a read: re-open the overlay if a fresh dump
+# no longer has the node, then read from a dump taken right before the read.
+read_overlay_text() {
+  local tag="$1"
+  if wait_node resource-id "$tag" 1 >/dev/null; then
+    node_text "$tag"
+    return
+  fi
+  show_overlay
+  wait_node resource-id "$tag" >/dev/null || return 1
+  node_text "$tag"
+}
+
+# Same race for taps on overlay nodes: make sure the bars are up first.
+tap_overlay_id() {
+  wait_node resource-id "$1" 1 >/dev/null || show_overlay
+  tap_id "$1"
 }
 
 slider_tap() {
-  local fraction="$1" found
-  found="$(wait_node resource-id reader_slider)" || die "Reader slider not found."
-  set -- $found
-  local x1="$3" x2="$5" y="$2"
-  local x=$((x1 + (x2 - x1) * fraction / 100))
-  "$ADB" shell input tap "$x" "$y"
-  sleep 1
+  local fraction="$1" progress slider
+  for _ in $(seq 1 6); do
+    # One dump for both nodes: touch the bars to restart the 4 s auto-hide (#10)
+    # and tap the slider right after, so no second dump can race the timeout.
+    dump_ui
+    progress="$(find_node resource-id reader_progress || true)"
+    slider="$(find_node resource-id reader_slider || true)"
+    if [ -n "$progress" ] && [ -n "$slider" ]; then
+      set -- $progress
+      "$ADB" shell input tap "$1" "$2"
+      set -- $slider
+      local x1="$3" x2="$5" y="$2"
+      local x=$((x1 + (x2 - x1) * fraction / 100))
+      "$ADB" shell input tap "$x" "$y"
+      sleep 1
+      return 0
+    fi
+    if [ -z "$progress" ]; then
+      # The 4 s auto-hide already closed the overlay: tap the centre zone to reopen.
+      tap_id reader_zone_Menu
+    else
+      die "Reader slider not found (last dump: $OUT/ui.xml)"
+    fi
+  done
+  die "Reader slider not found."
 }
 
 echo "verify: output -> $OUT"
@@ -329,6 +382,7 @@ echo "verify: device $DEVICE"
 "$ADB" shell settings put global window_animation_scale 0 >/dev/null 2>&1 || true
 "$ADB" shell settings put global transition_animation_scale 0 >/dev/null 2>&1 || true
 "$ADB" shell settings put global animator_duration_scale 0 >/dev/null 2>&1 || true
+"$ADB" shell settings put secure accessibility_interactive_ui_timeout_ms 120000 >/dev/null 2>&1 || true
 "$ADB" install -r -g "$APK" >/dev/null
 "$ADB" shell pm clear "$PKG" >/dev/null
 prepare_book
@@ -362,7 +416,7 @@ case "$FEATURE" in
   tap-width-sheet)
     open_book
     show_overlay
-    tap_id reader_tap_zone_entry
+    tap_overlay_id reader_tap_zone_entry
     expect_id tap_zone_width_sheet
     shot tap-width-sheet
     tap_id tap_zone_width_done
@@ -370,8 +424,7 @@ case "$FEATURE" in
   jump-back)
     open_book
     show_overlay
-    expect_id reader_progress
-    origin="$(node_text reader_progress)"
+    origin="$(read_overlay_text reader_progress)" || die "Reader progress not found (last dump: $OUT/ui.xml)"
     slider_tap 80
     pill="$(wait_node resource-id jump_back_pill 5)" || die "Jump back pill did not appear (last dump: $OUT/ui.xml)"
     STEP=$((STEP + 1))
@@ -381,8 +434,8 @@ case "$FEATURE" in
     sleep 1
     returned=""
     for _ in 1 2 3 4 5; do
-      dump_ui
-      returned="$(node_text reader_progress || true)"
+      # The bars may have auto-hidden (#10) by now: re-open before reading.
+      returned="$(read_overlay_text reader_progress || true)"
       [ "$returned" = "$origin" ] && break
       sleep 1
     done
@@ -392,7 +445,7 @@ case "$FEATURE" in
   book-list)
     open_book
     show_overlay
-    tap_id reader_book_list_button
+    tap_overlay_id reader_book_list_button
     expect_id book_list_row
     shot book-list
     ;;
