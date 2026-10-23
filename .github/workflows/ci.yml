@@ -19,3 +19,5 @@ jobs:
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --console=plain
       - name: Release version rules
         run: bash scripts/test-release-version.sh
+      - name: Emulator ANR helper
+        run: bash scripts/test-anr-wait.sh
