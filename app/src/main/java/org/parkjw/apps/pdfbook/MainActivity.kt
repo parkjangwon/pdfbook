@@ -307,6 +307,7 @@ private fun App(
     var showHiddenItems by rememberSaveable { mutableStateOf(false) }
     var undoItem by remember { mutableStateOf<HiddenItem?>(null) }
     var undoWasUnhide by remember { mutableStateOf(false) }
+    var undoBook by remember { mutableStateOf<BookProgressUndo?>(null) }
     val peekEnabled by HiddenPeek.enabled.collectAsState()
     var startApplied by rememberSaveable { mutableStateOf(false) }
     var pickTarget by rememberSaveable(stateSaver = FolderPickTargetSaver) {
@@ -325,6 +326,8 @@ private fun App(
     val lastBookUnavailable = stringResource(R.string.last_book_unavailable)
     val hiddenSnackbar = stringResource(R.string.hidden_snackbar)
     val unhiddenSnackbar = stringResource(R.string.unhidden_snackbar)
+    val markedFinishedSnackbar = stringResource(R.string.marked_finished_snackbar)
+    val progressResetSnackbar = stringResource(R.string.progress_reset_snackbar)
     val undoLabel = stringResource(R.string.action_undo)
 
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
@@ -340,6 +343,7 @@ private fun App(
                         AddKind.Duplicate -> {
                             hiddenRepo.unhide(HiddenKind.Folder, uriString)
                             undoItem = null
+                            undoBook = null
                             snackbarMessage = duplicateMessage
                             scrollToUri = uriString
                         }
@@ -600,6 +604,7 @@ private fun App(
             hiddenRepo.hide(item)
             undoItem = item
             undoWasUnhide = false
+            undoBook = null
             snackbarMessage = hiddenSnackbar
         }
     }
@@ -608,6 +613,7 @@ private fun App(
             hiddenRepo.unhide(item.kind, item.id)
             undoItem = item
             undoWasUnhide = true
+            undoBook = null
             snackbarMessage = unhiddenSnackbar
         }
     }
@@ -618,8 +624,18 @@ private fun App(
             scope.launch {
                 for (hidden in items) hiddenRepo.unhide(hidden.kind, hidden.id)
                 undoItem = null
+                undoBook = null
                 snackbarMessage = unhiddenSnackbar
             }
+        }
+    }
+    val undoLast: () -> Unit = {
+        val progress = undoBook
+        if (progress != null) {
+            undoBook = null
+            scope.launch { store.undoProgress(progress) }
+        } else {
+            undoHidden()
         }
     }
     val togglePeek = {
@@ -743,9 +759,9 @@ private fun App(
                 }
             },
             snackbarMessage = snackbarMessage,
-            snackbarActionLabel = if (undoItem != null) undoLabel else null,
-            onSnackbarShown = { snackbarMessage = null; undoItem = null; undoWasUnhide = false },
-            onSnackbarAction = undoHidden,
+            snackbarActionLabel = if (undoItem != null || undoBook != null) undoLabel else null,
+            onSnackbarShown = { snackbarMessage = null; undoItem = null; undoWasUnhide = false; undoBook = null },
+            onSnackbarAction = undoLast,
             onHideBook = { bookInfo ->
                 hideItem(
                     HiddenItem(
@@ -769,6 +785,28 @@ private fun App(
                             folderUri = selectedFolderUri,
                         ),
                     )
+                }
+            },
+            onMarkFinished = { bookInfo ->
+                val key = bookKey(bookInfo.uri, bookInfo.size)
+                scope.launch {
+                    store.applyProgress(key, ::markFinished)?.let { undo ->
+                        undoItem = null
+                        undoWasUnhide = false
+                        undoBook = undo
+                        snackbarMessage = markedFinishedSnackbar
+                    }
+                }
+            },
+            onStartOver = { bookInfo ->
+                val key = bookKey(bookInfo.uri, bookInfo.size)
+                scope.launch {
+                    store.applyProgress(key, ::startOver)?.let { undo ->
+                        undoItem = null
+                        undoWasUnhide = false
+                        undoBook = undo
+                        snackbarMessage = progressResetSnackbar
+                    }
                 }
             },
             peekEnabled = peekEnabled,
@@ -810,7 +848,7 @@ private fun App(
             snackbarMessage = snackbarMessage,
             scrollToUri = scrollToUri,
             showRenameFor = renameCard,
-            onSnackbarShown = { snackbarMessage = null; undoItem = null; undoWasUnhide = false },
+            onSnackbarShown = { snackbarMessage = null; undoItem = null; undoWasUnhide = false; undoBook = null },
             onScrollHandled = { scrollToUri = null },
             onOpenFolder = { uri ->
                 scope.launch {
@@ -855,8 +893,8 @@ private fun App(
             },
             onLostFolder = { uri -> showLostForUri = uri },
             updateBanner = updateBanner,
-            snackbarActionLabel = if (undoItem != null) undoLabel else null,
-            onSnackbarAction = undoHidden,
+            snackbarActionLabel = if (undoItem != null || undoBook != null) undoLabel else null,
+            onSnackbarAction = undoLast,
             onHide = { uri ->
                 val card = shelfUi.cards.find { it.uri == uri }
                 if (card != null) {

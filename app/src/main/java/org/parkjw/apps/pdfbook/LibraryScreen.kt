@@ -159,6 +159,8 @@ fun LibraryScreen(
     onSnackbarAction: () -> Unit = {},
     onHideBook: (BookInfo) -> Unit = {},
     onUnhideBook: (BookInfo) -> Unit = {},
+    onMarkFinished: (BookInfo) -> Unit = {},
+    onStartOver: (BookInfo) -> Unit = {},
     peekEnabled: Boolean = false,
     peekMenuEnabled: Boolean = false,
     onPeekToggle: () -> Unit = {},
@@ -391,6 +393,14 @@ fun LibraryScreen(
                                 menuBookUri = null
                                 onHideBook(resume)
                             },
+                            onMarkFinished = {
+                                menuBookUri = null
+                                onMarkFinished(resume)
+                            },
+                            onStartOver = {
+                                menuBookUri = null
+                                onStartOver(resume)
+                            },
                         )
                     }
                 }
@@ -428,6 +438,14 @@ fun LibraryScreen(
                             onHideBook(book)
                         },
                         onUnhide = { onUnhideBook(book) },
+                        onMarkFinished = {
+                            menuBookUri = null
+                            onMarkFinished(book)
+                        },
+                        onStartOver = {
+                            menuBookUri = null
+                            onStartOver(book)
+                        },
                         isHidden = isHidden,
                     )
                 }
@@ -453,6 +471,8 @@ private fun ResumeCard(
     onMenuExpand: () -> Unit,
     onMenuDismiss: () -> Unit,
     onHide: () -> Unit,
+    onMarkFinished: () -> Unit,
+    onStartOver: () -> Unit,
 ) {
     Box(Modifier.fillMaxWidth()) {
     Surface(
@@ -482,11 +502,32 @@ private fun ResumeCard(
         }
     }
         PdfBookDropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
+            BookProgressMenuItems(state, onMarkFinished, onStartOver)
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.hide_item)) },
                 onClick = onHide,
             )
         }
+    }
+}
+
+@Composable
+private fun BookProgressMenuItems(
+    state: BookState?,
+    onMarkFinished: () -> Unit,
+    onStartOver: () -> Unit,
+) {
+    if (canMarkFinished(state)) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.mark_finished)) },
+            onClick = onMarkFinished,
+        )
+    }
+    if (canStartOver(state)) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.start_over)) },
+            onClick = onStartOver,
+        )
     }
 }
 
@@ -503,6 +544,8 @@ private fun BookCell(
     onMenuDismiss: () -> Unit,
     onHide: () -> Unit,
     onUnhide: () -> Unit = {},
+    onMarkFinished: () -> Unit = {},
+    onStartOver: () -> Unit = {},
     isHidden: Boolean = false,
 ) {
     Box(Modifier.fillMaxWidth()) {
@@ -544,6 +587,7 @@ private fun BookCell(
     }
         if (!isHidden) {
             PdfBookDropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
+                BookProgressMenuItems(state, onMarkFinished, onStartOver)
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.hide_item)) },
                     onClick = onHide,
