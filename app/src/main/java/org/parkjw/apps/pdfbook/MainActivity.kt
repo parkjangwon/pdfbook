@@ -692,6 +692,8 @@ private fun App(
                 keepZoom = settings.keepZoomOnTurn,
                 twoPageMode = settings.twoPageMode,
                 pageTurnAnimation = settings.pageTurnAnimation,
+                coverAlone = settings.coverAlone,
+                keepScreenOn = settings.keepScreenOn,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 volumes = ReaderVolumes(
                     onPrevious = adjacent.previous?.let { { switchTo(it) } },

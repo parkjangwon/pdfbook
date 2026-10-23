@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
+import androidx.compose.ui.platform.LocalView
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookReaderSlider
 import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
@@ -130,7 +131,14 @@ fun ReaderScreen(
     keepZoom: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
     pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
+    keepScreenOn: Boolean = true,
 ) {
+    val view = LocalView.current
+    DisposableEffect(view, keepScreenOn) {
+        val previous = view.keepScreenOn
+        view.keepScreenOn = keepScreenOn
+        onDispose { view.keepScreenOn = previous }
+    }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         ReaderScreenContent(
             renderer = renderer,
