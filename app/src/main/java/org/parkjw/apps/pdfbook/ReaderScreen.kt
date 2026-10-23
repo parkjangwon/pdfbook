@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
@@ -83,6 +84,7 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
+import org.parkjw.apps.pdfbook.ui.theme.ReaderScrim
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
 import kotlinx.coroutines.flow.Flow
@@ -216,7 +218,8 @@ private fun ReaderScreenContent(
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
-    val sheetOpen = widthSheetVisible || (bookListVisible && volumes.bookList != null) ||
+    var goToPageVisible by remember { mutableStateOf(false) }
+    val sheetOpen = widthSheetVisible || goToPageVisible || (bookListVisible && volumes.bookList != null) ||
         (bookmarkSheetVisible && bookmarks != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
@@ -309,6 +312,12 @@ private fun ReaderScreenContent(
         val origin = seekOrigin ?: return
         seekOrigin = null
         jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)
+    }
+
+    fun goToPage(page: Int) {
+        goToPageVisible = false
+        seekPage(page)
+        seekFinished()
     }
 
     fun jumpBackNow() {
@@ -446,6 +455,10 @@ private fun ReaderScreenContent(
                                     modifier = Modifier
                                         .weight(span.width)
                                         .fillMaxHeight()
+                                        // Offscreen pages are pre-composed but invisible; letting them
+                                        // take focus makes bringIntoView scroll away when the go-to-page
+                                        // dialog releases focus.
+                                        .focusProperties { canFocus = activePage }
                                         .testTag("reader_zone_" + span.zone.name)
                                         .then(
                                             if (zoomed || span.zone.acceptsDoubleTapAtBaseScale) {
@@ -588,6 +601,7 @@ private fun ReaderScreenContent(
                     direction = direction,
                     onSeekPage = ::seekPage,
                     onSeekFinished = ::seekFinished,
+                    onOpenGoToPage = { goToPageVisible = true },
                     showTapZoneEntry = !zoomed,
                     onAdjustTapZones = {
                         zoom = ZoomState()
@@ -637,6 +651,26 @@ private fun ReaderScreenContent(
                 onShown = onTitleToastShown,
                 modifier = Modifier.align(Alignment.Center),
             )
+        }
+        if (goToPageVisible) {
+            BackHandler { goToPageVisible = false }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(ReaderScrim)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { goToPageVisible = false },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                GoToPageDialog(
+                    pageCount = pageCount,
+                    onDismiss = { goToPageVisible = false },
+                    onGo = ::goToPage,
+                )
+            }
         }
     }
 }
@@ -955,6 +989,7 @@ private fun ReaderOverlayBottom(
     direction: ReadingDirection,
     onSeekPage: (Int) -> Unit,
     onSeekFinished: () -> Unit,
+    onOpenGoToPage: () -> Unit,
     showTapZoneEntry: Boolean,
     onAdjustTapZones: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1017,10 +1052,19 @@ private fun ReaderOverlayBottom(
                 Modifier.testTag("reader_volume_right"),
             )
         }
+        val goToPageLabel = stringResource(R.string.go_to_page_title)
         Text(
             text = stringResource(R.string.progress, currentPage, pageCount),
             style = PdfBookNumeric.copy(fontSize = 13.sp, color = ReaderOnOverlay),
-            modifier = Modifier.align(Alignment.CenterHorizontally).testTag("reader_progress"),
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = goToPageLabel,
+                    onClick = onOpenGoToPage,
+                )
+                .padding(horizontal = 16.dp, vertical = 22.dp)
+                .testTag("reader_progress"),
         )
     }
 }
