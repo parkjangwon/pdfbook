@@ -39,4 +39,6 @@
     <string name="oss_window_url">https://www.apache.org/licenses/LICENSE-2.0</string>
     <string name="settings_keep_zoom">넘겨도 확대 유지</string>
     <string name="settings_keep_zoom_desc">확대한 배율 그대로 다음 쪽의 시작 모서리부터 보여 줘요</string>
+    <string name="settings_e_ink_mode">전자잉크 모드</string>
+    <string name="settings_e_ink_mode_desc">넘김·표시 애니메이션을 꺼서 깜빡임을 줄여요.</string>
 </resources>

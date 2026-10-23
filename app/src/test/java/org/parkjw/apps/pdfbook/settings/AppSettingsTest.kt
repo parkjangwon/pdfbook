@@ -21,5 +21,6 @@ class AppSettingsTest {
         assertEquals(PageTurnAnimation.Slide, s.pageTurnAnimation)
         assertEquals(2f, s.doubleTapZoomScale, 0f)
         assertEquals(false, s.showDotFiles)
+        assertEquals(false, s.eInkMode)
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -90,6 +93,8 @@ import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 import kotlin.math.roundToInt
+import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
+import org.parkjw.apps.pdfbook.settings.shouldAnimatePageTurn
 
 @Composable
 fun ReaderScreen(
@@ -118,6 +123,8 @@ fun ReaderScreen(
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
+    eInkMode: Boolean = false,
     keepScreenOn: Boolean = true,
 ) {
     val view = LocalView.current
@@ -153,6 +160,8 @@ fun ReaderScreen(
             initialJumpBack = jumpBack,
             keepZoom = keepZoom,
             posture = posture,
+            pageTurnAnimation = pageTurnAnimation,
+            eInkMode = eInkMode,
         )
     }
 }
@@ -184,6 +193,8 @@ private fun ReaderScreenContent(
     initialJumpBack: JumpBack?,
     keepZoom: Boolean,
     posture: FoldPosture,
+    pageTurnAnimation: PageTurnAnimation,
+    eInkMode: Boolean,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -200,6 +211,8 @@ private fun ReaderScreenContent(
     val zoomed = !zoom.allowsPageTurn
     val keepZoomRef = rememberUpdatedState(keepZoom)
     val directionRef = rememberUpdatedState(direction)
+    val eInkModeRef = rememberUpdatedState(eInkMode)
+    val pageTurnAnimationRef = rememberUpdatedState(pageTurnAnimation)
     var viewport by remember { mutableStateOf(Size.Zero) }
 
     var endNotice by remember { mutableStateOf(initialEndNotice) }
@@ -269,7 +282,13 @@ private fun ReaderScreenContent(
         val target = pagerTargetIndex(pagerState.targetPage, delta, pagerState.pageCount)
         if (target != pagerState.targetPage) {
             jumpBack = null
-            scope.launch { pagerState.animateScrollToPage(target) }
+            scope.launch {
+                if (shouldAnimatePageTurn(eInkModeRef.value, pageTurnAnimationRef.value)) {
+                    pagerState.animateScrollToPage(target)
+                } else {
+                    pagerState.scrollToPage(target)
+                }
+            }
         } else if (isTurnPastEnd(pagerState.targetPage, delta, pagerState.pageCount)) {
             nextAtEnd()
         }
@@ -368,6 +387,15 @@ private fun ReaderScreenContent(
                     userScrollEnabled = !zoomed,
                     modifier = Modifier.fillMaxSize(),
                     beyondViewportPageCount = 1,
+                    flingBehavior = if (shouldAnimatePageTurn(eInkMode, pageTurnAnimation)) {
+                        PagerDefaults.flingBehavior(state = pagerState)
+                    } else {
+                        PagerDefaults.flingBehavior(
+                            state = pagerState,
+                            snapAnimationSpec = snap(),
+                            pagerSnapDistance = PagerSnapDistance.atMost(0),
+                        )
+                    },
                 ) { pageIndex ->
                     val spread = currentSpreads.getOrNull(pageIndex) ?: return@HorizontalPager
                     val layout = spreadLayout(spread, direction)
@@ -601,11 +629,13 @@ private fun ReaderScreenContent(
             direction = direction,
             bottomInset = noticeInset,
             onOpen = ::openNextBook,
+            animate = !eInkMode,
         )
         JumpBackHost(
             page = if (jumpBackShown) jumpBack?.page else null,
             bottomInset = noticeInset,
             onClick = ::jumpBackNow,
+            animate = !eInkMode,
         )
         if (showTitleToast) {
             BookChangedToast(

@@ -144,6 +144,7 @@ class SettingsBUiTest {
             R.string.settings_cover_alone,
             R.string.settings_page_turn_animation,
             R.string.settings_keep_zoom,
+            R.string.settings_e_ink_mode,
             R.string.settings_volume_key_paging,
             R.string.settings_keep_screen_on,
             R.string.settings_tap_zone_guide,

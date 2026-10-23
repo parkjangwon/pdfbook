@@ -50,6 +50,7 @@ class SettingsRepository(
         val TapZoneSidePercentKey = intPreferencesKey("tap_zone_side_percent")
         val ShowDotFilesKey = booleanPreferencesKey("show_dot_files")
         val KeepZoomOnTurnKey = booleanPreferencesKey("keep_zoom_on_turn")
+        val EInkModeKey = booleanPreferencesKey("e_ink_mode")
     }
 }
 
@@ -80,6 +81,7 @@ internal fun Preferences.toAppSettings(): AppSettings {
         ),
         showDotFiles = this[SettingsRepository.ShowDotFilesKey] ?: defaults.showDotFiles,
         keepZoomOnTurn = this[SettingsRepository.KeepZoomOnTurnKey] ?: defaults.keepZoomOnTurn,
+        eInkMode = this[SettingsRepository.EInkModeKey] ?: defaults.eInkMode,
     )
 }
 
@@ -99,6 +101,7 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.TapZoneSidePercentKey] = normalizeTapZoneSidePercent(settings.tapZoneSidePercent)
     this[SettingsRepository.ShowDotFilesKey] = settings.showDotFiles
     this[SettingsRepository.KeepZoomOnTurnKey] = settings.keepZoomOnTurn
+    this[SettingsRepository.EInkModeKey] = settings.eInkMode
 }
 
 private inline fun <reified T : Enum<T>> enumOrDefault(raw: String?, default: T): T {
