@@ -89,6 +89,7 @@ import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
 import androidx.compose.foundation.layout.Spacer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 import kotlin.math.roundToInt
@@ -120,6 +121,7 @@ fun ReaderScreen(
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
 ) {
     val view = LocalView.current
@@ -128,7 +130,10 @@ fun ReaderScreen(
         view.keepScreenOn = keepScreenOn
         onDispose { view.keepScreenOn = previous }
     }
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Ltr,
+        LocalDisplayMode provides displayMode,
+    ) {
         ReaderScreenContent(
             renderer = renderer,
             pagerState = pagerState,
@@ -1053,6 +1058,8 @@ internal fun PageBitmap(
             bitmap = renderer.render(page, maxWidth, maxHeight)
         }
     }
+    val displayMode = LocalDisplayMode.current
+    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val bmp = bitmap
         if (bmp != null && !bmp.isRecycled) {
@@ -1062,6 +1069,7 @@ internal fun PageBitmap(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 alignment = alignment,
+                colorFilter = colorFilter,
                 modifier = Modifier.fillMaxSize(),
             )
         }

@@ -691,6 +691,7 @@ private fun App(
                 tapZoneSidePercent = settings.tapZoneSidePercent,
                 keepZoom = settings.keepZoomOnTurn,
                 twoPageMode = settings.twoPageMode,
+                displayMode = settings.displayMode,
                 coverAlone = settings.coverAlone,
                 keepScreenOn = settings.keepScreenOn,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },

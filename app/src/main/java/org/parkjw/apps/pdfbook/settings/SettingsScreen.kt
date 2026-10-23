@@ -82,6 +82,7 @@ private enum class SettingsChoice {
     Direction,
     TwoPage,
     Animation,
+    Display,
 }
 
 @Composable
@@ -101,6 +102,7 @@ fun SettingsScreen(
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.Main,
     initiallyShowStartChoice: Boolean = false,
     initiallyShowTapWidthSheet: Boolean = false,
+    initiallyShowDisplayChoice: Boolean = false,
 ) {
     var subScreen by rememberSaveable { mutableStateOf(initialSubScreen.name) }
     var showStartChoice by rememberSaveable { mutableStateOf(initiallyShowStartChoice) }
@@ -111,6 +113,7 @@ fun SettingsScreen(
             onSettingsChange = onSettingsChange,
             onBack = { subScreen = SettingsSubScreen.Main.name },
             initiallyShowTapWidthSheet = initiallyShowTapWidthSheet,
+            initiallyShowDisplayChoice = initiallyShowDisplayChoice,
             modifier = modifier,
         )
         SettingsSubScreen.OpenSource.name -> OpenSourceLicensesScreen(
@@ -341,10 +344,13 @@ private fun ReadingSettingsScreen(
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     onBack: () -> Unit,
     initiallyShowTapWidthSheet: Boolean,
+    initiallyShowDisplayChoice: Boolean,
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
-    var choice by rememberSaveable { mutableStateOf<String?>(null) }
+    var choice by rememberSaveable {
+        mutableStateOf<String?>(if (initiallyShowDisplayChoice) SettingsChoice.Display.name else null)
+    }
     var showTapWidthSheet by rememberSaveable { mutableStateOf(initiallyShowTapWidthSheet) }
     val directionOptions = listOf(
         ReadingDirection.RTL to stringResource(R.string.settings_direction_rtl),
@@ -358,6 +364,11 @@ private fun ReadingSettingsScreen(
     val animationOptions = listOf(
         PageTurnAnimation.Slide to stringResource(R.string.settings_animation_slide),
         PageTurnAnimation.None to stringResource(R.string.settings_animation_none),
+    )
+    val displayOptions = listOf(
+        DisplayMode.Default to stringResource(R.string.settings_display_default),
+        DisplayMode.Invert to stringResource(R.string.settings_display_invert),
+        DisplayMode.Sepia to stringResource(R.string.settings_display_sepia),
     )
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -414,6 +425,12 @@ private fun ReadingSettingsScreen(
                     label = stringResource(R.string.settings_page_turn_animation),
                     value = animationOptions.first { it.first == settings.pageTurnAnimation }.second,
                     onClick = { choice = SettingsChoice.Animation.name },
+                )
+                GroupDivider()
+                SecurityValueRow(
+                    label = stringResource(R.string.settings_display_mode),
+                    value = displayOptions.first { it.first == settings.displayMode }.second,
+                    onClick = { choice = SettingsChoice.Display.name },
                 )
                 GroupDivider()
                 SwitchRow(
@@ -501,6 +518,16 @@ private fun ReadingSettingsScreen(
             selected = settings.pageTurnAnimation,
             onSelect = { value ->
                 onSettingsChange { it.copy(pageTurnAnimation = value) }
+                choice = null
+            },
+            onDismiss = { choice = null },
+        )
+        SettingsChoice.Display.name -> SettingsChoiceDialog(
+            title = stringResource(R.string.settings_display_mode),
+            options = displayOptions,
+            selected = settings.displayMode,
+            onSelect = { value ->
+                onSettingsChange { it.copy(displayMode = value) }
                 choice = null
             },
             onDismiss = { choice = null },
