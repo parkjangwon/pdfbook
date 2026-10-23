@@ -699,6 +699,8 @@ private fun App(
                 onBrightnessChange = { value ->
                     onSettingsChange { it.copy(readerBrightnessPercent = normalizeReaderBrightnessPercent(value)) }
                 },
+                coverAlone = settings.coverAlone,
+                keepScreenOn = settings.keepScreenOn,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 volumes = ReaderVolumes(
                     onPrevious = adjacent.previous?.let { { switchTo(it) } },
