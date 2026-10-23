@@ -31,6 +31,7 @@
     </plurals>
     <string name="folder_no_access_badge">No access</string>
     <string name="last_book_unavailable">Can\'t open your last book</string>
+    <string name="shortcut_continue_reading">Continue reading</string>
     <string name="settings_title">Settings</string>
     <string name="settings_section_general">General</string>
     <string name="settings_section_reading">Reading</string>
