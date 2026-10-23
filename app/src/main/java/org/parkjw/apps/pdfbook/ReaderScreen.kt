@@ -120,6 +120,7 @@ fun ReaderScreen(
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    fullScreenReading: Boolean = true,
     keepScreenOn: Boolean = true,
 ) {
     val view = LocalView.current
@@ -155,6 +156,7 @@ fun ReaderScreen(
             initialJumpBack = jumpBack,
             keepZoom = keepZoom,
             posture = posture,
+            fullScreenReading = fullScreenReading,
         )
     }
 }
@@ -186,6 +188,7 @@ private fun ReaderScreenContent(
     initialJumpBack: JumpBack?,
     keepZoom: Boolean,
     posture: FoldPosture,
+    fullScreenReading: Boolean,
 ) {
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -215,6 +218,11 @@ private fun ReaderScreenContent(
     val sheetOpen =
         widthSheetVisible || goToPageVisible || (bookListVisible && volumes.bookList != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
+
+    ReaderSystemBars(
+        fullScreenReading = fullScreenReading,
+        overlayVisible = overlayVisible || sheetOpen,
+    )
 
     TrimCacheOnMemoryPressure(renderer)
 

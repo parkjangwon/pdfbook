@@ -38,10 +38,12 @@ fun ReaderRoute(
     onTitleToastShown: () -> Unit = {},
     keepZoom: Boolean = false,
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
+    fullScreenReading: Boolean = true,
     coverAlone: Boolean = true,
     rendererOverride: PageBitmaps? = null,
     keepScreenOn: Boolean = true,
 ) {
+    ReaderSystemBarsScope()
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
     var saved by remember(key) { mutableStateOf<BookState?>(null) }
@@ -153,6 +155,7 @@ fun ReaderRoute(
                     showTitleToast = showTitleToast,
                     onTitleToastShown = onTitleToastShown,
                     keepZoom = keepZoom,
+                    fullScreenReading = fullScreenReading,
                     keepScreenOn = keepScreenOn,
                 )
             }
