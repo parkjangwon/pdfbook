@@ -42,7 +42,7 @@ class SettingsDecodeEdgeTest {
             this[SettingsRepository.DefaultReadingDirectionKey] = "UP"
             this[SettingsRepository.TwoPageModeKey] = ""
             this[SettingsRepository.LanguageKey] = "Japanese"
-            this[SettingsRepository.PageTurnAnimationKey] = "Curl"
+            this[SettingsRepository.PageTurnAnimationKey] = "Flip"
         }
         assertEquals(AppSettings(), prefs.toAppSettings())
     }
