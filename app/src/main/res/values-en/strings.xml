@@ -102,4 +102,9 @@
     <string name="reader_auto_turn_start">Start auto turn</string>
     <string name="reader_auto_turn_running">Auto turn %1$d s</string>
     <string name="reader_auto_turn_stopped">Auto turn stopped</string>
+    <string name="go_to_page_title">Go to page</string>
+    <string name="go_to_page_hint">1~%1$d</string>
+    <string name="go_to_page_error">Enter a page between 1 and %1$d.</string>
+    <string name="go_to_page_go">Go</string>
+    <string name="go_to_page_cancel">Cancel</string>
 </resources>

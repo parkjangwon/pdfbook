@@ -101,4 +101,9 @@
     <string name="reader_auto_turn_start">자동 넘김 시작</string>
     <string name="reader_auto_turn_running">자동 넘김 %1$d초</string>
     <string name="reader_auto_turn_stopped">자동 넘김을 멈췄어요</string>
+    <string name="go_to_page_title">쪽 번호로 이동</string>
+    <string name="go_to_page_hint">1~%1$d</string>
+    <string name="go_to_page_error">1~%1$d 사이의 쪽 번호를 넣어 주세요.</string>
+    <string name="go_to_page_go">이동</string>
+    <string name="go_to_page_cancel">취소</string>
 </resources>
