@@ -39,6 +39,37 @@ class MarkFinishedTest {
     }
 
     @Test
+    fun mf10_undoMarkFinishedRestoresSavedPageAndSession() = runTest {
+        val store = BookStore(
+            PreferenceDataStoreFactory.create(scope = backgroundScope) {
+                File(tmp.root, "books.preferences_pb")
+            },
+        )
+        val before = BookState(page = 3, pageCount = 10, direction = ReadingDirection.LTR, openedAt = 7)
+        store.save(key, before)
+        val undo = store.applyProgress(key, ::markFinished)!!
+        assertEquals(10, store.state(key)!!.page)
+        store.undoProgress(undo)
+        assertEquals(before, store.state(key))
+    }
+
+    @Test
+    fun mf11_undoStartOverRestoresSavedPageAndSession() = runTest {
+        val store = BookStore(
+            PreferenceDataStoreFactory.create(scope = backgroundScope) {
+                File(tmp.root, "books.preferences_pb")
+            },
+        )
+        val before = BookState(page = 6, pageCount = 10, direction = ReadingDirection.LTR, openedAt = 7)
+        store.save(key, before)
+        val undo = store.applyProgress(key, ::startOver)!!
+        assertEquals(1, store.state(key)!!.page)
+        assertEquals(0L, store.state(key)!!.openedAt)
+        store.undoProgress(undo)
+        assertEquals(before, store.state(key))
+    }
+
+    @Test
     fun mf2_startOverStoresFirstPageAndClearsOpenedAt() = runTest {
         val store = BookStore(
             PreferenceDataStoreFactory.create(scope = backgroundScope) {

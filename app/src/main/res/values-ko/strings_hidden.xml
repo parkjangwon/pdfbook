@@ -4,8 +4,8 @@
     <string name="hide_item">숨기기</string>
     <string name="mark_finished">다 읽음으로 표시</string>
     <string name="start_over">처음부터 읽기</string>
-    <string name="marked_finished_snackbar">다 읽음으로 표시했어요.</string>
-    <string name="progress_reset_snackbar">처음부터 읽도록 바꿨어요.</string>
+    <string name="marked_finished_snackbar">다 읽음으로 표시했어요</string>
+    <string name="progress_reset_snackbar">처음부터 읽도록 바꿨어요</string>
     <string name="hidden_snackbar">숨겼어요</string>
     <string name="action_undo">되돌리기</string>
     <string name="hidden_items_title">숨긴 항목</string>

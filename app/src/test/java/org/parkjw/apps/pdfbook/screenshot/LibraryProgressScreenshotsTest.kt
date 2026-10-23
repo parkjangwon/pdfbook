@@ -39,6 +39,10 @@ class LibraryProgressScreenshotsTest {
     fun bookMenuLightFolded() = capture(dark = false, file = "library-book-menu-light-folded.png")
 
     @Test
+    @Config(qualifiers = FOLDED_EN_QUALIFIERS)
+    fun bookMenuLightFoldedEn() = capture(dark = false, file = "library-book-menu-light-folded-en.png")
+
+    @Test
     @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
     fun bookMenuDarkFolded() = capture(dark = true, file = "library-book-menu-dark-folded.png")
 

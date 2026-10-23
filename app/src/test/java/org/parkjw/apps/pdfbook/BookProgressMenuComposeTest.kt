@@ -1,6 +1,8 @@
 package org.parkjw.apps.pdfbook
 
 import android.content.Context
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -61,9 +63,80 @@ class BookProgressMenuComposeTest {
         composeRule.onAllNodesWithText(context.getString(R.string.start_over)).assertCountEquals(0)
     }
 
+    @Test
+    fun mf10UndoRestoresMarkedFinishedBook() {
+        val before = BookState(page = 3, pageCount = 10, openedAt = 5)
+        val state = mutableStateOf(before)
+        setLibraryWithUndo(state)
+        openBookMenu()
+        composeRule.onNodeWithText(context.getString(R.string.mark_finished)).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(context.getString(R.string.marked_finished_snackbar)).assertExists()
+        assertEquals(10, state.value.page)
+        composeRule.onNodeWithText(context.getString(R.string.action_undo)).performClick()
+        composeRule.waitForIdle()
+        assertEquals(before, state.value)
+    }
+
+    @Test
+    fun mf11UndoRestoresStartedOverBook() {
+        val before = BookState(page = 6, pageCount = 10, openedAt = 5)
+        val state = mutableStateOf(before)
+        setLibraryWithUndo(state)
+        openBookMenu()
+        composeRule.onNodeWithText(context.getString(R.string.start_over)).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(context.getString(R.string.progress_reset_snackbar)).assertExists()
+        assertEquals(1, state.value.page)
+        assertEquals(0L, state.value.openedAt)
+        composeRule.onNodeWithText(context.getString(R.string.action_undo)).performClick()
+        composeRule.waitForIdle()
+        assertEquals(before, state.value)
+    }
+
     private fun openBookMenu() {
         composeRule.onNodeWithTag("library_book").performTouchInput { longClick() }
         composeRule.waitForIdle()
+    }
+
+    private fun setLibraryWithUndo(state: MutableState<BookState>) {
+        val message = mutableStateOf<String?>(null)
+        val undo = mutableStateOf<BookState?>(null)
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                LibraryScreen(
+                    listing = Listing("Shelf", listOf(book)),
+                    states = mapOf(key to state.value),
+                    onOpen = {},
+                    onSettings = {},
+                    covers = mapOf(key to null),
+                    resumeBooks = emptyList(),
+                    snackbarMessage = message.value,
+                    snackbarActionLabel = if (undo.value != null) {
+                        context.getString(R.string.action_undo)
+                    } else {
+                        null
+                    },
+                    onSnackbarShown = { message.value = null },
+                    onSnackbarAction = {
+                        undo.value?.let { state.value = it }
+                        undo.value = null
+                    },
+                    onMarkFinished = {
+                        val previous = state.value
+                        state.value = markFinished(previous)
+                        undo.value = previous
+                        message.value = context.getString(R.string.marked_finished_snackbar)
+                    },
+                    onStartOver = {
+                        val previous = state.value
+                        state.value = startOver(previous)
+                        undo.value = previous
+                        message.value = context.getString(R.string.progress_reset_snackbar)
+                    },
+                )
+            }
+        }
     }
 
     private fun setLibrary(

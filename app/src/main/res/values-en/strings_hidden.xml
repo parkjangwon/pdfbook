@@ -4,8 +4,8 @@
     <string name="hide_item">Hide</string>
     <string name="mark_finished">Mark as finished</string>
     <string name="start_over">Start over</string>
-    <string name="marked_finished_snackbar">Marked as finished.</string>
-    <string name="progress_reset_snackbar">Progress reset.</string>
+    <string name="marked_finished_snackbar">Marked as finished</string>
+    <string name="progress_reset_snackbar">Progress reset</string>
     <string name="hidden_snackbar">Hidden</string>
     <string name="action_undo">Undo</string>
     <string name="hidden_items_title">Hidden items</string>
