@@ -88,6 +88,7 @@ class TapZoneGuidePixelTest {
                 TapZoneGuide(direction = direction)
             }
         }
+        composeRule.waitForIdle()
         val image = composeRule.onNodeWithTag("guide_host").captureToImage()
         assertEquals(300, image.width)
         return image.toPixelMap()

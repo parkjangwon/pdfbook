@@ -1,11 +1,14 @@
 package org.parkjw.apps.pdfbook
 
+import android.content.pm.ActivityInfo
 import android.net.Uri
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -21,7 +24,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import org.parkjw.apps.pdfbook.settings.ScreenOrientation
 import org.parkjw.apps.pdfbook.settings.TwoPageMode
+import org.parkjw.apps.pdfbook.settings.toActivityOrientation
+
+@Composable
+fun OrientationLock(screenOrientation: ScreenOrientation) {
+    val activity = LocalActivity.current ?: return
+    DisposableEffect(screenOrientation) {
+        activity.requestedOrientation = screenOrientation.toActivityOrientation()
+        onDispose {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+}
 
 @Composable
 fun ReaderRoute(
@@ -38,11 +54,13 @@ fun ReaderRoute(
     onTitleToastShown: () -> Unit = {},
     keepZoom: Boolean = false,
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
+    screenOrientation: ScreenOrientation = ScreenOrientation.Auto,
     fullScreenReading: Boolean = true,
     coverAlone: Boolean = true,
     rendererOverride: PageBitmaps? = null,
     keepScreenOn: Boolean = true,
 ) {
+    OrientationLock(screenOrientation)
     ReaderSystemBarsScope()
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }

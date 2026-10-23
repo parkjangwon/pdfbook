@@ -45,6 +45,7 @@ class SettingsRepository(
         val LanguageKey = stringPreferencesKey("language")
         val ShowTapZoneGuideKey = booleanPreferencesKey("show_tap_zone_guide")
         val PageTurnAnimationKey = stringPreferencesKey("page_turn_animation")
+        val ScreenOrientationKey = stringPreferencesKey("screen_orientation")
         val DoubleTapZoomScaleKey = floatPreferencesKey("double_tap_zoom_scale")
         val AutoUpdateCheckKey = booleanPreferencesKey("auto_update_check")
         val TapZoneSidePercentKey = intPreferencesKey("tap_zone_side_percent")
@@ -73,6 +74,10 @@ internal fun Preferences.toAppSettings(): AppSettings {
             this[SettingsRepository.PageTurnAnimationKey],
             defaults.pageTurnAnimation,
         ),
+        screenOrientation = enumOrDefault(
+            this[SettingsRepository.ScreenOrientationKey],
+            defaults.screenOrientation,
+        ),
         doubleTapZoomScale = this[SettingsRepository.DoubleTapZoomScaleKey]
             ?: defaults.doubleTapZoomScale,
         autoUpdateCheck = this[SettingsRepository.AutoUpdateCheckKey] ?: defaults.autoUpdateCheck,
@@ -96,6 +101,7 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.LanguageKey] = settings.language.name
     this[SettingsRepository.ShowTapZoneGuideKey] = settings.showTapZoneGuide
     this[SettingsRepository.PageTurnAnimationKey] = settings.pageTurnAnimation.name
+    this[SettingsRepository.ScreenOrientationKey] = settings.screenOrientation.name
     this[SettingsRepository.DoubleTapZoomScaleKey] = settings.doubleTapZoomScale
     this[SettingsRepository.AutoUpdateCheckKey] = settings.autoUpdateCheck
     this[SettingsRepository.TapZoneSidePercentKey] = normalizeTapZoneSidePercent(settings.tapZoneSidePercent)
