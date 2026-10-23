@@ -47,4 +47,5 @@ data class AppSettings(
     val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     val showDotFiles: Boolean = false,
     val keepZoomOnTurn: Boolean = false,
+    val fullScreenReading: Boolean = true,
 )

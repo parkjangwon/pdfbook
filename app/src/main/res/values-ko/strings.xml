@@ -113,4 +113,9 @@
     <plurals name="book_info_page_count">
         <item quantity="other">%d쪽</item>
     </plurals>
+    <string name="go_to_page_title">쪽 번호로 이동</string>
+    <string name="go_to_page_hint">1~%1$d</string>
+    <string name="go_to_page_error">1~%1$d 사이의 쪽 번호를 넣어 주세요.</string>
+    <string name="go_to_page_go">이동</string>
+    <string name="go_to_page_cancel">취소</string>
 </resources>
