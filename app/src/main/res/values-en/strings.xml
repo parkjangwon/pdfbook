@@ -56,9 +56,9 @@
     <string name="settings_page_turn_animation">Page turn animation</string>
     <string name="settings_animation_slide">Slide</string>
     <string name="settings_animation_none">None</string>
-    <string name="settings_display_mode">Display mode</string>
-    <string name="settings_display_default">Default</string>
-    <string name="settings_display_invert">Invert colors</string>
+    <string name="settings_display_mode">Page color</string>
+    <string name="settings_display_default">Original</string>
+    <string name="settings_display_invert">Inverted</string>
     <string name="settings_display_sepia">Sepia</string>
     <string name="settings_volume_key_paging">Volume keys turn pages</string>
     <string name="settings_keep_screen_on">Keep screen on</string>

@@ -102,6 +102,7 @@ fun SettingsScreen(
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.Main,
     initiallyShowStartChoice: Boolean = false,
     initiallyShowTapWidthSheet: Boolean = false,
+    initiallyShowDisplayChoice: Boolean = false,
 ) {
     var subScreen by rememberSaveable { mutableStateOf(initialSubScreen.name) }
     var showStartChoice by rememberSaveable { mutableStateOf(initiallyShowStartChoice) }
@@ -112,6 +113,7 @@ fun SettingsScreen(
             onSettingsChange = onSettingsChange,
             onBack = { subScreen = SettingsSubScreen.Main.name },
             initiallyShowTapWidthSheet = initiallyShowTapWidthSheet,
+            initiallyShowDisplayChoice = initiallyShowDisplayChoice,
             modifier = modifier,
         )
         SettingsSubScreen.OpenSource.name -> OpenSourceLicensesScreen(
@@ -342,10 +344,13 @@ private fun ReadingSettingsScreen(
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     onBack: () -> Unit,
     initiallyShowTapWidthSheet: Boolean,
+    initiallyShowDisplayChoice: Boolean,
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
-    var choice by rememberSaveable { mutableStateOf<String?>(null) }
+    var choice by rememberSaveable {
+        mutableStateOf<String?>(if (initiallyShowDisplayChoice) SettingsChoice.Display.name else null)
+    }
     var showTapWidthSheet by rememberSaveable { mutableStateOf(initiallyShowTapWidthSheet) }
     val directionOptions = listOf(
         ReadingDirection.RTL to stringResource(R.string.settings_direction_rtl),

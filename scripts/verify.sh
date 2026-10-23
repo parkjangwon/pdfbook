@@ -426,14 +426,14 @@ case "$FEATURE" in
     expect_id settings_screen
     tap_id settings_reading_entry
     expect_id settings_reading_screen
-    display_mode='Display mode|화면 모드'
+    display_mode='Page color|페이지 색'
     for _ in 1 2 3; do
       wait_node text "$display_mode" 2 >/dev/null && break
       "$ADB" shell input swipe 540 1600 540 900 300
     done
     shot display-mode-default
     tap_node text "$display_mode"
-    tap_node text 'Invert colors|색 반전'
+    tap_node text 'Inverted|색 반전'
     "$ADB" shell input keyevent KEYCODE_BACK
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
