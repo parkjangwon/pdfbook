@@ -33,6 +33,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Continue reading (folder) | Library, sort = recent, after reading | `library_resume_card` | `LibraryScreen.kt`, `hidden/HiddenPeek.kt` | `LibraryTest` |
 | Sort menu (SPEC-1) | Library → `library_sort_button` | `library_sort_button`, `library_sort_option_Recent`, `library_sort_option_Name`, `library_sort_check` | `LibraryScreen.kt`, `SortStore.kt`, `NaturalOrder.kt` | `SortCheckMenuComposeTest`, `SortPersistComposeTest`, `SortStoreTest`, `NaturalOrderTest` |
 | Subfolders | Library of a folder with subfolders → `library_subfolder` | `library_subfolder`, `library_back` | `SubfolderCell.kt`, `Subfolders.kt`, `FolderBrowse.kt` | `SubfolderComposeTest`, `SubfoldersTest`, `SubfolderScreenshotsTest` |
+| Book info | Long-press `library_book` → "책 정보" | `book_info_sheet` | `BookInfoSheet.kt`, `LibraryScreen.kt` | `BookInfoTest`, `BookInfoComposeTest`, `BookInfoScreenshotsTest` |
 | Hide a book or folder | Long-press `library_book` / `library_subfolder` → "Hide" | menu text | `hidden/HiddenRepository.kt`, `MainActivity.kt` | `HiddenRepositoryTest`, `HiddenBookStateTest` |
 | Peek hidden items | `library_more` (or shelf ⋮) → peek toggle | menu text | `hidden/HiddenPeek.kt`, `hidden/PeekHiddenUi.kt` | `HiddenPeekComposeTest`, `HiddenPeekVisibilityTest` |
 
