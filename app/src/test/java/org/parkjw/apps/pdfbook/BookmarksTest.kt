@@ -89,7 +89,7 @@ class BookmarksTest {
         composeRule.onNodeWithContentDescription("책갈피 해제").performClick()
         assertEquals(listOf(3), pages)
 
-        composeRule.onNodeWithContentDescription("책갈피 목록").performClick()
+        composeRule.onNodeWithTag("reader_bookmark_list_button").performClick()
         composeRule.onNodeWithTag(BOOKMARK_SHEET_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("3쪽").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("3쪽 책갈피 해제").performClick()
@@ -176,7 +176,7 @@ class BookmarksTest {
                 )
             }
         }
-        composeRule.onNodeWithContentDescription("책갈피 목록").performClick()
+        composeRule.onNodeWithTag("reader_bookmark_list_button").performClick()
         composeRule.onNodeWithText("3쪽").performClick()
         composeRule.waitForIdle()
         assertEquals(spreadIndexOf(pageSpreads, 3), settled())

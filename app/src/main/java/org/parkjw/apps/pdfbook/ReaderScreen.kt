@@ -127,6 +127,7 @@ fun ReaderScreen(
     onFollowSystemBrightnessChange: (Boolean) -> Unit = {},
     onBrightnessChange: (Int) -> Unit = {},
     brightnessSheetVisible: Boolean = false,
+    bookmarkSheetVisible: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
     bookmarks: ReaderBookmarks? = null,
     keepScreenOn: Boolean = true,
@@ -169,6 +170,7 @@ fun ReaderScreen(
             onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
             onBrightnessChange = onBrightnessChange,
             initialBrightnessSheetVisible = brightnessSheetVisible,
+            initialBookmarkSheetVisible = bookmarkSheetVisible,
             posture = posture,
             bookmarks = bookmarks,
         )
@@ -206,10 +208,11 @@ private fun ReaderScreenContent(
     onFollowSystemBrightnessChange: (Boolean) -> Unit,
     onBrightnessChange: (Int) -> Unit,
     initialBrightnessSheetVisible: Boolean,
+    initialBookmarkSheetVisible: Boolean,
     posture: FoldPosture,
     bookmarks: ReaderBookmarks?,
 ) {
-    var bookmarkSheetVisible by rememberSaveable { mutableStateOf(false) }
+    var bookmarkSheetVisible by rememberSaveable { mutableStateOf(initialBookmarkSheetVisible) }
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
@@ -613,7 +616,6 @@ private fun ReaderScreenContent(
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
                 bookmarked = bookmarks?.let { spreadBookmarked(it.pages, currentSpread) },
                 onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
-                onOpenBookmarks = bookmarks?.let { { bookmarkSheetVisible = true } },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .then(
@@ -644,6 +646,7 @@ private fun ReaderScreenContent(
                         widthSheetVisible = true
                     },
                     onOpenBrightness = { brightnessSheetVisible = true },
+                    onOpenBookmarks = bookmarks?.let { { bookmarkSheetVisible = true } },
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
                     modifier = Modifier
@@ -900,7 +903,6 @@ private fun ReaderOverlayTop(
     onOpenBookList: (() -> Unit)? = null,
     bookmarked: Boolean? = null,
     onToggleBookmark: () -> Unit = {},
-    onOpenBookmarks: (() -> Unit)? = null,
 ) {
     Row(
         modifier
@@ -951,19 +953,6 @@ private fun ReaderOverlayTop(
                     contentDescription = stringResource(
                         if (bookmarked) R.string.reader_bookmark_remove else R.string.reader_bookmark_add,
                     ),
-                    tint = ReaderOnOverlay,
-                )
-            }
-        }
-        if (onOpenBookmarks != null) {
-            IconButton(
-                onClick = onOpenBookmarks,
-                colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
-                modifier = Modifier.testTag("reader_bookmark_list_button"),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_bookmark_list),
-                    contentDescription = stringResource(R.string.reader_bookmark_list),
                     tint = ReaderOnOverlay,
                 )
             }
@@ -1031,6 +1020,7 @@ private fun ReaderOverlayBottom(
     onAdjustTapZones: () -> Unit,
     onOpenBrightness: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenBookmarks: (() -> Unit)? = null,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
 ) {
@@ -1093,15 +1083,28 @@ private fun ReaderOverlayBottom(
         // Under the slider (above page number): keeps |< slider >| mirrored pair intact;
         // tap-zone entry stays above the slider as before.
         ReaderToolRow(
-            items = listOf(
-                ReaderToolItem.Action(
-                    tool = ReaderTool.Brightness,
-                    iconRes = R.drawable.ic_brightness,
-                    label = stringResource(R.string.reader_brightness),
-                    testTag = "reader_brightness",
-                    onClick = onOpenBrightness,
-                ),
-            ),
+            items = buildList {
+                add(
+                    ReaderToolItem.Action(
+                        tool = ReaderTool.Brightness,
+                        iconRes = R.drawable.ic_brightness,
+                        label = stringResource(R.string.reader_brightness),
+                        testTag = "reader_brightness",
+                        onClick = onOpenBrightness,
+                    ),
+                )
+                if (onOpenBookmarks != null) {
+                    add(
+                        ReaderToolItem.Action(
+                            tool = ReaderTool.Bookmarks,
+                            iconRes = R.drawable.ic_bookmark_list,
+                            label = stringResource(R.string.reader_bookmark_list),
+                            testTag = "reader_bookmark_list_button",
+                            onClick = onOpenBookmarks,
+                        ),
+                    )
+                }
+            },
         )
         val goToPageLabel = stringResource(R.string.go_to_page_title)
         Text(
