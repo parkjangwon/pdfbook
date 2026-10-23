@@ -692,6 +692,7 @@ private fun App(
                 keepZoom = settings.keepZoomOnTurn,
                 twoPageMode = settings.twoPageMode,
                 pageTurnAnimation = settings.pageTurnAnimation,
+                screenOrientation = settings.screenOrientation,
                 fullScreenReading = settings.fullScreenReading,
                 coverAlone = settings.coverAlone,
                 keepScreenOn = settings.keepScreenOn,

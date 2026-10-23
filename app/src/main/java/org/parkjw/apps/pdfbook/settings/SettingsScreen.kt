@@ -82,6 +82,7 @@ private enum class SettingsChoice {
     Direction,
     TwoPage,
     Animation,
+    Orientation,
 }
 
 @Composable
@@ -369,6 +370,11 @@ private fun ReadingSettingsScreen(
     val animationDescriptions = mapOf(
         PageTurnAnimation.Curl to stringResource(R.string.settings_animation_curl_desc),
     )
+    val orientationOptions = listOf(
+        ScreenOrientation.Auto to stringResource(R.string.settings_orientation_auto),
+        ScreenOrientation.Portrait to stringResource(R.string.settings_orientation_portrait),
+        ScreenOrientation.Landscape to stringResource(R.string.settings_orientation_landscape),
+    )
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -424,6 +430,12 @@ private fun ReadingSettingsScreen(
                     label = stringResource(R.string.settings_page_turn_animation),
                     value = animationOptions.first { it.first == settings.pageTurnAnimation }.second,
                     onClick = { choice = SettingsChoice.Animation.name },
+                )
+                GroupDivider()
+                SecurityValueRow(
+                    label = stringResource(R.string.settings_screen_orientation),
+                    value = orientationOptions.first { it.first == settings.screenOrientation }.second,
+                    onClick = { choice = SettingsChoice.Orientation.name },
                 )
                 GroupDivider()
                 SwitchRow(
@@ -520,6 +532,16 @@ private fun ReadingSettingsScreen(
             optionTestTagPrefix = "settings_animation_option_",
             onSelect = { value ->
                 onSettingsChange { it.copy(pageTurnAnimation = value) }
+                choice = null
+            },
+            onDismiss = { choice = null },
+        )
+        SettingsChoice.Orientation.name -> SettingsChoiceDialog(
+            title = stringResource(R.string.settings_screen_orientation),
+            options = orientationOptions,
+            selected = settings.screenOrientation,
+            onSelect = { value ->
+                onSettingsChange { it.copy(screenOrientation = value) }
                 choice = null
             },
             onDismiss = { choice = null },

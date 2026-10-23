@@ -58,6 +58,10 @@
     <string name="settings_animation_none">None</string>
     <string name="settings_animation_curl">Page curl</string>
     <string name="settings_animation_curl_desc">Single-page view only. Two-page view uses Slide.</string>
+    <string name="settings_screen_orientation">Screen orientation</string>
+    <string name="settings_orientation_auto">Auto</string>
+    <string name="settings_orientation_portrait">Portrait</string>
+    <string name="settings_orientation_landscape">Landscape</string>
     <string name="settings_volume_key_paging">Volume keys turn pages</string>
     <string name="settings_keep_screen_on">Keep screen on</string>
     <string name="settings_tap_zone_guide">Show tap zone guide</string>
@@ -98,6 +102,25 @@
     <string name="reader_tap_width_value">%1$d%% · default %2$d%%</string>
     <string name="reader_tap_width_reset">Reset to default</string>
     <string name="reader_tap_width_done">Done</string>
+    <string name="book_info_title">Book info</string>
+    <string name="book_info_file_name">File name</string>
+    <string name="book_info_pages">Pages</string>
+    <string name="book_info_pages_loading">Checking the page count…</string>
+    <string name="book_info_pages_unreadable">Couldn\'t read the page count</string>
+    <string name="book_info_size">File size</string>
+    <string name="book_info_size_b">%1$s B</string>
+    <string name="book_info_size_kb">%1$s KB</string>
+    <string name="book_info_size_mb">%1$s MB</string>
+    <string name="book_info_size_gb">%1$s GB</string>
+    <string name="book_info_last_read">Last read</string>
+    <string name="book_info_not_read">Not read yet</string>
+    <string name="book_info_progress">Reading progress</string>
+    <string name="book_info_progress_value">%1$d / %2$d pages · %3$d%%</string>
+    <string name="book_info_unknown">-</string>
+    <plurals name="book_info_page_count">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
     <string name="go_to_page_title">Go to page</string>
     <string name="go_to_page_hint">1~%1$d</string>
     <string name="go_to_page_error">Enter a page between 1 and %1$d.</string>
