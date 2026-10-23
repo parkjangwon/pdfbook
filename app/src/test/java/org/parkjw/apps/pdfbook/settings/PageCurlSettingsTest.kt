@@ -68,7 +68,7 @@ class PageCurlSettingsTest {
                 )
             }
         }
-        composeRule.onNodeWithText("책 넘기기").assertIsDisplayed()
+        composeRule.onNodeWithText("책장 넘김").assertIsDisplayed()
         composeRule.onNodeWithText("한쪽 보기에서만 써요. 두쪽 보기에서는 슬라이드로 넘겨요.")
             .assertIsDisplayed()
         composeRule.onNodeWithTag("settings_animation_option_Curl").performClick()
@@ -76,12 +76,12 @@ class PageCurlSettingsTest {
         composeRule.onNodeWithText(text(R.string.settings_page_turn_animation))
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("책 넘기기").assertIsDisplayed()
+        composeRule.onNodeWithText("책장 넘김").assertIsDisplayed()
     }
 
     @Test
     fun stringsMatchSpec() {
-        assertEquals("책 넘기기", localized(Locale.KOREAN, R.string.settings_animation_curl))
+        assertEquals("책장 넘김", localized(Locale.KOREAN, R.string.settings_animation_curl))
         assertEquals(
             "한쪽 보기에서만 써요. 두쪽 보기에서는 슬라이드로 넘겨요.",
             localized(Locale.KOREAN, R.string.settings_animation_curl_desc),
