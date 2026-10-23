@@ -101,4 +101,9 @@
     <string name="reader_tap_width_value">%1$d%% · default %2$d%%</string>
     <string name="reader_tap_width_reset">Reset to default</string>
     <string name="reader_tap_width_done">Done</string>
+    <string name="go_to_page_title">Go to page</string>
+    <string name="go_to_page_hint">1~%1$d</string>
+    <string name="go_to_page_error">Enter a page between 1 and %1$d.</string>
+    <string name="go_to_page_go">Go</string>
+    <string name="go_to_page_cancel">Cancel</string>
 </resources>

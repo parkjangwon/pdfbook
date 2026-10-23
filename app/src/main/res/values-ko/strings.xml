@@ -100,4 +100,9 @@
     <string name="reader_tap_width_value">%1$d%% · 기본 %2$d%%</string>
     <string name="reader_tap_width_reset">기본값으로</string>
     <string name="reader_tap_width_done">완료</string>
+    <string name="go_to_page_title">쪽 번호로 이동</string>
+    <string name="go_to_page_hint">1~%1$d</string>
+    <string name="go_to_page_error">1~%1$d 사이의 쪽 번호를 넣어 주세요.</string>
+    <string name="go_to_page_go">이동</string>
+    <string name="go_to_page_cancel">취소</string>
 </resources>
