@@ -152,7 +152,9 @@ const val SEARCH_FIELD_TAG = "library_search_field"
 const val SEARCH_CLEAR_TAG = "library_search_clear"
 const val SEARCH_CLOSE_TAG = "library_search_close"
 const val SEARCH_EMPTY_TAG = "library_search_empty"
+const val LIBRARY_TITLE_TAG = "library_title"
 private val SORT_MENU_WIDTH = 176.dp
+private val COMPACT_BAR_MAX_WIDTH = 480.dp
 
 fun sortOptionTag(sort: BookSort): String = "library_sort_option_" + sort.name
 
@@ -245,6 +247,8 @@ fun LibraryScreen(
     BackHandler(enabled = searchActive) { closeSearch() }
     Box(modifier.fillMaxSize().testTag("library_screen")) {
     Column(Modifier.fillMaxSize()) {
+        BoxWithConstraints {
+        val compactBar = maxWidth < COMPACT_BAR_MAX_WIDTH
         SafeTopBar(
             modifier = Modifier.padding(horizontal = PdfBookSpacing.screenHorizontalFolded),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -324,6 +328,7 @@ fun LibraryScreen(
                         style = MaterialTheme.typography.titleLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag(LIBRARY_TITLE_TAG),
                     )
                     if (pathLine != null) {
                         Text(
@@ -366,23 +371,37 @@ fun LibraryScreen(
                                 contentDescription = sortTitle
                                 stateDescription = sortLabel
                             }
-                            .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+                            .padding(
+                                start = if (compactBar) 15.dp else 12.dp,
+                                end = if (compactBar) 15.dp else 6.dp,
+                                top = if (compactBar) 11.dp else 10.dp,
+                                bottom = if (compactBar) 11.dp else 10.dp,
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
-                        Text(
-                            text = sortLabel,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                        )
-                        Icon(
-                            painter = painterResource(R.drawable.ic_expand_more),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(18.dp),
-                        )
+                        if (compactBar) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_sort),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        } else {
+                            Text(
+                                text = sortLabel,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.ic_expand_more),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
                     PdfBookDropdownMenu(
                         expanded = sortMenuOpen,
@@ -478,6 +497,7 @@ fun LibraryScreen(
                 }
             }
             }
+        }
         }
         if (peekEnabled) {
             PeekHiddenBanner(onStop = onPeekToggle)

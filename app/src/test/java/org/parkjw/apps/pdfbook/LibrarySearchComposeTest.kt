@@ -1,5 +1,6 @@
 package org.parkjw.apps.pdfbook
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -8,7 +9,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -111,6 +115,25 @@ class LibrarySearchComposeTest {
     }
 
     @Test
+    @Config(qualifiers = "ko-w360dp-h920dp")
+    fun keepsSubfolderTitleReadableAtFoldedWidth() {
+        setLibrary(folderName = "3부", onBack = {})
+        composeRule.waitForIdle()
+
+        val layouts = mutableListOf<TextLayoutResult>()
+        composeRule.onNodeWithTag(LIBRARY_TITLE_TAG)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layouts)
+
+        val layout = layouts.single()
+        assertTrue("title was ellipsized to nothing", layout.getLineEnd(0) > 0)
+        assertEquals(layout.layoutInput.text.length, layout.getLineEnd(0))
+        composeRule.onNodeWithTag(SEARCH_BUTTON_TAG).assertExists()
+    }
+
+    @Test
     fun hidesContinueReadingWhileAQueryIsActive() {
         setLibrary(resume = true)
         composeRule.onNodeWithTag("library_resume_card").assertExists()
@@ -127,7 +150,11 @@ class LibrarySearchComposeTest {
         composeRule.waitForIdle()
     }
 
-    private fun setLibrary(resume: Boolean = false) {
+    private fun setLibrary(
+        resume: Boolean = false,
+        folderName: String = "서재",
+        onBack: (() -> Unit)? = null,
+    ) {
         val covers = (root.books + root.folders.flatMap { it.books }).associate {
             bookKey(it.uri, it.size) to null
         }
@@ -139,10 +166,11 @@ class LibrarySearchComposeTest {
         composeRule.setContent {
             PdfBookTheme(themeMode = ThemeMode.Light) {
                 LibraryScreen(
-                    listing = Listing("서재", root.books, root),
+                    listing = Listing(folderName, root.books, root),
                     states = states,
                     onOpen = {},
                     onSettings = {},
+                    onBack = onBack,
                     covers = covers,
                     subfolders = subfolderItems(root, emptyList(), VisibilityRules(), peek = false),
                     resumeBooks = if (resume) root.books else null,

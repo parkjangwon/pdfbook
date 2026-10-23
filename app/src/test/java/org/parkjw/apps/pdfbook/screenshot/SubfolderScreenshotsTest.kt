@@ -60,12 +60,20 @@ class SubfolderScreenshotsTest {
     @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
     fun subfolderInsideDarkFolded() = captureInside(dark = true, file = "library-subfolder-inside-dark-folded.png")
 
-    private fun captureRoot(dark: Boolean, file: String) {
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun longRootTitleLightFolded() = captureRoot(
+        dark = false,
+        file = "library-long-title-light-folded.png",
+        folderName = "가을에 읽은 오래된 잡지와 신문 모음",
+    )
+
+    private fun captureRoot(dark: Boolean, file: String, folderName: String = "내 서고") {
         val root = sampleTree()
         val rules = VisibilityRules()
         capture(file, dark) {
             LibraryScreen(
-                listing = Listing("내 서고", root.books, root),
+                listing = Listing(folderName, root.books, root),
                 states = treeStates(root),
                 onOpen = {},
                 onSettings = {},
