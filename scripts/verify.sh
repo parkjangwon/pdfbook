@@ -5,6 +5,8 @@ FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookma
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_LABEL="$(sed -n 's|.*<string name="app_name">\(.*\)</string>.*|\1|p' "$ROOT/app/src/main/res/values/strings.xml" 2>/dev/null | head -1)"
+APP_LABEL="${APP_LABEL:-PDFBook}"
 AVD_NAME="${PDFBOOK_AVD:-pdfbook}"
 APK="${PDFBOOK_APK:-$ROOT/app/build/outputs/apk/debug/app-debug.apk}"
 DEVICE_DIR="/sdcard/Download/pdfbook-verify"
@@ -132,8 +134,34 @@ boot_emulator() {
 }
 
 dump_ui() {
+  dump_raw
+  dismiss_foreign_anr
+}
+
+# Remove the old dump first so a failed dump never re-reads stale XML.
+dump_raw() {
+  rm -f "$OUT/ui.xml"
+  "$ADB" shell rm -f /sdcard/pdfbook-ui.xml >/dev/null 2>&1 || true
   "$ADB" shell uiautomator dump /sdcard/pdfbook-ui.xml >/dev/null 2>&1 || true
   "$ADB" pull /sdcard/pdfbook-ui.xml "$OUT/ui.xml" >/dev/null 2>&1 || true
+}
+
+# A slow emulator sometimes shows "<other app> isn't responding" over the
+# screen under test (usually Pixel Launcher). Press Wait and dump again.
+# scripts/anr-wait.py never matches PDFBook's own ANR, so that still fails.
+dismiss_foreign_anr() {
+  local found
+  for _ in 1 2 3; do
+    found="$(python3 "$ROOT/scripts/anr-wait.py" "$OUT/ui.xml" "$APP_LABEL" 2>/dev/null)" || return 0
+    set -- $found
+    echo "verify: dismissing system dialog: ${*:3}" >&2
+    "$ADB" shell input tap "$1" "$2" >/dev/null 2>&1 || true
+    sleep 2
+    dump_raw
+  done
+  if python3 "$ROOT/scripts/anr-wait.py" "$OUT/ui.xml" "$APP_LABEL" >/dev/null 2>&1; then
+    die "A system 'not responding' dialog is still on screen after 3 dismissals (last dump: $OUT/ui.xml)"
+  fi
 }
 
 node_text() {
@@ -142,7 +170,11 @@ import sys
 import xml.etree.ElementTree as ET
 
 path, tag = sys.argv[1:3]
-for node in ET.parse(path).getroot().iter("node"):
+try:
+    nodes = ET.parse(path).getroot().iter("node")
+except (ET.ParseError, FileNotFoundError):
+    sys.exit(1)
+for node in nodes:
     if node.get("resource-id") == tag:
         print(node.get("text", ""))
         sys.exit(0)
@@ -204,8 +236,8 @@ shot() {
   STEP=$((STEP + 1))
   local name
   name="$(printf '%02d-%s' "$STEP" "$1")"
-  "$ADB" exec-out screencap -p >"$OUT/$name.png"
   dump_ui
+  "$ADB" exec-out screencap -p >"$OUT/$name.png"
   cp "$OUT/ui.xml" "$OUT/$name.xml" 2>/dev/null || true
   echo "verify: saved $name.png"
 }
@@ -407,7 +439,10 @@ APP_PID="$("$ADB" shell pidof "$PKG" 2>/dev/null | tr -d '\r' || true)"
 if [ -n "$APP_PID" ]; then
   awk -v pid="$APP_PID" '$3 == pid' "$OUT/logcat.txt" >"$OUT/logcat-app.txt"
 fi
-grep -E 'FATAL EXCEPTION|ANR in' "$OUT/logcat.txt" >"$OUT/crashes.txt" || true
+# Every crash and PDFBook's own ANRs fail the run. Other apps' ANRs (for
+# example a Pixel Launcher ANR dismissed above) are kept in foreign-anrs.txt.
+awk -v pkg="$PKG" -v foreign="$OUT/foreign-anrs.txt" -f "$ROOT/scripts/logcat-crashes.awk" "$OUT/logcat.txt" >"$OUT/crashes.txt" \
+  || die "Could not scan logcat for crashes (see $OUT/logcat.txt)."
 rm -f "$OUT/ui.xml"
 "$ADB" shell rm -rf "$DEVICE_DIR" /sdcard/pdfbook-ui.xml
 if [ -s "$OUT/crashes.txt" ]; then
