@@ -693,6 +693,14 @@ private fun App(
                 twoPageMode = settings.twoPageMode,
                 autoTurnSeconds = settings.autoTurnSeconds,
                 onAutoTurnSecondsChange = { value -> onSettingsChange { it.copy(autoTurnSeconds = value) } },
+                followSystemBrightness = settings.followSystemBrightness,
+                brightnessPercent = settings.readerBrightnessPercent,
+                onFollowSystemBrightnessChange = { follow ->
+                    onSettingsChange { it.copy(followSystemBrightness = follow) }
+                },
+                onBrightnessChange = { value ->
+                    onSettingsChange { it.copy(readerBrightnessPercent = normalizeReaderBrightnessPercent(value)) }
+                },
                 coverAlone = settings.coverAlone,
                 keepScreenOn = settings.keepScreenOn,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },

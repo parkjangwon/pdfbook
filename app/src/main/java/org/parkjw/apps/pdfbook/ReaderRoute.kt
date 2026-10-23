@@ -40,6 +40,10 @@ fun ReaderRoute(
     twoPageMode: TwoPageMode = TwoPageMode.Auto,
     autoTurnSeconds: Int = AUTO_TURN_DEFAULT_SECONDS,
     onAutoTurnSecondsChange: (Int) -> Unit = {},
+    followSystemBrightness: Boolean = true,
+    brightnessPercent: Int = DEFAULT_READER_BRIGHTNESS_PERCENT,
+    onFollowSystemBrightnessChange: (Boolean) -> Unit = {},
+    onBrightnessChange: (Int) -> Unit = {},
     coverAlone: Boolean = true,
     rendererOverride: PageBitmaps? = null,
     keepScreenOn: Boolean = true,
@@ -157,6 +161,10 @@ fun ReaderRoute(
                     keepZoom = keepZoom,
                     autoTurnSeconds = autoTurnSeconds,
                     onAutoTurnSecondsChange = onAutoTurnSecondsChange,
+                    followSystemBrightness = followSystemBrightness,
+                    brightnessPercent = brightnessPercent,
+                    onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
+                    onBrightnessChange = onBrightnessChange,
                     keepScreenOn = keepScreenOn,
                 )
             }

@@ -122,11 +122,17 @@ fun ReaderScreen(
     endNotice: EndNotice? = null,
     jumpBack: JumpBack? = null,
     keepZoom: Boolean = false,
+    followSystemBrightness: Boolean = true,
+    brightnessPercent: Int = DEFAULT_READER_BRIGHTNESS_PERCENT,
+    onFollowSystemBrightnessChange: (Boolean) -> Unit = {},
+    onBrightnessChange: (Int) -> Unit = {},
+    brightnessSheetVisible: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
     autoTurnSeconds: Int = AUTO_TURN_DEFAULT_SECONDS,
     onAutoTurnSecondsChange: (Int) -> Unit = {},
     keepScreenOn: Boolean = true,
 ) {
+    ReaderBrightnessEffect(followSystemBrightness, brightnessPercent)
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
         val previous = view.keepScreenOn
@@ -159,6 +165,11 @@ fun ReaderScreen(
             initialEndNotice = endNotice,
             initialJumpBack = jumpBack,
             keepZoom = keepZoom,
+            followSystemBrightness = followSystemBrightness,
+            brightnessPercent = brightnessPercent,
+            onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
+            onBrightnessChange = onBrightnessChange,
+            initialBrightnessSheetVisible = brightnessSheetVisible,
             posture = posture,
             autoTurnSeconds = autoTurnSeconds,
             onAutoTurnSecondsChange = onAutoTurnSecondsChange,
@@ -192,6 +203,11 @@ private fun ReaderScreenContent(
     initialEndNotice: EndNotice?,
     initialJumpBack: JumpBack?,
     keepZoom: Boolean,
+    followSystemBrightness: Boolean,
+    brightnessPercent: Int,
+    onFollowSystemBrightnessChange: (Boolean) -> Unit,
+    onBrightnessChange: (Int) -> Unit,
+    initialBrightnessSheetVisible: Boolean,
     posture: FoldPosture,
     autoTurnSeconds: Int,
     onAutoTurnSecondsChange: (Int) -> Unit,
@@ -202,6 +218,7 @@ private fun ReaderScreenContent(
     val scope = rememberCoroutineScope()
     var overlayVisible by remember { mutableStateOf(initialOverlayVisible) }
     var widthSheetVisible by remember { mutableStateOf(initialTapZoneWidthSheetVisible) }
+    var brightnessSheetVisible by remember { mutableStateOf(initialBrightnessSheetVisible) }
     var sidePercent by remember(tapZoneSidePercent) {
         mutableIntStateOf(normalizeTapZoneSidePercent(tapZoneSidePercent))
     }
@@ -228,6 +245,7 @@ private fun ReaderScreenContent(
     var autoTurnStatus by remember { mutableStateOf<AutoTurnStatus?>(null) }
     var goToPageVisible by remember { mutableStateOf(false) }
     val sheetOpen = widthSheetVisible || goToPageVisible || autoTurnSheetVisible ||
+        brightnessSheetVisible ||
         (bookListVisible && volumes.bookList != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
@@ -639,6 +657,24 @@ private fun ReaderScreenContent(
                 onStart = { startAutoTurn(autoTurnSecondsState) },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        } else if (brightnessSheetVisible) {
+            BackHandler { brightnessSheetVisible = false }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { brightnessSheetVisible = false },
+                    ),
+            )
+            ReaderBrightnessSheet(
+                followSystem = followSystemBrightness,
+                percent = brightnessPercent,
+                onFollowSystemChange = onFollowSystemBrightnessChange,
+                onPercentChange = onBrightnessChange,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         } else if (bookListVisible && volumes.bookList != null) {
             BackHandler { bookListVisible = false }
             BookListSheet(
@@ -691,6 +727,7 @@ private fun ReaderScreenContent(
                     },
                     autoTurnSeconds = autoTurnSecondsState,
                     onOpenAutoTurn = { autoTurnSheetVisible = true },
+                    onOpenBrightness = { brightnessSheetVisible = true },
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
                     modifier = Modifier
@@ -1051,6 +1088,7 @@ private fun ReaderOverlayBottom(
     onAdjustTapZones: () -> Unit,
     autoTurnSeconds: Int,
     onOpenAutoTurn: () -> Unit,
+    onOpenBrightness: () -> Unit,
     modifier: Modifier = Modifier,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
@@ -1112,6 +1150,19 @@ private fun ReaderOverlayBottom(
                 Modifier.testTag("reader_volume_right"),
             )
         }
+        // Under the slider (above page number): keeps |< slider >| mirrored pair intact;
+        // tap-zone entry stays above the slider as before.
+        ReaderToolRow(
+            items = listOf(
+                ReaderToolItem.Action(
+                    tool = ReaderTool.Brightness,
+                    iconRes = R.drawable.ic_brightness,
+                    label = stringResource(R.string.reader_brightness),
+                    testTag = "reader_brightness",
+                    onClick = onOpenBrightness,
+                ),
+            ),
+        )
         val goToPageLabel = stringResource(R.string.go_to_page_title)
         Text(
             text = stringResource(R.string.progress, currentPage, pageCount),

@@ -102,6 +102,9 @@
     <string name="reader_auto_turn_start">Start auto turn</string>
     <string name="reader_auto_turn_running">Auto turn %1$d s</string>
     <string name="reader_auto_turn_stopped">Auto turn stopped</string>
+    <string name="reader_brightness">Brightness</string>
+    <string name="reader_brightness_system">Use system brightness</string>
+    <string name="reader_brightness_percent">%1$d%%</string>
     <string name="go_to_page_title">Go to page</string>
     <string name="go_to_page_hint">1~%1$d</string>
     <string name="go_to_page_error">Enter a page between 1 and %1$d.</string>
