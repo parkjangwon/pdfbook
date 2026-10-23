@@ -30,6 +30,7 @@
     </plurals>
     <string name="folder_no_access_badge">접근 불가</string>
     <string name="last_book_unavailable">마지막 책을 열 수 없어요</string>
+    <string name="shortcut_continue_reading">이어 읽기</string>
     <string name="settings_title">설정</string>
     <string name="settings_section_general">일반</string>
     <string name="settings_section_reading">읽기</string>
