@@ -98,4 +98,9 @@
     <string name="reader_brightness">밝기</string>
     <string name="reader_brightness_system">시스템 밝기 따르기</string>
     <string name="reader_brightness_percent">%1$d%%</string>
+    <string name="go_to_page_title">쪽 번호로 이동</string>
+    <string name="go_to_page_hint">1~%1$d</string>
+    <string name="go_to_page_error">1~%1$d 사이의 쪽 번호를 넣어 주세요.</string>
+    <string name="go_to_page_go">이동</string>
+    <string name="go_to_page_cancel">취소</string>
 </resources>
