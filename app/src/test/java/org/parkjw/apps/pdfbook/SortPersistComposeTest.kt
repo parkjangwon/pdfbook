@@ -2,9 +2,12 @@ package org.parkjw.apps.pdfbook
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -47,17 +50,20 @@ class SortPersistComposeTest {
                 }
             }
         }
-        val recent = context.getString(R.string.sort_recent)
+        // The folded bar shows the sort chip icon-only, so find it by its label
+        // and read the chosen sort from its state description.
+        val sortTitle = context.getString(R.string.sort_menu_title)
         val name = context.getString(R.string.sort_name)
-        composeRule.onNodeWithText(recent).performClick()
+        val showsName = SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, name)
+        composeRule.onNodeWithContentDescription(sortTitle).performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag(sortOptionTag(BookSort.Name)).performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText(name).assertExists()
+        composeRule.onNodeWithContentDescription(sortTitle).assert(showsName)
         showLibrary.value = false
         composeRule.waitForIdle()
         showLibrary.value = true
         composeRule.waitForIdle()
-        composeRule.onNodeWithText(name).assertExists()
+        composeRule.onNodeWithContentDescription(sortTitle).assert(showsName)
     }
 }
