@@ -37,7 +37,21 @@ class ReaderBrightnessScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
-    fun brightnessSheetLightFolded() {
+    fun brightnessSheetLightFolded() = captureBrightness(
+        file = "reader-brightness-light-folded.png",
+        followSystem = true,
+        percent = 62,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun brightnessSheetManualLightFolded() = captureBrightness(
+        file = "reader-brightness-manual-light-folded.png",
+        followSystem = false,
+        percent = 62,
+    )
+
+    private fun captureBrightness(file: String, followSystem: Boolean, percent: Int) {
         val pageCount = 120
         val pageSpreads = spreads(pageCount, twoPage = false, coverAlone = true)
         composeRule.mainClock.autoAdvance = false
@@ -60,14 +74,14 @@ class ReaderBrightnessScreenshotsTest {
                     direction = ReadingDirection.RTL,
                     overlayVisible = true,
                     showTapZoneGuide = false,
-                    followSystemBrightness = false,
-                    brightnessPercent = 62,
+                    followSystemBrightness = followSystem,
+                    brightnessPercent = percent,
                     brightnessSheetVisible = true,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
         }
         composeRule.mainClock.advanceTimeBy(500)
-        composeRule.onRoot().captureRoboImage("reader-brightness-light-folded.png")
+        composeRule.onRoot().captureRoboImage(file)
     }
 }

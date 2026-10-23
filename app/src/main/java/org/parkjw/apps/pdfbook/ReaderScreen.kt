@@ -1029,17 +1029,20 @@ private fun ReaderOverlayBottom(
                 if (rightVolume == VolumeStep.Next) onNextBook else onPreviousBook,
                 Modifier.testTag("reader_volume_right"),
             )
-            IconButton(
-                onClick = onOpenBrightness,
-                colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
-                modifier = Modifier.testTag("reader_brightness"),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_brightness),
-                    contentDescription = stringResource(R.string.reader_brightness),
-                )
-            }
         }
+        // Under the slider (above page number): keeps |< slider >| mirrored pair intact;
+        // tap-zone entry stays above the slider as before.
+        ReaderToolRow(
+            items = listOf(
+                ReaderToolItem.Action(
+                    tool = ReaderTool.Brightness,
+                    iconRes = R.drawable.ic_brightness,
+                    label = stringResource(R.string.reader_brightness),
+                    testTag = "reader_brightness",
+                    onClick = onOpenBrightness,
+                ),
+            ),
+        )
         val goToPageLabel = stringResource(R.string.go_to_page_title)
         Text(
             text = stringResource(R.string.progress, currentPage, pageCount),

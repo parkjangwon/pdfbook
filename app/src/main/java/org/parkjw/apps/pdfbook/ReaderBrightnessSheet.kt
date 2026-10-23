@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
@@ -26,6 +28,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,7 +88,14 @@ fun ReaderBrightnessSheet(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 10.dp),
+                .padding(top = 10.dp)
+                .heightIn(min = 48.dp)
+                .toggleable(
+                    value = followSystem,
+                    role = Role.Switch,
+                    onValueChange = onFollowSystemChange,
+                )
+                .testTag(READER_BRIGHTNESS_SWITCH_TAG),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -96,16 +106,15 @@ fun ReaderBrightnessSheet(
             )
             Switch(
                 checked = followSystem,
-                onCheckedChange = onFollowSystemChange,
+                onCheckedChange = null,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = ReaderOnOverlay,
-                    checkedTrackColor = ReaderAccent,
-                    checkedBorderColor = ReaderAccent,
+                    checkedThumbColor = ReaderOverlay,
+                    checkedTrackColor = ReaderOnOverlay,
+                    checkedBorderColor = ReaderOnOverlay,
                     uncheckedThumbColor = ReaderOnOverlayVariant,
                     uncheckedTrackColor = ReaderTrack,
                     uncheckedBorderColor = ReaderTrack,
                 ),
-                modifier = Modifier.testTag(READER_BRIGHTNESS_SWITCH_TAG),
             )
         }
         if (!followSystem) {
