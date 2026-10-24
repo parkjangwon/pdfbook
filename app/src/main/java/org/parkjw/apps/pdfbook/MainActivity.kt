@@ -710,6 +710,7 @@ private fun App(
                 onBrightnessChange = { value ->
                     onSettingsChange { it.copy(readerBrightnessPercent = normalizeReaderBrightnessPercent(value)) }
                 },
+                pageTurnAnimation = settings.pageTurnAnimation,
                 screenOrientation = settings.screenOrientation,
                 fullScreenReading = settings.fullScreenReading,
                 coverAlone = settings.coverAlone,

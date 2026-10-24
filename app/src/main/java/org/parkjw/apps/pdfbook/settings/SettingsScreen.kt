@@ -102,6 +102,8 @@ fun SettingsScreen(
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.Main,
     initiallyShowStartChoice: Boolean = false,
     initiallyShowTapWidthSheet: Boolean = false,
+    // Test hook: opens the animation choice dialog on first composition.
+    initiallyShowAnimationChoice: Boolean = false,
 ) {
     var subScreen by rememberSaveable { mutableStateOf(initialSubScreen.name) }
     var showStartChoice by rememberSaveable { mutableStateOf(initiallyShowStartChoice) }
@@ -112,6 +114,7 @@ fun SettingsScreen(
             onSettingsChange = onSettingsChange,
             onBack = { subScreen = SettingsSubScreen.Main.name },
             initiallyShowTapWidthSheet = initiallyShowTapWidthSheet,
+            initiallyShowAnimationChoice = initiallyShowAnimationChoice,
             modifier = modifier,
         )
         SettingsSubScreen.OpenSource.name -> OpenSourceLicensesScreen(
@@ -342,10 +345,13 @@ private fun ReadingSettingsScreen(
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     onBack: () -> Unit,
     initiallyShowTapWidthSheet: Boolean,
+    initiallyShowAnimationChoice: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
-    var choice by rememberSaveable { mutableStateOf<String?>(null) }
+    var choice by rememberSaveable {
+        mutableStateOf(if (initiallyShowAnimationChoice) SettingsChoice.Animation.name else null)
+    }
     var showTapWidthSheet by rememberSaveable { mutableStateOf(initiallyShowTapWidthSheet) }
     val directionOptions = listOf(
         ReadingDirection.RTL to stringResource(R.string.settings_direction_rtl),
@@ -359,6 +365,10 @@ private fun ReadingSettingsScreen(
     val animationOptions = listOf(
         PageTurnAnimation.Slide to stringResource(R.string.settings_animation_slide),
         PageTurnAnimation.None to stringResource(R.string.settings_animation_none),
+        PageTurnAnimation.Curl to stringResource(R.string.settings_animation_curl),
+    )
+    val animationDescriptions = mapOf(
+        PageTurnAnimation.Curl to stringResource(R.string.settings_animation_curl_desc),
     )
     val orientationOptions = listOf(
         ScreenOrientation.Auto to stringResource(R.string.settings_orientation_auto),
@@ -518,6 +528,8 @@ private fun ReadingSettingsScreen(
             title = stringResource(R.string.settings_page_turn_animation),
             options = animationOptions,
             selected = settings.pageTurnAnimation,
+            descriptions = animationDescriptions,
+            optionTestTagPrefix = "settings_animation_option_",
             onSelect = { value ->
                 onSettingsChange { it.copy(pageTurnAnimation = value) }
                 choice = null
@@ -563,6 +575,8 @@ private fun <T> SettingsChoiceDialog(
     selected: T,
     onSelect: (T) -> Unit,
     onDismiss: () -> Unit,
+    descriptions: Map<T, String> = emptyMap(),
+    optionTestTagPrefix: String? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -574,6 +588,19 @@ private fun <T> SettingsChoiceDialog(
                         headlineContent = {
                             Text(label, style = MaterialTheme.typography.bodyLarge)
                         },
+                        supportingContent = descriptions[value]?.let { desc ->
+                            {
+                                Text(
+                                    desc,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        lineBreak = LineBreak.Paragraph.copy(
+                                            wordBreak = LineBreak.WordBreak.Phrase,
+                                        ),
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        },
                         leadingContent = {
                             RadioButton(
                                 selected = selected == value,
@@ -584,6 +611,13 @@ private fun <T> SettingsChoiceDialog(
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .then(
+                                if (optionTestTagPrefix != null) {
+                                    Modifier.testTag(optionTestTagPrefix + value.toString())
+                                } else {
+                                    Modifier
+                                },
+                            )
                             .selectable(
                                 selected = selected == value,
                                 onClick = { onSelect(value) },
