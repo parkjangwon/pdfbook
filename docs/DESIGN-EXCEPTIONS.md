@@ -45,3 +45,8 @@ The book page is the hero. The reader is always on black with neutral gray overl
 
 ## Reader accent beyond the slider (approved exception)
 - In the reader, orange is also used for the "open" text button on the next-book notice, the "reading" label in the book list, and the current-book bar. These come from approved designs (v0.3 and v0.3.2). Everywhere else in the reader, orange stays limited to the slider.
+
+## Reader tool row
+- Shared bottom-bar tools sit in one row directly under the page slider (above the page number). Tap-zone entry stays above the slider.
+- Fixed left-to-right order: Brightness, AutoTurn, Bookmarks, AutoCrop. Only tools that are passed in are shown, always in that enum order. The row does **not** mirror with RTL reading direction (volume buttons and the page slider still do).
+- Each item: 24dp line icon over `labelSmall`, `readerOnOverlay` content, ~56dp tall equal-width slots (min 48×48 touch target). No `readerAccent`, no elevation, no new shapes.

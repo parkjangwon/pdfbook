@@ -102,6 +102,9 @@
     <string name="reader_tap_width_value">%1$d%% · 기본 %2$d%%</string>
     <string name="reader_tap_width_reset">기본값으로</string>
     <string name="reader_tap_width_done">완료</string>
+    <string name="reader_brightness">밝기</string>
+    <string name="reader_brightness_system">시스템 밝기 따르기</string>
+    <string name="reader_brightness_percent">%1$d%%</string>
     <string name="book_info_title">책 정보</string>
     <string name="book_info_file_name">파일 이름</string>
     <string name="book_info_pages">쪽 수</string>

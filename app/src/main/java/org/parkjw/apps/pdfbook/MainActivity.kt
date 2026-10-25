@@ -702,6 +702,14 @@ private fun App(
                 tapZoneSidePercent = settings.tapZoneSidePercent,
                 keepZoom = settings.keepZoomOnTurn,
                 twoPageMode = settings.twoPageMode,
+                followSystemBrightness = settings.followSystemBrightness,
+                brightnessPercent = settings.readerBrightnessPercent,
+                onFollowSystemBrightnessChange = { follow ->
+                    onSettingsChange { it.copy(followSystemBrightness = follow) }
+                },
+                onBrightnessChange = { value ->
+                    onSettingsChange { it.copy(readerBrightnessPercent = normalizeReaderBrightnessPercent(value)) }
+                },
                 pageTurnAnimation = settings.pageTurnAnimation,
                 screenOrientation = settings.screenOrientation,
                 fullScreenReading = settings.fullScreenReading,
