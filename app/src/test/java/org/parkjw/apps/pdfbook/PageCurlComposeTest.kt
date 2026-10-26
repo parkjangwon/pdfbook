@@ -92,6 +92,62 @@ class PageCurlComposeTest {
     }
 
     @Test
+    fun shortFastFlingCompletesTheTurn() {
+        setReader()
+        freezeClock()
+        composeRule.onRoot().performTouchInput {
+            down(Offset(width * 0.9f, height / 2f))
+            advanceEventTime(16)
+            // 20% of the width: under the 25% distance rule, completed by speed.
+            moveTo(Offset(width * 0.7f, height / 2f))
+            advanceEventTime(16)
+            up()
+        }
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(1, pagerState.currentPage)
+    }
+
+    @Test
+    fun secondPointerSettlesAHalfTurnToTheNextPage() {
+        setReader()
+        freezeClock()
+        composeRule.onRoot().performTouchInput {
+            down(Offset(width * 0.9f, height / 2f))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.4f, height / 2f))
+            advanceEventTime(16)
+            down(pointerId = 1, position = Offset(width * 0.4f, height * 0.7f))
+        }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(1, pagerState.currentPage)
+    }
+
+    @Test
+    fun secondPointerSettlesAnEarlyTurnBackToTheCurrentPage() {
+        setReader()
+        freezeClock()
+        composeRule.onRoot().performTouchInput {
+            down(Offset(width * 0.9f, height / 2f))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.6f, height / 2f))
+            advanceEventTime(16)
+            down(pointerId = 1, position = Offset(width * 0.6f, height * 0.7f))
+        }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(0, pagerState.currentPage)
+    }
+
+    @Test
     fun rtlSwipeTowardNextCompletesCurl() {
         setReader(direction = ReadingDirection.RTL)
         freezeClock()
@@ -343,7 +399,11 @@ class PageCurlComposeTest {
     }
 
     private fun endDrag() {
-        composeRule.onRoot().performTouchInput { up() }
+        composeRule.onRoot().performTouchInput {
+            // Slow release: below the fling speed, so the distance rule decides.
+            advanceEventTime(300)
+            up()
+        }
     }
 
     private fun zoomIn() {
