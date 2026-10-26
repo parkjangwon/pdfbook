@@ -1,10 +1,15 @@
 package org.parkjw.apps.pdfbook
 
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
 
 /** Which bottom corner peels during a curl. */
@@ -19,8 +24,38 @@ enum class ResolvedPageTurn {
     Instant,
 }
 
+/** Distance rule for slow drags (also used when a turn is interrupted). */
 const val CURL_RELEASE_THRESHOLD = 0.33f
-const val CURL_BASE_DURATION_MS = 320
+
+/** Curl release rule from the v0.7.0 design mockup. */
+const val CURL_RELEASE_PROGRESS = 0.25f
+
+/** Release speed along the turn direction that completes the turn, in dp/s. */
+const val CURL_FLING_DP_PER_SECOND = 1000f
+
+const val CURL_BASE_DURATION_MS = 300
+const val CURL_MIN_SETTLE_DURATION_MS = 150
+
+/** Overlay is removed once the front page is within a pixel of the far edge. */
+const val CURL_CLEAR_PROGRESS = 0.999f
+
+/** Progress at which a second pointer settles the in-flight curl (nearest state). */
+const val CURL_SETTLE_MIDPOINT = 0.5f
+
+/** Maximum lift of the peeled corner at mid-turn, as a fraction of the height. */
+const val CURL_TIP_LIFT = 0.18f
+
+/** Flap and shadow values from the v0.7.0 mockup (normal mode defaults). */
+const val CURL_MIRROR_ALPHA = 0.08f
+const val CURL_SHADE_WIDTH_DP = 24f
+const val CURL_SHADE_ALPHA = 0.10f
+const val CURL_SHADOW_WIDTH_DP = 20f
+const val CURL_SHADOW_ALPHA = 0.24f
+const val CURL_SHADOW_MID_ALPHA = 0.10f
+const val CURL_FOLD_HIGHLIGHT_DP = 1f
+const val CURL_FOLD_HIGHLIGHT_ALPHA = 0.5f
+
+val CurlEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 fun curlSide(direction: ReadingDirection, forward: Boolean): CurlSide =
     when (direction) {
@@ -30,6 +65,25 @@ fun curlSide(direction: ReadingDirection, forward: Boolean): CurlSide =
 
 fun shouldCompleteCurl(progress: Float, threshold: Float = CURL_RELEASE_THRESHOLD): Boolean =
     progress >= threshold
+
+/**
+ * Complete-or-revert decision at release: a quarter turn or a fling at
+ * [flingVelocityPx] along the turn direction completes, otherwise it reverts.
+ */
+fun curlReleaseCompletes(
+    progress: Float,
+    alongVelocityPx: Float,
+    flingVelocityPx: Float,
+    threshold: Float = CURL_RELEASE_PROGRESS,
+): Boolean = progress >= threshold || alongVelocityPx >= flingVelocityPx
+
+/** Release speed along the turn direction for a horizontal fling. */
+fun curlAlongVelocity(velocityX: Float, side: CurlSide): Float =
+    if (side == CurlSide.Left) velocityX else -velocityX
+
+/** A second pointer settles to the nearest state instead of leaving the curl half-turned. */
+fun curlSettleCompletes(progress: Float, midpoint: Float = CURL_SETTLE_MIDPOINT): Boolean =
+    progress >= midpoint
 
 /**
  * Maps a horizontal drag to curl progress 0..1.
@@ -71,8 +125,8 @@ data class CurlEffectState(
 )
 
 /** Page the in-flight effect must settle on before a new turn starts. */
-fun curlFinishIndex(current: CurlEffectState): Int = when {
-    current.dragging -> if (shouldCompleteCurl(current.progress)) current.toIndex else current.fromIndex
+fun curlFinishIndex(current: CurlEffectState, liveProgress: Float = current.progress): Int = when {
+    current.dragging -> if (shouldCompleteCurl(liveProgress)) current.toIndex else current.fromIndex
     current.completing -> current.toIndex
     else -> current.fromIndex
 }
@@ -90,67 +144,341 @@ fun curlOrigin(width: Float, height: Float, side: CurlSide): Offset =
         CurlSide.Right -> Offset(width, height)
     }
 
-fun curlTip(width: Float, height: Float, progress: Float, side: CurlSide): Offset {
+fun curlTipX(width: Float, progress: Float, side: CurlSide): Float {
     val p = progress.coerceIn(0f, 1f)
     return when (side) {
-        CurlSide.Left -> Offset(width * p * 1.2f, height * (1f - p * 0.4f))
-        CurlSide.Right -> Offset(width * (1f - p * 1.2f), height * (1f - p * 0.4f))
+        CurlSide.Left -> width * 2f * p
+        CurlSide.Right -> width * (1f - 2f * p)
     }
 }
 
+fun curlTipY(height: Float, progress: Float): Float {
+    val p = progress.coerceIn(0f, 1f)
+    return height - CURL_TIP_LIFT * height * sin(PI.toFloat() * p)
+}
+
+/** Peeled corner; at progress 1 it is one page width past the far edge. */
+fun curlTip(width: Float, height: Float, progress: Float, side: CurlSide): Offset =
+    Offset(curlTipX(width, progress, side), curlTipY(height, progress))
+
 /**
- * Fold is the perpendicular bisector of origin→tip, clipped to the page rect.
+ * Reusable curl vertices: the front page, the revealed next page and the flap
+ * (the reflected peeled part), plus the drawn fold line. Filled in place so the
+ * overlay allocates nothing per frame.
+ */
+class CurlShape {
+    var tipX = 0f
+    var tipY = 0f
+    var originX = 0f
+    var originY = 0f
+    var midX = 0f
+    var midY = 0f
+
+    /** Unit normal of the fold line, pointing from the origin toward the far edge. */
+    var normalX = 0f
+    var normalY = 0f
+    var foldTopX = 0f
+    var foldTopY = 0f
+    var foldBottomX = 0f
+    var foldBottomY = 0f
+    var foldValid = false
+
+    val front = FloatArray(CURL_MAX_VERTS * 2)
+    var frontCount = 0
+    val revealed = FloatArray(CURL_MAX_VERTS * 2)
+    var revealedCount = 0
+    val flap = FloatArray(CURL_MAX_VERTS * 2)
+    var flapCount = 0
+
+    internal val scratchA = FloatArray(CURL_MAX_VERTS * 2)
+    internal val scratchB = FloatArray(CURL_MAX_VERTS * 2)
+    internal val pageRect = FloatArray(8)
+}
+
+const val CURL_MAX_VERTS = 12
+
+/** Fills [out] with the curl polygons for [progress]; no allocation. */
+fun updateCurlShape(
+    width: Float,
+    height: Float,
+    progress: Float,
+    side: CurlSide,
+    out: CurlShape,
+) {
+    out.frontCount = 0
+    out.revealedCount = 0
+    out.flapCount = 0
+    out.foldValid = false
+    if (width <= 0f || height <= 0f) return
+    val p = clampCurlProgress(progress)
+
+    val originX = if (side == CurlSide.Left) 0f else width
+    val originY = height
+    val tipX = curlTipX(width, p, side)
+    val tipY = curlTipY(height, p)
+    out.originX = originX
+    out.originY = originY
+    out.tipX = tipX
+    out.tipY = tipY
+
+    val dx = tipX - originX
+    val dy = tipY - originY
+    val len = hypot(dx, dy)
+    if (len < 1f) {
+        fillPageRect(width, height, out.front)
+        out.frontCount = 4
+        return
+    }
+
+    val midX = (originX + tipX) / 2f
+    val midY = (originY + tipY) / 2f
+    out.midX = midX
+    out.midY = midY
+    out.normalX = dx / len
+    out.normalY = dy / len
+
+    val ends = collectFoldEnds(midX, midY, -dy / len, dx / len, width, height, out.pageRect)
+    if (ends >= 2) {
+        val aY = out.pageRect[1]
+        val bY = out.pageRect[3]
+        val topIsA = aY <= bY
+        out.foldTopX = out.pageRect[if (topIsA) 0 else 2]
+        out.foldTopY = aY.coerceAtMost(bY)
+        out.foldBottomX = out.pageRect[if (topIsA) 2 else 0]
+        out.foldBottomY = aY.coerceAtLeast(bY)
+        out.foldValid = true
+    }
+
+    fillPageRect(width, height, out.scratchA)
+    // Front page: the part on the far side of the fold from the origin.
+    val frontCount = clipHalfPlane(out.scratchA, 4, out.front, midX, midY, dx, dy, keepPositive = true)
+    out.frontCount = clipPageRect(frontCount, out.front, out.scratchA, out.scratchB, width, height, out.front)
+
+    // Revealed next page: the part the flap uncovers.
+    fillPageRect(width, height, out.scratchA)
+    val revealedCount = clipHalfPlane(out.scratchA, 4, out.scratchB, midX, midY, dx, dy, keepPositive = false)
+    out.revealedCount = clipPageRect(
+        revealedCount,
+        out.scratchB,
+        out.scratchA,
+        out.revealed,
+        width,
+        height,
+        out.revealed,
+    )
+
+    // Flap: the peeled part reflected across the fold, clipped to the page.
+    val reflected = reflectAcrossFold(
+        out.revealed,
+        out.revealedCount,
+        midX,
+        midY,
+        dx,
+        dy,
+        len,
+        out.scratchA,
+    )
+    out.flapCount = clipPageRect(
+        reflected,
+        out.scratchA,
+        out.scratchB,
+        out.scratchA,
+        width,
+        height,
+        out.flap,
+    )
+}
+
+/**
+ * Fold line (perpendicular bisector of origin→tip) clipped to the page.
  * Returns null when progress is too small to form a fold.
  */
 fun curlGeometry(width: Float, height: Float, progress: Float, side: CurlSide): CurlGeometry? {
     if (width <= 0f || height <= 0f || progress <= 0.001f) return null
-    val origin = curlOrigin(width, height, side)
-    val tip = curlTip(width, height, progress, side)
-    val mid = Offset((origin.x + tip.x) / 2f, (origin.y + tip.y) / 2f)
-    val dx = tip.x - origin.x
-    val dy = tip.y - origin.y
-    val len = hypot(dx, dy)
-    if (len < 1f) return null
-    // Perpendicular direction to the origin→tip segment.
-    val nx = -dy / len
-    val ny = dx / len
-    val hits = mutableListOf<Offset>()
-    intersectRayWithRect(mid, nx, ny, width, height)?.let { hits.add(it) }
-    intersectRayWithRect(mid, -nx, -ny, width, height)?.let { hits.add(it) }
-    if (hits.size < 2) return null
-    val top = if (hits[0].y <= hits[1].y) hits[0] else hits[1]
-    val bottom = if (hits[0].y <= hits[1].y) hits[1] else hits[0]
-    return CurlGeometry(tip = tip, origin = origin, foldTop = top, foldBottom = bottom)
+    val shape = CurlShape()
+    updateCurlShape(width, height, progress, side, shape)
+    if (!shape.foldValid) return null
+    return CurlGeometry(
+        tip = Offset(shape.tipX, shape.tipY),
+        origin = Offset(shape.originX, shape.originY),
+        foldTop = Offset(shape.foldTopX, shape.foldTopY),
+        foldBottom = Offset(shape.foldBottomX, shape.foldBottomY),
+    )
 }
 
-private fun intersectRayWithRect(
-    origin: Offset,
-    dirX: Float,
-    dirY: Float,
+/** Shadow band width as a fraction of its maximum: full until 80%, gone at the end. */
+fun curlShadowWidthFraction(progress: Float): Float =
+    min(1f, (1f - clampCurlProgress(progress)) / 0.2f)
+
+/** Drawn front-page area as a fraction of the page; shrinks monotonically to 0. */
+fun curlFrontVisibleFraction(
     width: Float,
     height: Float,
-): Offset? {
-    var bestT = Float.POSITIVE_INFINITY
-    var best: Offset? = null
-    fun consider(t: Float, x: Float, y: Float) {
-        if (t <= 0f || t >= bestT) return
-        if (x < -0.5f || x > width + 0.5f || y < -0.5f || y > height + 0.5f) return
-        bestT = t
-        best = Offset(x.coerceIn(0f, width), y.coerceIn(0f, height))
+    progress: Float,
+    side: CurlSide,
+): Float {
+    if (width <= 0f || height <= 0f) return 0f
+    val shape = CurlShape()
+    updateCurlShape(width, height, progress, side, shape)
+    return (polygonArea(shape.front, shape.frontCount) / (width * height)).coerceIn(0f, 1f)
+}
+
+private fun fillPageRect(width: Float, height: Float, out: FloatArray) {
+    out[0] = 0f
+    out[1] = 0f
+    out[2] = width
+    out[3] = 0f
+    out[4] = width
+    out[5] = height
+    out[6] = 0f
+    out[7] = height
+}
+
+/**
+ * Collects the two ends of the fold line inside the page rect (as x,y pairs).
+ * The fold always passes through an interior point, so there are two.
+ */
+private fun collectFoldEnds(
+    midX: Float,
+    midY: Float,
+    nx: Float,
+    ny: Float,
+    width: Float,
+    height: Float,
+    out: FloatArray,
+): Int {
+    var count = 0
+    fun add(x: Float, y: Float) {
+        for (i in 0 until count) {
+            if (abs(out[i * 2] - x) < 0.01f && abs(out[i * 2 + 1] - y) < 0.01f) return
+        }
+        if (count < 4) {
+            out[count * 2] = x
+            out[count * 2 + 1] = y
+            count++
+        }
     }
-    if (dirX != 0f) {
-        val t0 = (0f - origin.x) / dirX
-        consider(t0, 0f, origin.y + t0 * dirY)
-        val t1 = (width - origin.x) / dirX
-        consider(t1, width, origin.y + t1 * dirY)
+    if (nx != 0f) {
+        val t = -midX / nx
+        val y = midY + t * ny
+        if (y >= -0.01f && y <= height + 0.01f) add(0f, y.coerceIn(0f, height))
+        val t2 = (width - midX) / nx
+        val y2 = midY + t2 * ny
+        if (y2 >= -0.01f && y2 <= height + 0.01f) add(width, y2.coerceIn(0f, height))
     }
-    if (dirY != 0f) {
-        val t0 = (0f - origin.y) / dirY
-        consider(t0, origin.x + t0 * dirX, 0f)
-        val t1 = (height - origin.y) / dirY
-        consider(t1, origin.x + t1 * dirX, height)
+    if (ny != 0f) {
+        val t = -midY / ny
+        val x = midX + t * nx
+        if (x >= -0.01f && x <= width + 0.01f) add(x.coerceIn(0f, width), 0f)
+        val t2 = (height - midY) / ny
+        val x2 = midX + t2 * nx
+        if (x2 >= -0.01f && x2 <= width + 0.01f) add(x2.coerceIn(0f, width), height)
     }
-    return best
+    return count
+}
+
+/** Writes the part of [src] where `(point - p) · n` has the [keepPositive] sign. */
+private fun clipHalfPlane(
+    src: FloatArray,
+    count: Int,
+    dst: FloatArray,
+    px: Float,
+    py: Float,
+    nx: Float,
+    ny: Float,
+    keepPositive: Boolean,
+): Int {
+    if (count <= 0) return 0
+    var out = 0
+    var ax = src[(count - 1) * 2]
+    var ay = src[(count - 1) * 2 + 1]
+    var da = (ax - px) * nx + (ay - py) * ny
+    var aIn = if (keepPositive) da >= 0f else da <= 0f
+    for (i in 0 until count) {
+        val bx = src[i * 2]
+        val by = src[i * 2 + 1]
+        val db = (bx - px) * nx + (by - py) * ny
+        val bIn = if (keepPositive) db >= 0f else db <= 0f
+        if (aIn != bIn) {
+            val t = da / (da - db)
+            dst[out * 2] = ax + (bx - ax) * t
+            dst[out * 2 + 1] = ay + (by - ay) * t
+            out++
+        }
+        if (bIn) {
+            dst[out * 2] = bx
+            dst[out * 2 + 1] = by
+            out++
+        }
+        ax = bx
+        ay = by
+        da = db
+        aIn = bIn
+    }
+    return out
+}
+
+private fun clipPageRect(
+    count: Int,
+    src: FloatArray,
+    bufA: FloatArray,
+    bufB: FloatArray,
+    width: Float,
+    height: Float,
+    out: FloatArray,
+): Int {
+    var current = clipHalfPlane(src, count, bufA, 0f, 0f, 1f, 0f, keepPositive = true)
+    current = clipHalfPlane(bufA, current, bufB, width, 0f, -1f, 0f, keepPositive = true)
+    current = clipHalfPlane(bufB, current, bufA, 0f, 0f, 0f, 1f, keepPositive = true)
+    current = clipHalfPlane(bufA, current, bufB, 0f, height, 0f, -1f, keepPositive = true)
+    if (bufB !== out) {
+        for (i in 0 until current * 2) out[i] = bufB[i]
+    }
+    return current
+}
+
+private fun reflectAcrossFold(
+    src: FloatArray,
+    count: Int,
+    midX: Float,
+    midY: Float,
+    dx: Float,
+    dy: Float,
+    len: Float,
+    out: FloatArray,
+): Int {
+    val inv = 2f / (len * len)
+    for (i in 0 until count) {
+        val x = src[i * 2]
+        val y = src[i * 2 + 1]
+        val dot = ((x - midX) * dx + (y - midY) * dy) * inv
+        out[i * 2] = x - dot * dx
+        out[i * 2 + 1] = y - dot * dy
+    }
+    return count
+}
+
+fun polygonArea(points: FloatArray, count: Int): Float {
+    if (count < 3) return 0f
+    var sum = 0f
+    for (i in 0 until count) {
+        val j = (i + 1) % count
+        sum += points[i * 2] * points[j * 2 + 1] - points[j * 2] * points[i * 2 + 1]
+    }
+    return abs(sum) / 2f
+}
+
+data class PixelCrop(val left: Int, val top: Int, val width: Int, val height: Int)
+
+/** Maps a fractional source rect (0..1) onto bitmap pixels; null keeps the whole bitmap. */
+fun sourceCropPixels(srcWidth: Int, srcHeight: Int, crop: Rect?): PixelCrop {
+    if (srcWidth <= 0 || srcHeight <= 0) return PixelCrop(0, 0, 0, 0)
+    if (crop == null) return PixelCrop(0, 0, srcWidth, srcHeight)
+    val left = (crop.left.coerceIn(0f, 1f) * srcWidth).roundToInt().coerceIn(0, srcWidth - 1)
+    val top = (crop.top.coerceIn(0f, 1f) * srcHeight).roundToInt().coerceIn(0, srcHeight - 1)
+    val right = (crop.right.coerceIn(0f, 1f) * srcWidth).roundToInt().coerceIn(left + 1, srcWidth)
+    val bottom = (crop.bottom.coerceIn(0f, 1f) * srcHeight).roundToInt().coerceIn(top + 1, srcHeight)
+    return PixelCrop(left, top, right - left, bottom - top)
 }
 
 fun curlDurationMs(animatorDurationScale: Float): Long {
@@ -158,16 +486,22 @@ fun curlDurationMs(animatorDurationScale: Float): Long {
     return max(1L, (CURL_BASE_DURATION_MS * animatorDurationScale).toLong())
 }
 
-/** Scales base duration by remaining travel (complete or spring-back). */
+/**
+ * Remaining travel in max(150ms, 300ms × remaining), scaled by the animator
+ * duration scale; short releases no longer snap back within a few frames.
+ */
 fun curlRemainingDurationMs(
     animatorDurationScale: Float,
     fromProgress: Float,
     animateForward: Boolean,
 ): Long {
-    val full = curlDurationMs(animatorDurationScale)
-    if (full <= 0L) return 0L
+    if (animatorDurationScale <= 0f) return 0L
     val remaining = if (animateForward) 1f - fromProgress else fromProgress
-    return max(1L, (full * remaining.coerceIn(0f, 1f)).toLong())
+    val ms = max(
+        CURL_MIN_SETTLE_DURATION_MS.toFloat(),
+        CURL_BASE_DURATION_MS * remaining.coerceIn(0f, 1f),
+    )
+    return max(1L, (ms * animatorDurationScale).toLong())
 }
 
 fun animationsOff(animatorDurationScale: Float): Boolean = animatorDurationScale <= 0f
