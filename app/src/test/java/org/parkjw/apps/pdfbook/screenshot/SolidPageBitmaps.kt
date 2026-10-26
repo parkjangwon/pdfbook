@@ -3,13 +3,21 @@ package org.parkjw.apps.pdfbook.screenshot
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import org.parkjw.apps.pdfbook.OutlineEntry
 import org.parkjw.apps.pdfbook.PageBitmaps
+import org.parkjw.apps.pdfbook.PageRequest
 
 class SolidPageBitmaps(
     override val pageCount: Int,
     private val pageColor: Int,
     private val accentColor: Int,
+    private val outlineEntries: List<OutlineEntry> = emptyList(),
 ) : PageBitmaps {
+    override suspend fun outline(): List<OutlineEntry> = outlineEntries
+
+    override suspend fun thumbnail(request: PageRequest): Bitmap? =
+        render(request.page, request.maxWidth, request.maxHeight)
+
     override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
         if (page < 1 || page > pageCount || maxWidth <= 0 || maxHeight <= 0) return null
         val width = maxWidth.coerceAtMost(480).coerceAtLeast(1)
