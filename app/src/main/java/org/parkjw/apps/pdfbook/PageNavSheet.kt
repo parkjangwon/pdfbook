@@ -63,6 +63,7 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderScrim
+import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
 
 const val PAGE_NAV_SHEET_TAG = "page_nav_sheet"
 
@@ -208,7 +209,7 @@ private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, o
                         .aspectRatio(THUMB_WIDTH_DP.toFloat() / THUMB_HEIGHT_DP)
                         .clip(ThumbCorner)
                         .background(ReaderChip)
-                        .then(if (current) Modifier.border(2.dp, ReaderOnOverlay, ThumbCorner) else Modifier),
+                        .then(if (current) Modifier.border(2.dp, ReaderTrack, ThumbCorner) else Modifier),
                 ) {
                     bitmap?.let {
                         Image(it, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
