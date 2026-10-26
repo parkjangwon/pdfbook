@@ -1,7 +1,20 @@
 package org.parkjw.apps.pdfbook
 
 import android.graphics.Bitmap
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
+
+/** Rect the curl overlay must cover; null means the full page pane (flat, tabletop, spreads). */
+fun curlOverlayBounds(
+    window: IntSize,
+    posture: FoldPosture,
+    direction: ReadingDirection,
+    twoPage: Boolean,
+): IntRect? {
+    if (posture !is FoldPosture.Book || twoPage) return null
+    val half = bookSingleHalf(bookHalves(window, posture.foldBounds), direction)
+    return half.takeIf { it.width > 0 && it.height > 0 }
+}
 
 /**
  * Bitmap cache key size for the visible page slot.
