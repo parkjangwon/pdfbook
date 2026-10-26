@@ -393,7 +393,8 @@ class PageCurlComposeTest {
     private fun startDrag(direction: ReadingDirection, fromFraction: Float, toFraction: Float) {
         composeRule.onRoot().performTouchInput {
             down(Offset(width * fromFraction, height / 2f))
-            advanceEventTime(16)
+            // Slow drag: below the fling speed, so the distance rule decides.
+            advanceEventTime(300)
             moveTo(Offset(width * toFraction, height / 2f))
         }
     }

@@ -1527,7 +1527,8 @@ private suspend fun PointerInputScope.detectCurlSwipe(
             }
             val change = event.changes.firstOrNull { it.id == down.id } ?: continue
             last = change.position
-            velocityTracker.addPosition(change.uptimeMillis, change.position)
+            // Only moving samples: a still release sample would bend the fit to zero.
+            if (change.pressed) velocityTracker.addPosition(change.uptimeMillis, change.position)
             val dx = last.x - down.position.x
             val dy = last.y - down.position.y
             if (!drag && abs(dx) > touchSlop && abs(dx) > abs(dy)) {

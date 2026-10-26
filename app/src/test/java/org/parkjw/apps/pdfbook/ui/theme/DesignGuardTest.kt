@@ -18,8 +18,12 @@ class DesignGuardTest {
             Regex("""shadowElevation\s*=\s*+(?!0(?:\.0)?\.dp\b)"""),
             Regex("""tonalElevation\s*=\s*+(?!0(?:\.0)?\.dp\b)"""),
         )
+        // The page-curl flap is the one approved shadow/gradient exception
+        // (docs/DESIGN-EXCEPTIONS.md "Page curl (approved exception)").
+        val brushAllowed = setOf("PageCurlOverlay.kt")
         val offenders = javaRoot.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
+            .filterNot { it.name in brushAllowed }
             .flatMap { file ->
                 val rel = file.relativeTo(root)
                 val lineHits = file.readLines().mapIndexedNotNull { index, line ->

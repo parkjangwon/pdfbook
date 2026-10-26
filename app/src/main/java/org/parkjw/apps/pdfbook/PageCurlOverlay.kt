@@ -32,6 +32,9 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
 import org.parkjw.apps.pdfbook.ui.theme.ReaderPageBack
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageFoldHighlight
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShade
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
 
 /**
  * Draws a mid-curl (or any progress) using cached current/next page bitmaps.
@@ -57,10 +60,10 @@ fun PageCurlOverlay(
     colorFilter: ColorFilter? = null,
     contentCrop: Rect? = null,
     flapColor: Color = ReaderPageBack,
-    shadowColor: Color = Color.Black,
+    shadowColor: Color = ReaderPageShadow,
     shadowAlpha: Float = CURL_SHADOW_ALPHA,
     shadowMidAlpha: Float = CURL_SHADOW_MID_ALPHA,
-    foldHighlightColor: Color = Color.White.copy(alpha = CURL_FOLD_HIGHLIGHT_ALPHA),
+    foldHighlightColor: Color = ReaderPageFoldHighlight.copy(alpha = CURL_FOLD_HIGHLIGHT_ALPHA),
 ) {
     val frontImage = remember(front) { front.asImageBitmap() }
     val backImage = remember(back) { back.asImageBitmap() }
@@ -92,7 +95,7 @@ fun PageCurlOverlay(
     }
     val shadeBrush = remember {
         Brush.linearGradient(
-            0f to Color.Black.copy(alpha = CURL_SHADE_ALPHA),
+            0f to ReaderPageShade.copy(alpha = CURL_SHADE_ALPHA),
             1f to Color.Transparent,
             start = Offset.Zero,
             end = Offset(1f, 0f),
