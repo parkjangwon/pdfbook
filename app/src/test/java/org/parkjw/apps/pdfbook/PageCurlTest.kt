@@ -1,5 +1,6 @@
 package org.parkjw.apps.pdfbook
 
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import org.junit.Assert.assertEquals
@@ -36,6 +37,179 @@ class PageCurlTest {
         assertNotNull(geo)
         assertTrue(geo!!.tip.x < 400f)
         assertNull(curlGeometry(400f, 600f, 0f, CurlSide.Left))
+    }
+
+    @Test
+    fun frontPageShrinksMonotonicallyAndVanishesAtTheEnd() {
+        val aspects = listOf(400f to 600f, 360f to 640f, 400f to 566f, 500f to 500f)
+        for ((width, height) in aspects) {
+            for (side in listOf(CurlSide.Left, CurlSide.Right)) {
+                assertEquals(1f, curlFrontVisibleFraction(width, height, 0f, side), 0.001f)
+                var previous = 1.01f
+                var progress = 0f
+                while (progress <= 1f) {
+                    val fraction = curlFrontVisibleFraction(width, height, progress, side)
+                    assertTrue(
+                        "fraction rose at p=$progress ($fraction > $previous), $side $width x $height",
+                        fraction <= previous + 1e-4f,
+                    )
+                    previous = fraction
+                    progress += 0.01f
+                }
+                assertTrue(
+                    "still visible at 0.99: ${curlFrontVisibleFraction(width, height, 0.99f, side)}",
+                    curlFrontVisibleFraction(width, height, 0.99f, side) < 0.02f,
+                )
+                assertEquals(0f, curlFrontVisibleFraction(width, height, 1f, side), 0.001f)
+            }
+        }
+    }
+
+    @Test
+    fun frontPageMatchesTheMockupFrames() {
+        // Values from V070-MOCKUPS "접힌 면" for a portrait page.
+        val width = 400f
+        val height = 600f
+        assertEquals(0.65f, curlFrontVisibleFraction(width, height, 0.5f, CurlSide.Right), 0.02f)
+        assertEquals(0.26f, curlFrontVisibleFraction(width, height, 0.8f, CurlSide.Right), 0.02f)
+        assertEquals(0.13f, curlFrontVisibleFraction(width, height, 0.9f, CurlSide.Right), 0.01f)
+        assertEquals(0.06f, curlFrontVisibleFraction(width, height, 0.95f, CurlSide.Right), 0.01f)
+        assertEquals(0.013f, curlFrontVisibleFraction(width, height, 0.99f, CurlSide.Right), 0.005f)
+    }
+
+    @Test
+    fun foldLineReachesTheFarEdgeAtTheEnd() {
+        val rightEnd = curlGeometry(400f, 600f, 1f, CurlSide.Right)!!
+        assertTrue(rightEnd.foldTop.x <= 1f)
+        assertTrue(rightEnd.foldBottom.x <= 1f)
+        val leftEnd = curlGeometry(400f, 600f, 1f, CurlSide.Left)!!
+        assertTrue(leftEnd.foldTop.x >= 399f)
+        assertTrue(leftEnd.foldBottom.x >= 399f)
+
+        val rightNear = curlGeometry(400f, 600f, 0.99f, CurlSide.Right)!!
+        assertTrue(rightNear.foldTop.x < 20f)
+        assertTrue(rightNear.foldBottom.x < 20f)
+        val leftNear = curlGeometry(400f, 600f, 0.99f, CurlSide.Left)!!
+        assertTrue(leftNear.foldTop.x > 380f)
+        assertTrue(leftNear.foldBottom.x > 380f)
+
+        val endLeft = curlTip(400f, 600f, 1f, CurlSide.Left)
+        assertEquals(800f, endLeft.x, 0.01f)
+        assertEquals(600f, endLeft.y, 0.01f)
+        val endRight = curlTip(400f, 600f, 1f, CurlSide.Right)
+        assertEquals(-400f, endRight.x, 0.01f)
+        assertEquals(600f, endRight.y, 0.01f)
+    }
+
+    @Test
+    fun flapIsTheReflectedPeeledPartInsideThePage() {
+        val width = 400f
+        val height = 600f
+        for (side in listOf(CurlSide.Left, CurlSide.Right)) {
+            val shape = CurlShape()
+            updateCurlShape(width, height, 0.5f, side, shape)
+            assertTrue(shape.flapCount >= 3)
+            assertTrue(polygonArea(shape.flap, shape.flapCount) > 1000f)
+            for (i in 0 until shape.flapCount) {
+                val x = shape.flap[i * 2]
+                val y = shape.flap[i * 2 + 1]
+                assertTrue("flap x outside page: $x", x >= -0.01f && x <= width + 0.01f)
+                assertTrue("flap y outside page: $y", y >= -0.01f && y <= height + 0.01f)
+            }
+            val end = CurlShape()
+            updateCurlShape(width, height, 1f, side, end)
+            assertEquals(0f, polygonArea(end.flap, end.flapCount), 0.5f)
+            assertEquals(0f, polygonArea(end.front, end.frontCount), 0.5f)
+        }
+    }
+
+    @Test
+    fun releaseCompletesByDistanceOrFlingOnly() {
+        // Slow drags: a quarter turn from the mockup completes.
+        assertTrue(curlReleaseCompletes(0.25f, alongVelocityPx = 0f, flingVelocityPx = 1000f))
+        assertFalse(curlReleaseCompletes(0.24f, alongVelocityPx = 0f, flingVelocityPx = 1000f))
+        // A short fast fling completes at 1000 dp/s and not below it.
+        assertTrue(curlReleaseCompletes(0.1f, alongVelocityPx = 1000f, flingVelocityPx = 1000f))
+        assertFalse(curlReleaseCompletes(0.1f, alongVelocityPx = 999f, flingVelocityPx = 1000f))
+        // A fast push back toward the current page reverts.
+        assertFalse(curlReleaseCompletes(0.1f, alongVelocityPx = -5000f, flingVelocityPx = 1000f))
+        // Distance rule for the slide/instant paths stays at 33%.
+        assertFalse(shouldCompleteCurl(0.32f))
+        assertTrue(shouldCompleteCurl(0.33f))
+    }
+
+    @Test
+    fun velocityTrackerOfAQuickDragIsAboveTheFlingThreshold() {
+        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+        tracker.addPosition(0L, androidx.compose.ui.geometry.Offset(0f, 0f))
+        tracker.addPosition(16L, androidx.compose.ui.geometry.Offset(-25f, 0f))
+        tracker.addPosition(32L, androidx.compose.ui.geometry.Offset(-50f, 0f))
+        tracker.addPosition(48L, androidx.compose.ui.geometry.Offset(-75f, 0f))
+        val velocity = tracker.calculateVelocity().x
+        assertTrue("velocity was $velocity", velocity <= -CURL_FLING_DP_PER_SECOND)
+    }
+
+    @Test
+    fun flingVelocityMapsToTheTurnDirection() {
+        assertEquals(1500f, curlAlongVelocity(1500f, CurlSide.Left), 0.001f)
+        assertEquals(1500f, curlAlongVelocity(-1500f, CurlSide.Right), 0.001f)
+        assertEquals(-1500f, curlAlongVelocity(-1500f, CurlSide.Left), 0.001f)
+        assertEquals(-1500f, curlAlongVelocity(1500f, CurlSide.Right), 0.001f)
+    }
+
+    @Test
+    fun shadowWidthShrinksOverTheLastTwentyPercent() {
+        assertEquals(1f, curlShadowWidthFraction(0f), 0.001f)
+        assertEquals(1f, curlShadowWidthFraction(0.8f), 0.001f)
+        assertEquals(0.5f, curlShadowWidthFraction(0.9f), 0.001f)
+        assertEquals(0f, curlShadowWidthFraction(1f), 0.001f)
+    }
+
+    @Test
+    fun secondPointerSettlesToTheNearestState() {
+        assertFalse(curlSettleCompletes(0f))
+        assertFalse(curlSettleCompletes(0.49f))
+        assertTrue(curlSettleCompletes(0.5f))
+        assertTrue(curlSettleCompletes(1f))
+        // Nearest-state differs from the distance rule for a half-turned page.
+        assertFalse(curlSettleCompletes(0.35f))
+        assertTrue(shouldCompleteCurl(0.35f))
+    }
+
+    @Test
+    fun contentCropDefaultsToTheWholeBitmapAndClamps() {
+        assertEquals(PixelCrop(0, 0, 400, 600), sourceCropPixels(400, 600, null))
+        val cropped = sourceCropPixels(400, 600, Rect(0.1f, 0.2f, 0.9f, 0.8f))
+        assertEquals(40, cropped.left)
+        assertEquals(120, cropped.top)
+        assertEquals(320, cropped.width)
+        assertEquals(360, cropped.height)
+        val clamped = sourceCropPixels(400, 600, Rect(-0.5f, -0.5f, 2f, 2f))
+        assertEquals(PixelCrop(0, 0, 400, 600), clamped)
+        val empty = sourceCropPixels(400, 600, Rect(0.5f, 0.5f, 0.5f, 0.5f))
+        assertEquals(200, empty.left)
+        assertEquals(300, empty.top)
+        assertEquals(1, empty.width)
+        assertEquals(1, empty.height)
+        assertEquals(PixelCrop(0, 0, 0, 0), sourceCropPixels(0, 10, null))
+    }
+
+    @Test
+    fun curlOverlayUsesTheSingleBookHalf() {
+        val window = IntSize(800, 600)
+        val book = FoldPosture.Book(IntRect(390, 0, 410, 600))
+        assertEquals(
+            IntRect(0, 0, 390, 600),
+            curlOverlayBounds(window, book, ReadingDirection.LTR, twoPage = false),
+        )
+        assertEquals(
+            IntRect(410, 0, 800, 600),
+            curlOverlayBounds(window, book, ReadingDirection.RTL, twoPage = false),
+        )
+        assertNull(curlOverlayBounds(window, book, ReadingDirection.LTR, twoPage = true))
+        assertNull(curlOverlayBounds(window, FoldPosture.Flat, ReadingDirection.LTR, twoPage = false))
+        val tabletop = FoldPosture.Tabletop(IntRect(0, 280, 800, 320))
+        assertNull(curlOverlayBounds(window, tabletop, ReadingDirection.LTR, twoPage = false))
     }
 
     @Test
@@ -92,6 +266,9 @@ class PageCurlTest {
         val full = curlDurationMs(1f)
         assertEquals(full / 2, curlRemainingDurationMs(1f, fromProgress = 0.5f, animateForward = true))
         assertEquals(full / 2, curlRemainingDurationMs(1f, fromProgress = 0.5f, animateForward = false))
+        // A short release keeps the 150ms floor instead of snapping back in a few frames.
+        assertEquals(150L, curlRemainingDurationMs(1f, fromProgress = 0.1f, animateForward = false))
+        assertEquals(75L, curlRemainingDurationMs(0.5f, fromProgress = 0.1f, animateForward = false))
         assertEquals(0L, curlRemainingDurationMs(0f, 0.5f, animateForward = true))
     }
 
