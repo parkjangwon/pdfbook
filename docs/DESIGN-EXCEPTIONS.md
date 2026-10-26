@@ -21,6 +21,7 @@ The book page is the hero. The reader is always on black with neutral gray overl
 - Overlay: top and bottom bars only, neutral gray, white-family icons. Orange only on the slider thumb and filled track. Overlays fade only.
 - Contrast: overlay text 15.5:1, secondary 7.6:1, slider 4.9:1.
 - The reader uses `PdfBookReaderProgressBar` and `PdfBookReaderSlider` (reader tokens, no stop indicator, no ticks).
+- Reader dialogs (go to page) use `readerOnOverlayVariant` for hints and validation messages (7.6:1 on `readerOverlay`); there is no reader error color.
 
 ## Screens
 - Folder list: each card shows the folder name, a one-line path, `책 %d권` / book count, a 4-cover preview and a continue-reading row (orange bar). Inaccessible folders dim their covers and show a "choose folder again" secondary button.
@@ -44,3 +45,8 @@ The book page is the hero. The reader is always on black with neutral gray overl
 
 ## Reader accent beyond the slider (approved exception)
 - In the reader, orange is also used for the "open" text button on the next-book notice, the "reading" label in the book list, and the current-book bar. These come from approved designs (v0.3 and v0.3.2). Everywhere else in the reader, orange stays limited to the slider.
+
+## Reader tool row
+- Shared bottom-bar tools sit in one row directly under the page slider (above the page number). Tap-zone entry stays above the slider.
+- Fixed left-to-right order: Brightness, AutoTurn, Bookmarks, AutoCrop. Only tools that are passed in are shown, always in that enum order. The row does **not** mirror with RTL reading direction (volume buttons and the page slider still do).
+- Each item: 24dp line icon over `labelSmall`, `readerOnOverlay` content, ~56dp tall equal-width slots (min 48×48 touch target). No `readerAccent`, no elevation, no new shapes.
