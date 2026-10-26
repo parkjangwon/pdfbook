@@ -79,6 +79,7 @@ fun PageCurlOverlay(
     val revealedPath = remember { Path() }
     val flapPath = remember { Path() }
     val mirror = remember { Matrix() }
+    val mirrorValues = remember { FloatArray(9) }
     val mirrorPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
     }
@@ -166,6 +167,7 @@ fun PageCurlOverlay(
                     height = h,
                     shape = shape,
                     mirror = mirror,
+                    mirrorValues = mirrorValues,
                     paint = mirrorPaint,
                     androidFilter = androidFilter,
                     srcRect = srcRect,
@@ -230,6 +232,7 @@ private fun DrawScope.drawMirroredFront(
     height: Float,
     shape: CurlShape,
     mirror: Matrix,
+    mirrorValues: FloatArray,
     paint: Paint,
     androidFilter: android.graphics.ColorFilter?,
     srcRect: android.graphics.Rect,
@@ -242,19 +245,17 @@ private fun DrawScope.drawMirroredFront(
     val d = 1f - 2f * ny * ny
     val midX = left + shape.midX
     val midY = top + shape.midY
-    mirror.setValues(
-        floatArrayOf(
-            a,
-            b,
-            midX - (a * midX + b * midY),
-            b,
-            d,
-            midY - (b * midX + d * midY),
-            0f,
-            0f,
-            1f,
-        ),
-    )
+    // Filled in place: the draw phase must not allocate.
+    mirrorValues[0] = a
+    mirrorValues[1] = b
+    mirrorValues[2] = midX - (a * midX + b * midY)
+    mirrorValues[3] = b
+    mirrorValues[4] = d
+    mirrorValues[5] = midY - (b * midX + d * midY)
+    mirrorValues[6] = 0f
+    mirrorValues[7] = 0f
+    mirrorValues[8] = 1f
+    mirror.setValues(mirrorValues)
     paint.alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt()
     paint.colorFilter = androidFilter
     srcRect.set(crop.left, crop.top, crop.left + crop.width, crop.top + crop.height)
