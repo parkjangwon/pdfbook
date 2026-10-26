@@ -12,18 +12,22 @@ class DesignGuardTest {
     fun noShadowBrushOrNonZeroElevationOutsideTokens() {
         val root = projectRoot()
         val javaRoot = File(root, "app/src/main/java")
+        val brushBanned = Regex("""Brush\.""")
         val lineBanned = listOf(
             Regex("""\bshadow\s*\("""),
-            Regex("""Brush\."""),
+            brushBanned,
             Regex("""shadowElevation\s*=\s*+(?!0(?:\.0)?\.dp\b)"""),
             Regex("""tonalElevation\s*=\s*+(?!0(?:\.0)?\.dp\b)"""),
         )
+        // The optional page-curl turn is the one approved shadow/gradient (docs/DESIGN-EXCEPTIONS.md).
+        val brushAllowed = setOf("PageCurlOverlay.kt")
         val offenders = javaRoot.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
             .flatMap { file ->
                 val rel = file.relativeTo(root)
                 val lineHits = file.readLines().mapIndexedNotNull { index, line ->
-                    if (lineBanned.any { it.containsMatchIn(line) }) {
+                    val brushOk = file.name in brushAllowed && line.contains("Brush.")
+                    if (!brushOk && lineBanned.any { it.containsMatchIn(line) }) {
                         "$rel:${index + 1}: $line"
                     } else {
                         null
