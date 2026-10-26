@@ -27,6 +27,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,7 +77,7 @@ fun BookmarkSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        modifier = modifier.testTag(BOOKMARK_SHEET_TAG),
+        modifier = modifier.testTag(BOOKMARK_SHEET_TAG).semantics { testTagsAsResourceId = true },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         sheetMaxWidth = 640.dp,
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
