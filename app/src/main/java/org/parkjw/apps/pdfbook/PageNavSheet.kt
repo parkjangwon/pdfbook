@@ -57,7 +57,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
-import org.parkjw.apps.pdfbook.ui.theme.ReaderAccent
 import org.parkjw.apps.pdfbook.ui.theme.ReaderChip
 import org.parkjw.apps.pdfbook.ui.theme.ReaderListCurrent
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
@@ -209,7 +208,7 @@ private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, o
                         .aspectRatio(THUMB_WIDTH_DP.toFloat() / THUMB_HEIGHT_DP)
                         .clip(ThumbCorner)
                         .background(ReaderChip)
-                        .then(if (current) Modifier.border(2.dp, ReaderAccent, ThumbCorner) else Modifier),
+                        .then(if (current) Modifier.border(2.dp, ReaderOnOverlay, ThumbCorner) else Modifier),
                 ) {
                     bitmap?.let {
                         Image(it, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
@@ -217,7 +216,7 @@ private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, o
                 }
                 Text(
                     text = page.toString(),
-                    style = PdfBookNumeric.copy(fontSize = 11.sp, color = if (current) ReaderAccent else ReaderOnOverlayVariant),
+                    style = PdfBookNumeric.copy(fontSize = 11.sp, color = if (current) ReaderOnOverlay else ReaderOnOverlayVariant),
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
