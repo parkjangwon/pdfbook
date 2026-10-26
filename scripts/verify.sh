@@ -295,8 +295,23 @@ open_library() {
 open_book() {
   open_library
   tap_id library_book
-  expect_id reader_screen
-  sleep 2
+  local found
+  for _ in $(seq 1 20); do
+    dump_ui
+    if found="$(find_node resource-id 'android:id/ok')"; then
+      echo "verify: dismissing the full-screen hint"
+      set -- $found
+      "$ADB" shell input tap "$1" "$2"
+      sleep 1
+      continue
+    fi
+    if find_node resource-id reader_screen >/dev/null; then
+      sleep 2
+      return 0
+    fi
+    sleep 1
+  done
+  die "Expected reader_screen on screen (last dump: $OUT/ui.xml)"
 }
 
 show_overlay() {
@@ -329,6 +344,8 @@ echo "verify: device $DEVICE"
 "$ADB" shell settings put global window_animation_scale 0 >/dev/null 2>&1 || true
 "$ADB" shell settings put global transition_animation_scale 0 >/dev/null 2>&1 || true
 "$ADB" shell settings put global animator_duration_scale 0 >/dev/null 2>&1 || true
+# Skip the one-time "Viewing full screen" cling that would cover the reader.
+"$ADB" shell settings put secure immersive_mode_confirmations confirmed >/dev/null 2>&1 || true
 "$ADB" install -r -g "$APK" >/dev/null
 "$ADB" shell pm clear "$PKG" >/dev/null
 prepare_book

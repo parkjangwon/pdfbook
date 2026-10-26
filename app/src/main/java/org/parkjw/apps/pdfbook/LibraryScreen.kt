@@ -176,6 +176,7 @@ fun LibraryScreen(
 ) {
     val byName = sort == BookSort.Name
     var menuBookUri by remember { mutableStateOf<String?>(null) }
+    var infoBook by remember { mutableStateOf<BookInfo?>(null) }
     var peekMenuOpen by remember { mutableStateOf(showPeekMenu) }
     var sortMenuOpen by remember { mutableStateOf(showSortMenu) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -428,6 +429,10 @@ fun LibraryScreen(
                             onHideBook(book)
                         },
                         onUnhide = { onUnhideBook(book) },
+                        onInfo = {
+                            menuBookUri = null
+                            infoBook = book
+                        },
                         isHidden = isHidden,
                     )
                 }
@@ -438,6 +443,13 @@ fun LibraryScreen(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+        infoBook?.let { book ->
+            BookInfoSheet(
+                book = book,
+                state = states[bookKey(book.uri, book.size)],
+                onDismiss = { infoBook = null },
+            )
+        }
     }
 }
 
@@ -503,6 +515,7 @@ private fun BookCell(
     onMenuDismiss: () -> Unit,
     onHide: () -> Unit,
     onUnhide: () -> Unit = {},
+    onInfo: () -> Unit = {},
     isHidden: Boolean = false,
 ) {
     Box(Modifier.fillMaxWidth()) {
@@ -544,6 +557,10 @@ private fun BookCell(
     }
         if (!isHidden) {
             PdfBookDropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.book_info_title)) },
+                    onClick = onInfo,
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.hide_item)) },
                     onClick = onHide,
