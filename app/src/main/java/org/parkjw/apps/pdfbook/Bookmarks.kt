@@ -27,9 +27,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
+import org.parkjw.apps.pdfbook.ui.theme.PdfBookMonoFamily
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
@@ -37,6 +39,7 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderScrim
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
 import org.parkjw.apps.pdfbook.ui.theme.pdfBookIconButtonColors
+import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 
 const val BOOKMARK_SHEET_TAG = "bookmark_sheet"
 
@@ -113,7 +116,14 @@ fun BookmarkSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text(stringResource(R.string.bookmark_page, page), color = ReaderOnOverlay, fontSize = 14.sp)
+                        Text(
+                            text = withNumericSpans(
+                                stringResource(R.string.bookmark_page, page),
+                                SpanStyle(fontFamily = PdfBookMonoFamily),
+                            ),
+                            color = ReaderOnOverlay,
+                            fontSize = 14.sp,
+                        )
                         IconButton(
                             onClick = { onDelete(page) },
                             colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
