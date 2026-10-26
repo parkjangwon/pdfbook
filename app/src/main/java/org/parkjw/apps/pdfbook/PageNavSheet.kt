@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,11 +64,16 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderScrim
-import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
 
 const val PAGE_NAV_SHEET_TAG = "page_nav_sheet"
 
 private val ThumbCorner = RoundedCornerShape(6.dp)
+
+// Ring corner is concentric with the page: 6dp page corner + 2dp gap + 2dp ring.
+private val CurrentThumbRing = RoundedCornerShape(10.dp)
+private val ThumbInset = 4.dp
+private val ThumbRingWidth = 2.dp
+private val ThumbRingGap = 2.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,20 +131,26 @@ fun PageNavSheet(
 }
 
 @Composable
-private fun NavTab(labelRes: Int, selected: Boolean, tag: String, onClick: () -> Unit) {
-    Text(
-        text = stringResource(labelRes),
-        color = if (selected) ReaderOnOverlay else ReaderOnOverlayVariant,
-        fontSize = 14.sp,
-        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+internal fun NavTab(labelRes: Int, selected: Boolean, tag: String, onClick: () -> Unit) {
+    Box(
         modifier = Modifier
             .testTag(tag)
+            .minimumInteractiveComponentSize()
+            .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (selected) ReaderChip else ReaderOverlay)
             .semantics { this.selected = selected }
             .clickable(role = Role.Tab, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(labelRes),
+            color = if (selected) ReaderOnOverlay else ReaderOnOverlayVariant,
+            fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        )
+    }
 }
 
 @Composable
@@ -205,11 +217,19 @@ private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, o
                 }
                 Box(
                     Modifier
+                        .padding(ThumbInset)
                         .fillMaxWidth()
                         .aspectRatio(THUMB_WIDTH_DP.toFloat() / THUMB_HEIGHT_DP)
+                        .then(
+                            if (current) {
+                                Modifier.border(ThumbRingWidth, ReaderOnOverlay, CurrentThumbRing)
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .padding(ThumbRingGap)
                         .clip(ThumbCorner)
-                        .background(ReaderChip)
-                        .then(if (current) Modifier.border(2.dp, ReaderTrack, ThumbCorner) else Modifier),
+                        .background(ReaderChip),
                 ) {
                     bitmap?.let {
                         Image(it, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
@@ -217,7 +237,11 @@ private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, o
                 }
                 Text(
                     text = page.toString(),
-                    style = PdfBookNumeric.copy(fontSize = 11.sp, color = if (current) ReaderOnOverlay else ReaderOnOverlayVariant),
+                    style = PdfBookNumeric.copy(
+                        fontSize = 11.sp,
+                        color = if (current) ReaderOnOverlay else ReaderOnOverlayVariant,
+                        fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
+                    ),
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
