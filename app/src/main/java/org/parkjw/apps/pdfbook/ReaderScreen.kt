@@ -840,12 +840,21 @@ private fun ReaderScreenContent(
                     } else {
                         Modifier.fillMaxSize()
                     }
+                    val displayMode = LocalDisplayMode.current
+                    val curlFilter = remember(displayMode) { displayMode.colorFilter() }
+                    val curlLook = remember(displayMode) { displayMode.curlLook() }
                     PageCurlOverlay(
                         front = frontBmp,
                         back = backBmp,
                         progress = { curlProgress },
                         side = curlSideState,
                         modifier = overlayModifier.testTag("reader_page_curl"),
+                        colorFilter = curlFilter,
+                        flapColor = curlLook.flapColor,
+                        shadowColor = curlLook.shadowColor,
+                        shadowAlpha = curlLook.shadowAlpha,
+                        shadowMidAlpha = curlLook.shadowMidAlpha,
+                        foldHighlightColor = curlLook.foldHighlightColor,
                     )
                 }
             }

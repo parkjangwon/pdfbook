@@ -18,6 +18,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -33,6 +37,11 @@ import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.settings.SettingsRepository
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
+import org.parkjw.apps.pdfbook.ui.theme.ReaderListCurrent
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageBack
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageBackSepia
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadowSepia
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -62,13 +71,41 @@ class DisplayModeTest {
     }
 
     @Test
-    fun sepiaMatrixRowsAreTheClassicWeightsAndKeepAlpha() {
+    fun sepiaMatrixMapsWhiteToPaperAndKeepsGreyReadable() {
         val m = DisplayMode.Sepia.colorMatrix()!!
         assertEquals(20, m.size)
-        assertEquals(listOf(0.393f, 0.769f, 0.189f), m.slice(0..2))
-        assertEquals(listOf(0.349f, 0.686f, 0.168f), m.slice(5..7))
-        assertEquals(listOf(0.272f, 0.534f, 0.131f), m.slice(10..12))
+        val paper = applyMatrix(m, 255, 255, 255)
+        assertEquals(0xF4, paper[0])
+        assertEquals(0xEC, paper[1])
+        assertEquals(0xD8, paper[2])
+        val grey = applyMatrix(m, 0x80, 0x80, 0x80)
+        assertEquals(0x72, grey[0])
+        assertEquals(0x69, grey[1])
+        assertEquals(0x5B, grey[2])
+        val ratio = contrastRatio(paper, grey)
+        assertTrue("ratio=$ratio", ratio >= 4.5)
         assertEquals(1f, m[18])
+    }
+
+    @Test
+    fun curlLookCarriesThePerModePaperAndShadow() {
+        val normal = DisplayMode.Default.curlLook()
+        assertEquals(ReaderPageBack, normal.flapColor)
+        assertEquals(ReaderPageShadow, normal.shadowColor)
+        assertEquals(0.24f, normal.shadowAlpha, 0f)
+        assertEquals(0.10f, normal.shadowMidAlpha, 0f)
+
+        val sepia = DisplayMode.Sepia.curlLook()
+        assertEquals(ReaderPageBackSepia, sepia.flapColor)
+        assertEquals(ReaderPageShadowSepia, sepia.shadowColor)
+        assertEquals(0.26f, sepia.shadowAlpha, 0f)
+        assertEquals(0.11f, sepia.shadowMidAlpha, 0f)
+
+        val inverted = DisplayMode.Invert.curlLook()
+        assertEquals(ReaderListCurrent, inverted.flapColor)
+        assertEquals(ReaderPageShadow, inverted.shadowColor)
+        assertEquals(0.50f, inverted.shadowAlpha, 0f)
+        assertEquals(0.20f, inverted.shadowMidAlpha, 0f)
     }
 
     @Test
@@ -94,8 +131,8 @@ class DisplayModeTest {
     @Test
     fun sepiaModeMapsMidGreyThroughTheMatrix() {
         val (r, g, b) = renderedCorner(DisplayMode.Sepia, page = 0xFF808080.toInt())
-        // 128 * row sums (1.351, 1.203, 0.937); mid-grey keeps every channel unsaturated.
-        assertTrue("r=$r g=$g b=$b", abs(r - 173) <= 4 && abs(g - 154) <= 4 && abs(b - 120) <= 4)
+        // #808080 through the paper/ink matrix lands on #72695B (4.59:1 on the paper).
+        assertTrue("r=$r g=$g b=$b", abs(r - 0x72) <= 4 && abs(g - 0x69) <= 4 && abs(b - 0x5B) <= 4)
     }
 
     @Test
@@ -155,5 +192,25 @@ class DisplayModeTest {
         val c = px[2, px.height - 2]
         fun ch(v: Float) = (v * 255f + 0.5f).toInt()
         return Triple(ch(c.red), ch(c.green), ch(c.blue))
+    }
+
+    private fun applyMatrix(m: FloatArray, r: Int, g: Int, b: Int): IntArray = IntArray(3) { c ->
+        (m[c * 5] * r + m[c * 5 + 1] * g + m[c * 5 + 2] * b + m[c * 5 + 4])
+            .roundToInt()
+            .coerceIn(0, 255)
+    }
+
+    private fun contrastRatio(a: IntArray, b: IntArray): Double {
+        val la = relativeLuminance(a)
+        val lb = relativeLuminance(b)
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+    }
+
+    private fun relativeLuminance(rgb: IntArray): Double {
+        fun channel(v: Int): Double {
+            val s = v / 255.0
+            return if (s <= 0.04045) s / 12.92 else ((s + 0.055) / 1.055).pow(2.4)
+        }
+        return 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2])
     }
 }
