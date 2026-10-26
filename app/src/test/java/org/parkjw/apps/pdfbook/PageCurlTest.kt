@@ -139,6 +139,17 @@ class PageCurlTest {
     }
 
     @Test
+    fun velocityTrackerOfAQuickDragIsAboveTheFlingThreshold() {
+        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+        tracker.addPosition(0L, androidx.compose.ui.geometry.Offset(0f, 0f))
+        tracker.addPosition(16L, androidx.compose.ui.geometry.Offset(-25f, 0f))
+        tracker.addPosition(32L, androidx.compose.ui.geometry.Offset(-50f, 0f))
+        tracker.addPosition(48L, androidx.compose.ui.geometry.Offset(-75f, 0f))
+        val velocity = tracker.calculateVelocity().x
+        assertTrue("velocity was $velocity", velocity <= -CURL_FLING_DP_PER_SECOND)
+    }
+
+    @Test
     fun flingVelocityMapsToTheTurnDirection() {
         assertEquals(1500f, curlAlongVelocity(1500f, CurlSide.Left), 0.001f)
         assertEquals(1500f, curlAlongVelocity(-1500f, CurlSide.Right), 0.001f)
