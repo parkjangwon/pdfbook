@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -32,6 +33,8 @@ fun PageCurlOverlay(
 ) {
     val frontImage = remember(front) { front.asImageBitmap() }
     val backImage = remember(back) { back.asImageBitmap() }
+    val displayMode = LocalDisplayMode.current
+    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
     val foldPath = remember { Path() }
     val curlPath = remember { Path() }
     val shadowPath = remember { Path() }
@@ -46,16 +49,16 @@ fun PageCurlOverlay(
         pageClip.reset()
         pageClip.addRect(Rect(left, top, left + w, top + h))
         clipPath(pageClip, ClipOp.Intersect) {
-            drawImageFit(backImage, back.width, back.height, size.width, size.height)
+            drawImageFit(backImage, back.width, back.height, size.width, size.height, colorFilter)
             val p = clampCurlProgress(progress)
             if (p <= 0.001f) {
-                drawImageFit(frontImage, front.width, front.height, size.width, size.height)
+                drawImageFit(frontImage, front.width, front.height, size.width, size.height, colorFilter)
                 return@clipPath
             }
             if (p >= 0.999f) return@clipPath
             val geo = curlGeometry(w, h, p, side)
             if (geo == null) {
-                drawImageFit(frontImage, front.width, front.height, size.width, size.height)
+                drawImageFit(frontImage, front.width, front.height, size.width, size.height, colorFilter)
                 return@clipPath
             }
             val tip = Offset(left + geo.tip.x, top + geo.tip.y)
@@ -64,7 +67,7 @@ fun PageCurlOverlay(
             foldPath.reset()
             buildRemainingPagePath(foldPath, left, top, w, h, foldTop, foldBottom, side)
             clipPath(foldPath, ClipOp.Intersect) {
-                drawImageFit(frontImage, front.width, front.height, size.width, size.height)
+                drawImageFit(frontImage, front.width, front.height, size.width, size.height, colorFilter)
             }
             curlPath.reset()
             curlPath.moveTo(foldTop.x, foldTop.y)
@@ -131,6 +134,7 @@ private fun DrawScope.drawImageFit(
     srcH: Int,
     dstW: Float,
     dstH: Float,
+    colorFilter: ColorFilter? = null,
 ) {
     val fit = fittedPageRect(srcW, srcH, dstW, dstH) ?: return
     val scale = fit.width / srcW
@@ -138,6 +142,6 @@ private fun DrawScope.drawImageFit(
         translate(fit.left, fit.top)
         scale(scale, scale, pivot = Offset.Zero)
     }) {
-        drawImage(image)
+        drawImage(image, colorFilter = colorFilter)
     }
 }
