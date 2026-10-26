@@ -77,9 +77,9 @@ class PageRendererFailureTest {
                     PageBitmap(renderer, 2, 300, 400, Modifier.fillMaxSize())
                 }
             }
+            composeRule.waitUntil(5_000) { 2 in source.draws }
             composeRule.waitForIdle()
-            val pixels = composeRule.onRoot().captureToImage().toPixelMap()
-            assertEquals(ReaderBackground.toArgb(), pixels[pixels.width / 2, pixels.height / 2].toArgb())
+            assertEquals(ReaderBackground.toArgb(), centerPixel())
         } finally {
             close(renderer)
         }
@@ -95,12 +95,15 @@ class PageRendererFailureTest {
                     PageBitmap(renderer, 1, 300, 400, Modifier.fillMaxSize())
                 }
             }
-            composeRule.waitForIdle()
-            val pixels = composeRule.onRoot().captureToImage().toPixelMap()
-            assertEquals(Color.RED, pixels[pixels.width / 2, pixels.height / 2].toArgb())
+            composeRule.waitUntil(5_000) { centerPixel() == Color.RED }
         } finally {
             close(renderer)
         }
+    }
+
+    private fun centerPixel(): Int {
+        val pixels = composeRule.onRoot().captureToImage().toPixelMap()
+        return pixels[pixels.width / 2, pixels.height / 2].toArgb()
     }
 
     private fun close(renderer: PageRenderer) {
