@@ -390,6 +390,10 @@ private fun ReadingSettingsScreen(
         DisplayMode.Invert to stringResource(R.string.settings_display_invert),
         DisplayMode.Sepia to stringResource(R.string.settings_display_sepia),
     )
+    val displayDescriptions = mapOf(
+        DisplayMode.Invert to stringResource(R.string.settings_display_invert_desc),
+        DisplayMode.Sepia to stringResource(R.string.settings_display_sepia_desc),
+    )
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -571,6 +575,7 @@ private fun ReadingSettingsScreen(
             title = stringResource(R.string.settings_display_mode),
             options = displayOptions,
             selected = settings.displayMode,
+            descriptions = displayDescriptions,
             onSelect = { value ->
                 onSettingsChange { it.copy(displayMode = value) }
                 choice = null

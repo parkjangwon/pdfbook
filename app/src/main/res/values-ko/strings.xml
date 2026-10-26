@@ -59,7 +59,9 @@
     <string name="settings_display_mode">페이지 색</string>
     <string name="settings_display_default">기본</string>
     <string name="settings_display_invert">색 반전</string>
+    <string name="settings_display_invert_desc">사진과 컬러 그림도 반전돼요.</string>
     <string name="settings_display_sepia">세피아</string>
+    <string name="settings_display_sepia_desc">종이처럼 따뜻한 색으로 바꿔요. 컬러 그림은 갈색 톤이 돼요.</string>
     <string name="settings_animation_curl">책장 넘김</string>
     <string name="settings_animation_curl_desc">한쪽 보기에서만 써요. 두쪽 보기에서는 슬라이드로 넘겨요.</string>
     <string name="settings_screen_orientation">화면 방향</string>

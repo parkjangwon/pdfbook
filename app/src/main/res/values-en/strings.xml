@@ -60,7 +60,9 @@
     <string name="settings_display_mode">Page color</string>
     <string name="settings_display_default">Original</string>
     <string name="settings_display_invert">Inverted</string>
+    <string name="settings_display_invert_desc">Photos and color pictures are inverted too.</string>
     <string name="settings_display_sepia">Sepia</string>
+    <string name="settings_display_sepia_desc">Warm, paper-like colors. Color pictures turn brown-toned.</string>
     <string name="settings_animation_curl">Page curl</string>
     <string name="settings_animation_curl_desc">Single-page view only. Two-page view uses Slide.</string>
     <string name="settings_screen_orientation">Screen orientation</string>
