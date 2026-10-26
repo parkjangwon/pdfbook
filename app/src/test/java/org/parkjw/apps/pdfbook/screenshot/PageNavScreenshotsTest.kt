@@ -100,6 +100,7 @@ class PageNavScreenshotsTest {
 
     @OptIn(ExperimentalRoborazziApi::class)
     private fun captureSheet(file: String, dark: Boolean, pagesTab: Boolean) {
+        composeRule.mainClock.autoAdvance = false
         composeRule.setContent {
             ScreenshotTheme(dark, ReaderBackground) {
                 Box(Modifier.fillMaxSize().background(ReaderBackground)) {
@@ -114,9 +115,11 @@ class PageNavScreenshotsTest {
                 }
             }
         }
+        composeRule.mainClock.advanceTimeBy(1000)
         composeRule.waitForIdle()
         if (pagesTab) {
             composeRule.onNodeWithTag("page_nav_tab_pages").performClick()
+            composeRule.mainClock.advanceTimeBy(1000)
             composeRule.waitForIdle()
         }
         captureScreenRoboImage(file)
