@@ -99,8 +99,9 @@ class PageCurlComposeTest {
             down(Offset(width * 0.9f, height / 2f))
             advanceEventTime(16)
             // 20% of the width: under the 25% distance rule, completed by speed.
-            moveTo(Offset(width * 0.7f, height / 2f))
+            moveTo(Offset(width * 0.8f, height / 2f))
             advanceEventTime(16)
+            moveTo(Offset(width * 0.7f, height / 2f))
             up()
         }
         composeRule.mainClock.advanceTimeBy(2_000)
