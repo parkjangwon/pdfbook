@@ -30,6 +30,7 @@
     </plurals>
     <string name="folder_no_access_badge">접근 불가</string>
     <string name="last_book_unavailable">마지막 책을 열 수 없어요</string>
+    <string name="shortcut_continue_reading">이어 읽기</string>
     <string name="settings_title">설정</string>
     <string name="settings_section_general">일반</string>
     <string name="settings_section_reading">읽기</string>
@@ -55,6 +56,12 @@
     <string name="settings_page_turn_animation">넘김 애니메이션</string>
     <string name="settings_animation_slide">슬라이드</string>
     <string name="settings_animation_none">없음</string>
+    <string name="settings_animation_curl">책장 넘김</string>
+    <string name="settings_animation_curl_desc">한쪽 보기에서만 써요. 두쪽 보기에서는 슬라이드로 넘겨요.</string>
+    <string name="settings_screen_orientation">화면 방향</string>
+    <string name="settings_orientation_auto">자동</string>
+    <string name="settings_orientation_portrait">세로</string>
+    <string name="settings_orientation_landscape">가로</string>
     <string name="settings_volume_key_paging">볼륨 키로 넘기기</string>
     <string name="settings_keep_screen_on">화면 켜짐 유지</string>
     <string name="settings_tap_zone_guide">탭 영역 안내 표시</string>
@@ -98,6 +105,24 @@
     <string name="reader_brightness">밝기</string>
     <string name="reader_brightness_system">시스템 밝기 따르기</string>
     <string name="reader_brightness_percent">%1$d%%</string>
+    <string name="book_info_title">책 정보</string>
+    <string name="book_info_file_name">파일 이름</string>
+    <string name="book_info_pages">쪽 수</string>
+    <string name="book_info_pages_loading">쪽 수를 확인하는 중…</string>
+    <string name="book_info_pages_unreadable">쪽 수를 읽을 수 없어요</string>
+    <string name="book_info_size">파일 크기</string>
+    <string name="book_info_size_b">%1$s B</string>
+    <string name="book_info_size_kb">%1$s KB</string>
+    <string name="book_info_size_mb">%1$s MB</string>
+    <string name="book_info_size_gb">%1$s GB</string>
+    <string name="book_info_last_read">마지막으로 읽은 날</string>
+    <string name="book_info_not_read">아직 읽지 않았어요</string>
+    <string name="book_info_progress">읽은 분량</string>
+    <string name="book_info_progress_value">%1$d / %2$d쪽 · %3$d%%</string>
+    <string name="book_info_unknown">-</string>
+    <plurals name="book_info_page_count">
+        <item quantity="other">%d쪽</item>
+    </plurals>
     <string name="go_to_page_title">쪽 번호로 이동</string>
     <string name="go_to_page_hint">1~%1$d</string>
     <string name="go_to_page_error">1~%1$d 사이의 쪽 번호를 넣어 주세요.</string>

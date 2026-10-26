@@ -340,6 +340,15 @@ class MainScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsFullScreenReadingLightFolded() = captureSettings(
+        dark = false,
+        file = "settings-full-screen-light-folded.png",
+        initialSubScreen = SettingsSubScreen.Reading,
+        fullScreenReading = false,
+    )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun settingsTapWidthSheetLightFolded() = captureSettings(
         dark = false,
         file = "settings-tapwidth-sheet-light-folded.png",
@@ -851,12 +860,14 @@ class MainScreenshotsTest {
         initiallyShowStartChoice: Boolean = false,
         initiallyShowTapWidthSheet: Boolean = false,
         tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
+        fullScreenReading: Boolean = true,
     ) {
         capture(file, dark) {
             SettingsScreen(
                 settings = sampleSettings().copy(
                     themeMode = if (dark) ThemeMode.Dark else ThemeMode.Light,
                     tapZoneSidePercent = tapZoneSidePercent,
+                    fullScreenReading = fullScreenReading,
                 ),
                 onSettingsChange = {},
                 versionName = "0.3.0",

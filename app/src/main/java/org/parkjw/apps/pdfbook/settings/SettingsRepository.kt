@@ -48,6 +48,7 @@ class SettingsRepository(
         val LanguageKey = stringPreferencesKey("language")
         val ShowTapZoneGuideKey = booleanPreferencesKey("show_tap_zone_guide")
         val PageTurnAnimationKey = stringPreferencesKey("page_turn_animation")
+        val ScreenOrientationKey = stringPreferencesKey("screen_orientation")
         val DoubleTapZoomScaleKey = floatPreferencesKey("double_tap_zoom_scale")
         val AutoUpdateCheckKey = booleanPreferencesKey("auto_update_check")
         val TapZoneSidePercentKey = intPreferencesKey("tap_zone_side_percent")
@@ -55,6 +56,7 @@ class SettingsRepository(
         val KeepZoomOnTurnKey = booleanPreferencesKey("keep_zoom_on_turn")
         val FollowSystemBrightnessKey = booleanPreferencesKey("follow_system_brightness")
         val ReaderBrightnessPercentKey = intPreferencesKey("reader_brightness_percent")
+        val FullScreenReadingKey = booleanPreferencesKey("full_screen_reading")
     }
 }
 
@@ -79,6 +81,10 @@ internal fun Preferences.toAppSettings(): AppSettings {
             this[SettingsRepository.PageTurnAnimationKey],
             defaults.pageTurnAnimation,
         ),
+        screenOrientation = enumOrDefault(
+            this[SettingsRepository.ScreenOrientationKey],
+            defaults.screenOrientation,
+        ),
         doubleTapZoomScale = this[SettingsRepository.DoubleTapZoomScaleKey]
             ?: defaults.doubleTapZoomScale,
         autoUpdateCheck = this[SettingsRepository.AutoUpdateCheckKey] ?: defaults.autoUpdateCheck,
@@ -97,6 +103,7 @@ internal fun Preferences.toAppSettings(): AppSettings {
         } else {
             DEFAULT_READER_BRIGHTNESS_PERCENT
         },
+        fullScreenReading = this[SettingsRepository.FullScreenReadingKey] ?: defaults.fullScreenReading,
     )
 }
 
@@ -111,6 +118,7 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.LanguageKey] = settings.language.name
     this[SettingsRepository.ShowTapZoneGuideKey] = settings.showTapZoneGuide
     this[SettingsRepository.PageTurnAnimationKey] = settings.pageTurnAnimation.name
+    this[SettingsRepository.ScreenOrientationKey] = settings.screenOrientation.name
     this[SettingsRepository.DoubleTapZoomScaleKey] = settings.doubleTapZoomScale
     this[SettingsRepository.AutoUpdateCheckKey] = settings.autoUpdateCheck
     this[SettingsRepository.TapZoneSidePercentKey] = normalizeTapZoneSidePercent(settings.tapZoneSidePercent)
@@ -119,6 +127,7 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.FollowSystemBrightnessKey] = settings.followSystemBrightness
     this[SettingsRepository.ReaderBrightnessPercentKey] =
         normalizeReaderBrightnessPercent(settings.readerBrightnessPercent)
+    this[SettingsRepository.FullScreenReadingKey] = settings.fullScreenReading
 }
 
 private inline fun <reified T : Enum<T>> enumOrDefault(raw: String?, default: T): T {

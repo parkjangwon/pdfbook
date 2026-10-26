@@ -140,6 +140,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val continueRequested = intent.isContinueReading()
         setContent {
             val context = LocalContext.current
             val settingsRepo = remember { SettingsRepository(context) }
@@ -194,6 +195,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         App(
                             volumeDelta = volumeDeltaFlow,
+                            continueRequested = continueRequested,
                             settings = settings,
                             settingsReady = settingsState.value != null,
                             onSettingsChange = { transform -> scope.launch { settingsRepo.update(transform) } },
@@ -272,6 +274,7 @@ private val FolderPathSaver = listSaver<FolderPath, String>(
 @Composable
 private fun App(
     volumeDelta: SharedFlow<Int>,
+    continueRequested: Boolean,
     settings: AppSettings,
     settingsReady: Boolean,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
@@ -462,7 +465,7 @@ private fun App(
         ) {
             return@LaunchedEffect
         }
-        if (settings.startScreen != StartScreen.LastBook) {
+        if (settings.startScreen != StartScreen.LastBook && !continueRequested) {
             startApplied = true
             return@LaunchedEffect
         }
@@ -478,6 +481,14 @@ private fun App(
             snackbarMessage = lastBookUnavailable
         }
         startApplied = true
+    }
+
+    LaunchedEffect(loaded, statesState.value, shelfListings, hiddenState.value, settings.showDotFiles) {
+        if (hiddenState.value == null) return@LaunchedEffect
+        if (!canApplyStartScreen(false, loaded, true, statesState.value != null, folderList.size, shelfListings.size)) {
+            return@LaunchedEffect
+        }
+        syncContinueShortcut(context, findLastBookTarget(resumeFolders, resumeListings, states) != null)
     }
 
     val book = openUri?.let { uri -> treeRoot?.findBook(uri) ?: listing?.books?.firstOrNull { it.uri == uri } }
@@ -699,6 +710,9 @@ private fun App(
                 onBrightnessChange = { value ->
                     onSettingsChange { it.copy(readerBrightnessPercent = normalizeReaderBrightnessPercent(value)) }
                 },
+                pageTurnAnimation = settings.pageTurnAnimation,
+                screenOrientation = settings.screenOrientation,
+                fullScreenReading = settings.fullScreenReading,
                 coverAlone = settings.coverAlone,
                 keepScreenOn = settings.keepScreenOn,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },

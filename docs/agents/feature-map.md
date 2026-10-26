@@ -33,6 +33,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Continue reading (folder) | Library, sort = recent, after reading | `library_resume_card` | `LibraryScreen.kt`, `hidden/HiddenPeek.kt` | `LibraryTest` |
 | Sort menu (SPEC-1) | Library → `library_sort_button` | `library_sort_button`, `library_sort_option_Recent`, `library_sort_option_Name`, `library_sort_check` | `LibraryScreen.kt`, `SortStore.kt`, `NaturalOrder.kt` | `SortCheckMenuComposeTest`, `SortPersistComposeTest`, `SortStoreTest`, `NaturalOrderTest` |
 | Subfolders | Library of a folder with subfolders → `library_subfolder` | `library_subfolder`, `library_back` | `SubfolderCell.kt`, `Subfolders.kt`, `FolderBrowse.kt` | `SubfolderComposeTest`, `SubfoldersTest`, `SubfolderScreenshotsTest` |
+| Book info | Long-press `library_book` → "책 정보" | `book_info_sheet` | `BookInfoSheet.kt`, `LibraryScreen.kt` | `BookInfoTest`, `BookInfoComposeTest`, `BookInfoScreenshotsTest` |
 | Hide a book or folder | Long-press `library_book` / `library_subfolder` → "Hide" | menu text | `hidden/HiddenRepository.kt`, `MainActivity.kt` | `HiddenRepositoryTest`, `HiddenBookStateTest` |
 | Peek hidden items | `library_more` (or shelf ⋮) → peek toggle | menu text | `hidden/HiddenPeek.kt`, `hidden/PeekHiddenUi.kt` | `HiddenPeekComposeTest`, `HiddenPeekVisibilityTest` |
 
@@ -62,6 +63,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Pinch / double-tap zoom | Reader → pinch, or double-tap a page | `reader_screen` | `ZoomPan.kt` | `ZoomPanTest` |
 | Zoom lock and keep zoom (SPEC-6) | Reader → zoom in; swipes only pan, tap zones and volume keys still turn | `reader_screen` (`ReaderZoomKey` semantics), `reader_zone_Next` | `ZoomPan.kt`, `ReaderScreen.kt` | `ZoomLockComposeTest`, `ZoomPanTest`, `TapZoneTimingTest` |
 | Volume key paging | Reader → volume up / down | – | `MainActivity.kt`, `VolumeNav.kt` | `VolumeNavTest` |
+| Full screen reading (#115) | Reader with full screen reading on (default) | – | `ReaderSystemBars.kt`, `ReaderScreen.kt` | `ReaderSystemBarsTest`, `ReaderImmersiveComposeTest` |
 | Prerender and memory trim (SPEC-5) | Reader → turn pages | – | `PageCache.kt`, `MemoryTrim.kt`, `PageRenderer.kt` | `PageCacheTest`, `PrerenderTargetsTest`, `LargeBookPrerenderTest` |
 
 ## Settings
@@ -72,8 +74,11 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | General: start screen, theme, language | Settings → rows by text | text only | `settings/SettingsScreen.kt`, `settings/AppLocale.kt` | `AppLocaleTest`, `SettingsBUiTest` |
 | Reading settings | Settings → `settings_reading_entry` | `settings_reading_screen`, `settings_reading_back` | `settings/SettingsScreen.kt` | `SettingsBUiTest` |
 | Keep zoom when turning pages (SPEC-6) | Reading settings → "Keep zoom when turning pages" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt` | `KeepZoomSettingsTest`, `SettingsBUiTest` |
+| Page curl turn animation (#103) | Reading settings → "넘김 애니메이션" → "책장 넘김"; reader tap/swipe/volume at scale 1, single-page | `settings_animation_option_Curl`, `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `ReaderScreen.kt`, `settings/AppSettings.kt` | `PageCurlTest`, `PageCurlComposeTest`, `PageCurlSettingsTest`, `PageCurlScreenshotsTest` |
+| Full screen reading (#115) | Reading settings → "전체 화면으로 읽기" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt` | `FullScreenReadingSettingsTest` |
 | Keep screen on | Reading settings → "화면 켜짐 유지" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt`, `ReaderScreen.kt` | `KeepScreenOnTest` |
 | Tap zone width, settings (SPEC-2 TW-1/2/4) | Reading settings → `settings_tap_width_row` | `settings_tap_width_row`, `tap_zone_width_sheet` | `settings/SettingsScreen.kt`, `TapZoneWidthSheet.kt` | `TapZoneWidthSettingsTest`, `TapZoneWidthSheetThemeTest` |
+| Screen orientation lock (#117) | Reading settings → "화면 방향" row → choose 자동/세로/가로 | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt`, `ReaderRoute.kt` | `ScreenOrientationTest`, `ScreenOrientationSettingsTest`, `ReaderOrientationTest`, `SettingsOrientationScreenshotsTest` |
 | Storage: hidden items, dot files | Settings → `settings_hidden_items` | `settings_hidden_items` | `settings/StorageSettings.kt`, `hidden/HiddenItemsScreen.kt` | `StorageSettingsTest`, `HiddenItemsScreenTest` |
 | App lock / PIN | Settings → "App lock" row → choose PIN or biometric | `pin_dot`, `pin_next`, PIN pad text | `lock/AppLockSettingsScreen.kt`, `lock/PinPad.kt`, `lock/PinEntry.kt`, `lock/LockGate.kt` | `LockScreensTest`, `LockPolicyTest`, `LockRepositoryTest`, `LockScreenshotsTest` |
 | Update check | Settings → Update section | text only | `update/UpdateUi.kt`, `update/UpdateViewModel.kt` | `SettingsUpdateUiTest`, `UpdateCheckerTest` |
