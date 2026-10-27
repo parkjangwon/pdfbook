@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom display-mode"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom display-mode image-adjust"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -466,6 +466,40 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
     shot display-mode-invert
+    ;;
+  image-adjust)
+    # The row targets the last read book, so open one first.
+    open_book
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_library
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    image_adjust='Image adjustments|이미지 보정'
+    for _ in 1 2 3; do
+      wait_node text "$image_adjust" 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    shot image-adjust-off-row
+    tap_node text "$image_adjust"
+    expect_id image_adjust_screen
+    sleep 2
+    shot image-adjust-off
+    # Tap the contrast slider at 3/4 of its width: a positive value.
+    found="$(wait_node resource-id image_adjust_contrast)" || die "contrast slider not found"
+    set -- $found
+    tap_x=$(( $3 + ($5 - $3) * 3 / 4 ))
+    "$ADB" shell input tap "$tap_x" "$2"
+    sleep 1
+    shot image-adjust-on
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_reading_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_book
+    shot image-adjust-reader
     ;;
 esac
 
