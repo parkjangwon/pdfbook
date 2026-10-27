@@ -716,6 +716,7 @@ private fun App(
                 fullScreenReading = settings.fullScreenReading,
                 displayMode = settings.displayMode,
                 coverAlone = settings.coverAlone,
+                widePageAlone = settings.widePageAlone,
                 keepScreenOn = settings.keepScreenOn,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 volumes = ReaderVolumes(

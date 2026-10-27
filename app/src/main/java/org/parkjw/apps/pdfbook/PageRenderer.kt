@@ -24,8 +24,16 @@ import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 
+data class PageSize(val width: Int, val height: Int) {
+    val isWide: Boolean get() = width > height
+}
+
 interface PageBitmaps {
     val pageCount: Int
+
+    /** Pages whose width is greater than their height; empty until scanned. */
+    suspend fun widePages(): Set<Int> = emptySet()
+
     suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap?
     fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? = null
     fun prerender(current: List<PageRequest>, targets: List<PageRequest>) {}
@@ -40,6 +48,7 @@ interface PageBitmaps {
 interface PageSource : Closeable {
     val pageCount: Int
     fun draw(page: Int, maxWidth: Int, maxHeight: Int): Bitmap
+    fun pageSize(page: Int): PageSize? = null
 
     // PdfRenderer has no outline API on minSdk 35, so PdfPageSource keeps this empty and the contents tab stays hidden.
     fun outline(): List<OutlineNode> = emptyList()
@@ -70,6 +79,9 @@ class PdfPageSource(
             return bitmap
         }
     }
+
+    override fun pageSize(page: Int): PageSize? =
+        runCatching { pdf.openPage(page - 1).use { PageSize(it.width, it.height) } }.getOrNull()
 
     override fun close() {
         pdf.close()
@@ -104,6 +116,22 @@ class PageRenderer(
     @Volatile private var autoCrop = false
 
     override val pageCount: Int = source.pageCount
+
+    @Volatile private var widePageCache: Set<Int>? = null
+
+    override suspend fun widePages(): Set<Int> = withContext(renderDispatcher) {
+        mutex.withLock {
+            widePageCache?.let { return@withLock it }
+            if (closed) return@withLock emptySet()
+            val wide = buildSet {
+                for (page in 1..pageCount) {
+                    if (source.pageSize(page)?.isWide == true) add(page)
+                }
+            }
+            widePageCache = wide
+            wide
+        }
+    }
 
     // Thumbnails queue behind the page mutex without cancelling prerender, so the reader's own page never waits on a strip.
     override suspend fun thumbnail(request: PageRequest): Bitmap? {

@@ -74,6 +74,7 @@ fun ReaderRoute(
     fullScreenReading: Boolean = true,
     displayMode: DisplayMode = DisplayMode.Default,
     coverAlone: Boolean = true,
+    widePageAlone: Boolean = false,
     rendererOverride: PageBitmaps? = null,
     keepScreenOn: Boolean = true,
 ) {
@@ -117,12 +118,17 @@ fun ReaderRoute(
             val posture = rememberFoldPosture()
             val twoPage = rememberTwoPage(twoPageMode, posture)
             var spreadShift by rememberSaveable(key) { mutableStateOf(saved?.spreadShift == 1) }
-            val spreadList = remember(renderer.pageCount, twoPage, coverAlone, spreadShift) {
+            var widePages by remember(renderer, widePageAlone) { mutableStateOf(emptySet<Int>()) }
+            LaunchedEffect(renderer, widePageAlone) {
+                widePages = if (widePageAlone) renderer.widePages() else emptySet()
+            }
+            val spreadList = remember(renderer.pageCount, twoPage, coverAlone, spreadShift, widePages) {
                 spreads(
                     renderer.pageCount,
                     twoPage = twoPage,
                     coverAlone = coverAlone,
                     shift = if (spreadShift) 1 else 0,
+                    widePages = widePages,
                 )
             }
             var anchorPage by rememberSaveable(key) {
