@@ -16,6 +16,7 @@ val PdfBookSansFamily = FontFamily(
 
 val PdfBookMonoFamily = FontFamily(
     Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
+    Font(R.font.jetbrains_mono_semibold, FontWeight.SemiBold),
 )
 
 val PdfBookNumeric = TextStyle(
