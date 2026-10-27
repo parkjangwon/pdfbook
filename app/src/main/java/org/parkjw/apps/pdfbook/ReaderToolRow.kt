@@ -53,6 +53,7 @@ sealed interface ReaderToolItem {
         override val label: String,
         override val testTag: String,
         val onClick: () -> Unit,
+        val stateDescription: String? = null,
     ) : ReaderToolItem
 
     data class Toggle(
@@ -106,7 +107,11 @@ private fun ReaderToolSlot(
     // Label Text is the accessible name (merged by clickable/toggleable).
     val interaction = when (item) {
         is ReaderToolItem.Action ->
-            Modifier.clickable(role = Role.Button, onClick = item.onClick)
+            Modifier
+                .clickable(role = Role.Button, onClick = item.onClick)
+                .semantics {
+                    item.stateDescription?.let { stateDescription = it }
+                }
         is ReaderToolItem.Toggle ->
             Modifier
                 .toggleable(

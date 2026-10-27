@@ -12,6 +12,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -28,6 +32,9 @@ interface PageBitmaps {
     fun trimToCurrent() {}
     suspend fun outline(): List<OutlineEntry> = emptyList()
     suspend fun thumbnail(request: PageRequest): Bitmap? = null
+    fun setAutoCrop(enabled: Boolean) {}
+    fun cropMargins(page: Int): CropMargins? = null
+    val cropUpdates: Flow<Int> get() = emptyFlow()
 }
 
 interface PageSource : Closeable {
@@ -91,6 +98,11 @@ class PageRenderer(
         override fun sizeOf(key: PageRequest, value: Bitmap) = value.byteCount
     }
 
+    private val cropLock = Any()
+    private val crops = HashMap<Int, CropMargins>()
+    private val cropUpdatesFlow = MutableStateFlow(0)
+    @Volatile private var autoCrop = false
+
     override val pageCount: Int = source.pageCount
 
     // Thumbnails queue behind the page mutex without cancelling prerender, so the reader's own page never waits on a strip.
@@ -119,9 +131,31 @@ class PageRenderer(
     override fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? =
         if (closed) null else cache.get(PageRequest(page, maxWidth, maxHeight))
 
+    override fun setAutoCrop(enabled: Boolean) {
+        if (autoCrop == enabled) return
+        autoCrop = enabled
+        if (enabled) {
+            // The crop is applied while drawing the same cached bitmap, so the cache key does
+            // not carry crop state. Pages cached before the toggle were never scanned; clear
+            // them so they are re-rendered and detected.
+            cache.clear()
+        }
+        cropUpdatesFlow.update { it + 1 }
+    }
+
+    override fun cropMargins(page: Int): CropMargins? {
+        if (!autoCrop) return null
+        return synchronized(cropLock) { crops[page] }
+    }
+
+    override val cropUpdates: Flow<Int> get() = cropUpdatesFlow
+
     override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
         val key = PageRequest(page, maxWidth, maxHeight)
-        cache.get(key)?.let { return it }
+        cache.get(key)?.let {
+            ensureCropDetected(page, it)
+            return it
+        }
         val interrupted = synchronized(jobLock) {
             val active = prerenderJob?.isActive == true
             prerenderJob?.cancel()
@@ -172,14 +206,19 @@ class PageRenderer(
         if (closed || key.page < 1 || key.page > pageCount || key.maxWidth <= 0 || key.maxHeight <= 0) {
             return null
         }
+        cache.get(key)?.let {
+            ensureCropDetected(key.page, it)
+            return it
+        }
         if (key.page in failedPages) return null
-        cache.get(key)?.let { return it }
-        return withContext(renderDispatcher) {
+        val bitmap = withContext(renderDispatcher) {
             mutex.withLock {
                 if (closed) return@withLock null
                 if (key.page in failedPages) return@withLock null
                 cache.get(key)?.let { return@withLock it }
                 try {
+                    // Cache first: crop detection runs outside the render mutex so the next page
+                    // is not blocked. A cache hit with no crop yet detects it lazily.
                     source.draw(key.page, key.maxWidth, key.maxHeight).also { cache.put(key, it) }
                 } catch (c: CancellationException) {
                     throw c
@@ -189,6 +228,19 @@ class PageRenderer(
                     null
                 }
             }
+        }
+        if (bitmap != null) ensureCropDetected(key.page, bitmap)
+        return bitmap
+    }
+
+    private suspend fun ensureCropDetected(page: Int, bitmap: Bitmap) {
+        if (!autoCrop || bitmap.isRecycled) return
+        if (synchronized(cropLock) { crops.containsKey(page) }) return
+        withContext(renderDispatcher) {
+            if (synchronized(cropLock) { crops.containsKey(page) }) return@withContext
+            val margins = detectCropMargins(bitmap)
+            synchronized(cropLock) { crops[page] = margins }
+            cropUpdatesFlow.update { it + 1 }
         }
     }
 

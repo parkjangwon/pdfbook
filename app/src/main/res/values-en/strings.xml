@@ -109,6 +109,15 @@
     <string name="reader_zone_menu_a11y">Open or close the menu</string>
     <string name="reader_zone_next_a11y">Next page</string>
     <string name="reader_tap_zone_label">Tap zones</string>
+    <string name="reader_auto_crop_label">Crop margins</string>
+    <string name="reader_crop_subtitle_single">Finds and trims white margins automatically</string>
+    <string name="reader_crop_subtitle_spread">Both pages are matched to the same size</string>
+    <string name="reader_crop_notice">The original PDF stays as is. It is only cropped on screen.</string>
+    <string name="reader_crop_reset">Reset</string>
+    <string name="reader_crop_done">Done</string>
+    <string name="reader_crop_empty">No margins to crop</string>
+    <string name="reader_crop_state_on">On</string>
+    <string name="reader_crop_state_off">Off</string>
     <string name="reader_tap_zone_adjust">Adjust width</string>
     <string name="reader_tap_width_title">Tap zone width</string>
     <string name="reader_tap_width_body">Width of the left and right zones. The middle opens the menu.</string>
