@@ -1272,13 +1272,16 @@ private fun buildTwoPageCurl(
     val visualCurrent = spreadLayout(currentSpread, direction)
     val visualTarget = spreadLayout(targetSpread, direction)
     val slots = listOf(canvas.left, canvas.right)
-    val bitmapsCurrent = slots.mapIndexed { index, slot ->
-        renderer.cached(visualCurrent[index], slot.width, slot.height)
+    // spreadRequests() renders both pages at canvasWidth / 2, so look them up with that key:
+    // the curl slots can differ by one pixel on an odd width and would always miss the cache.
+    val requestWidth = (canvas.size.width / 2).coerceAtLeast(1)
+    val bitmapsCurrent = visualCurrent.map { page ->
+        renderer.cached(page, requestWidth, canvas.size.height)
             ?.takeUnless { it.isRecycled }
             ?: return null
     }
-    val bitmapsTarget = slots.mapIndexed { index, slot ->
-        renderer.cached(visualTarget[index], slot.width, slot.height)
+    val bitmapsTarget = visualTarget.map { page ->
+        renderer.cached(page, requestWidth, canvas.size.height)
             ?.takeUnless { it.isRecycled }
             ?: return null
     }
