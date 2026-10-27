@@ -232,8 +232,9 @@ fun PageCurlOverlay(
             sheetRect.set(0f, 0f, size.width, size.height)
         }
         if (sheetRect.width() <= 0f || sheetRect.height() <= 0f) return@Canvas
-        // ContentScale.Fit in primitives: the draw phase must not allocate.
-        fit.set(sheetRect)
+        // ContentScale.Fit in primitives: the draw phase must not allocate. For a lone page
+        // sheetRect is already the page's drawn rect, so this is the identity.
+        fitInto(crop, sheetRect, fit)
         drawFit.set(fit)
         val left = fit.left
         val top = fit.top
