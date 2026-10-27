@@ -47,9 +47,15 @@ class LibraryTest {
 
     @Test
     fun stateRoundTrips() {
-        val s = BookState(7, 200, ReadingDirection.LTR, 123L)
+        val s = BookState(7, 200, ReadingDirection.LTR, 123L, autoCrop = true)
         assertEquals(s, decodeState(encodeState(s)))
         assertEquals(BookState(), decodeState(encodeState(BookState())))
+    }
+
+    @Test
+    fun oldStateWithoutAutoCropStillDecodes() {
+        assertEquals(BookState(1, 2, ReadingDirection.RTL, 3L), decodeState("1,2,RTL,3"))
+        assertNull(decodeState("1,2,RTL,3,sometimes"))
     }
 
     @Test

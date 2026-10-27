@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -62,12 +63,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -103,12 +107,18 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 import kotlin.math.abs
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 @Composable
@@ -144,13 +154,14 @@ fun ReaderScreen(
     brightnessSheetVisible: Boolean = false,
     bookmarkSheetVisible: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    autoCrop: Boolean = false,
+    onAutoCropChange: (Boolean) -> Unit = {},
     bookmarks: ReaderBookmarks? = null,
     pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
     fullScreenReading: Boolean = true,
     displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
 ) {
-    ReaderBrightnessEffect(followSystemBrightness, brightnessPercent)
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
         val previous = view.keepScreenOn
@@ -193,6 +204,8 @@ fun ReaderScreen(
             initialBrightnessSheetVisible = brightnessSheetVisible,
             initialBookmarkSheetVisible = bookmarkSheetVisible,
             posture = posture,
+            autoCrop = autoCrop,
+            onAutoCropChange = onAutoCropChange,
             bookmarks = bookmarks,
             pageTurnAnimation = pageTurnAnimation,
             fullScreenReading = fullScreenReading,
@@ -233,10 +246,16 @@ private fun ReaderScreenContent(
     initialBrightnessSheetVisible: Boolean,
     initialBookmarkSheetVisible: Boolean,
     posture: FoldPosture,
+    autoCrop: Boolean,
+    onAutoCropChange: (Boolean) -> Unit,
     bookmarks: ReaderBookmarks?,
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
 ) {
+    SideEffect { renderer.setAutoCrop(autoCrop) }
+    // Slider drags preview the window brightness without a DataStore write; only release persists.
+    var brightnessPreview by remember(brightnessPercent) { mutableIntStateOf(brightnessPercent) }
+    ReaderBrightnessEffect(followSystemBrightness, brightnessPreview)
     var bookmarkSheetVisible by rememberSaveable { mutableStateOf(initialBookmarkSheetVisible) }
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -245,6 +264,7 @@ private fun ReaderScreenContent(
     var overlayVisible by remember { mutableStateOf(initialOverlayVisible) }
     var widthSheetVisible by remember { mutableStateOf(initialTapZoneWidthSheetVisible) }
     var brightnessSheetVisible by remember { mutableStateOf(initialBrightnessSheetVisible) }
+    var cropSheetVisible by remember { mutableStateOf(false) }
     var sidePercent by remember(tapZoneSidePercent) {
         mutableIntStateOf(normalizeTapZoneSidePercent(tapZoneSidePercent))
     }
@@ -291,6 +311,7 @@ private fun ReaderScreenContent(
     val outline by produceState(emptyList<OutlineEntry>(), renderer) { value = renderer.outline() }
     var goToPageVisible by remember { mutableStateOf(false) }
     val sheetOpen = widthSheetVisible || pageNavVisible || goToPageVisible || brightnessSheetVisible ||
+        cropSheetVisible ||
         (bookListVisible && volumes.bookList != null) ||
         (bookmarkSheetVisible && bookmarks != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
@@ -806,11 +827,19 @@ private fun ReaderScreenContent(
                                 direction = direction,
                                 window = IntSize(constraints.maxWidth, constraints.maxHeight),
                                 tagged = activePage,
+                                autoCrop = autoCrop,
                             )
                         }
                         Row(Modifier.fillMaxSize()) {
                             tapZoneSpans(direction, sideFraction).forEach { span ->
                                 val interactionSource = remember { MutableInteractionSource() }
+                                val zoneLabel = stringResource(
+                                    when (span.zone) {
+                                        TapZone.Previous -> R.string.reader_zone_previous_a11y
+                                        TapZone.Menu -> R.string.reader_zone_menu_a11y
+                                        TapZone.Next -> R.string.reader_zone_next_a11y
+                                    },
+                                )
                                 val onTap = {
                                     if (span.zone == TapZone.Menu) {
                                         overlayVisible = !overlayVisible
@@ -827,11 +856,13 @@ private fun ReaderScreenContent(
                                         // dialog releases focus.
                                         .focusProperties { canFocus = activePage }
                                         .testTag("reader_zone_" + span.zone.name)
+                                        .semantics { contentDescription = zoneLabel }
                                         .then(
                                             if (zoomed || span.zone.acceptsDoubleTapAtBaseScale) {
                                                 Modifier.combinedClickable(
                                                     interactionSource = interactionSource,
                                                     indication = null,
+                                                    role = Role.Button,
                                                     onClick = onTap,
                                                     onDoubleClick = { toggleZoom() },
                                                 )
@@ -839,6 +870,7 @@ private fun ReaderScreenContent(
                                                 Modifier.clickable(
                                                     interactionSource = interactionSource,
                                                     indication = null,
+                                                    role = Role.Button,
                                                     onClick = onTap,
                                                 )
                                             },
@@ -861,6 +893,26 @@ private fun ReaderScreenContent(
                     } else {
                         Modifier.fillMaxSize()
                     }
+                    val frontPage = currentSpreads
+                        .getOrNull(curlEffect?.fromIndex ?: pagerState.currentPage)
+                        ?.let { spreadLayout(it, direction) }
+                        ?.firstOrNull()
+                    val frontCrop = if (autoCrop) {
+                        frontPage?.let { renderer.cropMargins(it) }
+                    } else {
+                        null
+                    }
+                    // The revealed page arrives on toIndex; it can have different margins,
+                    // so crop it with its own rect or the last frame jumps to the settled page.
+                    val backPage = curlEffect?.toIndex
+                        ?.let { currentSpreads.getOrNull(it) }
+                        ?.let { spreadLayout(it, direction) }
+                        ?.firstOrNull()
+                    val backCrop = if (autoCrop) {
+                        backPage?.let { renderer.cropMargins(it) }
+                    } else {
+                        null
+                    }
                     val displayMode = LocalDisplayMode.current
                     val curlFilter = remember(displayMode) { displayMode.colorFilter() }
                     val curlLook = remember(displayMode) { displayMode.curlLook() }
@@ -870,6 +922,12 @@ private fun ReaderScreenContent(
                         progress = { curlProgress },
                         side = curlSideState,
                         modifier = overlayModifier.testTag("reader_page_curl"),
+                        contentCrop = frontCrop?.takeIf { !it.isNone }?.let {
+                            Rect(it.left, it.top, 1f - it.right, 1f - it.bottom)
+                        },
+                        backContentCrop = backCrop?.takeIf { !it.isNone }?.let {
+                            Rect(it.left, it.top, 1f - it.right, 1f - it.bottom)
+                        },
                         colorFilter = curlFilter,
                         flapColor = curlLook.flapColor,
                         shadowColor = curlLook.shadowColor,
@@ -921,11 +979,7 @@ private fun ReaderScreenContent(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { widthSheetVisible = false },
-                    ),
+                    .pointerInput(Unit) { detectTapGestures { widthSheetVisible = false } },
             )
             TapZoneWidthSheet(
                 percent = sidePercent,
@@ -953,17 +1007,36 @@ private fun ReaderScreenContent(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { brightnessSheetVisible = false },
-                    ),
+                    .pointerInput(Unit) { detectTapGestures { brightnessSheetVisible = false } },
             )
             ReaderBrightnessSheet(
                 followSystem = followSystemBrightness,
                 percent = brightnessPercent,
                 onFollowSystemChange = onFollowSystemBrightnessChange,
+                onPercentPreview = { brightnessPreview = it },
                 onPercentChange = onBrightnessChange,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        } else if (cropSheetVisible) {
+            BackHandler { cropSheetVisible = false }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { cropSheetVisible = false },
+                    ),
+            )
+            val previewSpread = currentSpreads.getOrNull(pagerState.currentPage).orEmpty()
+            val previewPages = spreadLayout(previewSpread, direction)
+            ReaderCropSheet(
+                renderer = renderer,
+                pages = previewPages,
+                twoPage = previewPages.size >= 2,
+                enabled = autoCrop,
+                onEnabledChange = onAutoCropChange,
+                onDone = { cropSheetVisible = false },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         } else if (bookmarkSheetVisible && bookmarks != null) {
@@ -1033,9 +1106,15 @@ private fun ReaderScreenContent(
                         widthSheetVisible = true
                     },
                     onOpenBrightness = { brightnessSheetVisible = true },
+                    onOpenAutoCrop = {
+                        zoom = ZoomState()
+                        cropSheetVisible = true
+                    },
                     onOpenBookmarks = bookmarks?.let { { bookmarkSheetVisible = true } },
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
+                    autoCrop = autoCrop,
+                    onAutoCropChange = onAutoCropChange,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .then(
@@ -1085,11 +1164,7 @@ private fun ReaderScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(ReaderScrim)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { goToPageVisible = false },
-                    ),
+                    .pointerInput(Unit) { detectTapGestures { goToPageVisible = false } },
                 contentAlignment = Alignment.Center,
             ) {
                 GoToPageDialog(
@@ -1110,10 +1185,24 @@ private fun SpreadPageLayout(
     direction: ReadingDirection,
     window: IntSize,
     tagged: Boolean,
+    autoCrop: Boolean,
 ) {
     val book = posture as? FoldPosture.Book
     if (book != null) {
         val halves = bookHalves(window, book.foldBounds)
+        val metrics = remember(layout, autoCrop) { mutableStateMapOf<Int, SpreadPageMetrics>() }
+        val slotWidths = remember(layout, halves, autoCrop) {
+            if (layout.size >= 2) listOf(halves.first.width, halves.second.width) else listOf(halves.first.width)
+        }
+        val sharedScale by remember(layout, halves, autoCrop) {
+            derivedStateOf {
+                spreadCropScale(
+                    metrics = layout.map { metrics[it] },
+                    slotWidths = slotWidths,
+                    slotHeight = window.height,
+                )
+            }
+        }
         Box(Modifier.fillMaxSize().background(ReaderBackground)) {
             Box(
                 Modifier
@@ -1129,6 +1218,11 @@ private fun SpreadPageLayout(
                     half = halves.first,
                     alignment = Alignment.CenterEnd,
                     tagged = tagged,
+                    spreadPages = layout,
+                    spreadIndex = 0,
+                    autoCrop = autoCrop,
+                    sharedScale = sharedScale,
+                    onMetrics = { if (metrics[layout[0]] != it) metrics[layout[0]] = it },
                 )
                 BookHalfPage(
                     renderer = renderer,
@@ -1136,6 +1230,11 @@ private fun SpreadPageLayout(
                     half = halves.second,
                     alignment = Alignment.CenterStart,
                     tagged = tagged,
+                    spreadPages = layout,
+                    spreadIndex = 1,
+                    autoCrop = autoCrop,
+                    sharedScale = sharedScale,
+                    onMetrics = { if (metrics[layout[1]] != it) metrics[layout[1]] = it },
                 )
             } else {
                 val half = bookSingleHalf(halves, direction)
@@ -1145,6 +1244,7 @@ private fun SpreadPageLayout(
                     half = half,
                     alignment = Alignment.Center,
                     tagged = tagged,
+                    autoCrop = autoCrop,
                 )
             }
         }
@@ -1152,6 +1252,16 @@ private fun SpreadPageLayout(
     }
     val pageSlotWidth = (window.width / layout.size.coerceAtLeast(1)).coerceAtLeast(1)
     val pageSlotHeight = window.height.coerceAtLeast(1)
+    val metrics = remember(layout, autoCrop) { mutableStateMapOf<Int, SpreadPageMetrics>() }
+    val sharedScale by remember(layout, autoCrop, pageSlotWidth, pageSlotHeight) {
+        derivedStateOf {
+            spreadCropScale(
+                metrics = layout.map { metrics[it] },
+                slotWidths = List(layout.size) { pageSlotWidth },
+                slotHeight = pageSlotHeight,
+            )
+        }
+    }
     Row(
         modifier = Modifier.fillMaxSize(),
         verticalAlignment = Alignment.CenterVertically,
@@ -1172,6 +1282,11 @@ private fun SpreadPageLayout(
                     .fillMaxHeight()
                     .then(if (tagged) Modifier.testTag("reader_page_$page") else Modifier),
                 alignment = pageAlignment,
+                spreadPages = layout,
+                spreadIndex = index,
+                autoCrop = autoCrop,
+                sharedScale = sharedScale,
+                onMetrics = { if (metrics[page] != it) metrics[page] = it },
             )
         }
     }
@@ -1184,6 +1299,11 @@ private fun BookHalfPage(
     half: IntRect,
     alignment: Alignment,
     tagged: Boolean,
+    spreadPages: List<Int> = listOf(page),
+    spreadIndex: Int = 0,
+    autoCrop: Boolean = false,
+    sharedScale: Float? = null,
+    onMetrics: ((SpreadPageMetrics) -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     if (half.width <= 0 || half.height <= 0) return
@@ -1201,6 +1321,11 @@ private fun BookHalfPage(
             maxHeight = half.height,
             modifier = Modifier.fillMaxSize(),
             alignment = alignment,
+            spreadPages = spreadPages,
+            spreadIndex = spreadIndex,
+            autoCrop = autoCrop,
+            sharedScale = sharedScale,
+            onMetrics = onMetrics,
         )
     }
 }
@@ -1297,11 +1422,7 @@ private fun ReaderOverlayTop(
             .fillMaxWidth()
             .testTag("reader_overlay_top")
             .background(ReaderOverlay)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {},
-            )
+            .pointerInput(Unit) { detectTapGestures { } }
             .safeDrawingTopBarPadding()
             .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1418,21 +1539,20 @@ private fun ReaderOverlayBottom(
     showTapZoneEntry: Boolean,
     onAdjustTapZones: () -> Unit,
     onOpenBrightness: () -> Unit,
+    onOpenAutoCrop: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenBookmarks: (() -> Unit)? = null,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
+    autoCrop: Boolean = false,
+    onAutoCropChange: (Boolean) -> Unit = {},
 ) {
     Column(
         modifier
             .fillMaxWidth()
             .testTag("reader_overlay_bottom")
             .background(ReaderOverlay)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {},
-            )
+            .pointerInput(Unit) { detectTapGestures { } }
             .safeDrawingBottomBarPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -1490,6 +1610,22 @@ private fun ReaderOverlayBottom(
                         label = stringResource(R.string.reader_brightness),
                         testTag = "reader_brightness",
                         onClick = onOpenBrightness,
+                    ),
+                )
+                add(
+                    ReaderToolItem.Action(
+                        tool = ReaderTool.AutoCrop,
+                        iconRes = if (autoCrop) R.drawable.ic_crop_on else R.drawable.ic_crop,
+                        label = stringResource(R.string.reader_auto_crop_label),
+                        testTag = "reader_auto_crop",
+                        onClick = onOpenAutoCrop,
+                        stateDescription = stringResource(
+                            if (autoCrop) {
+                                R.string.reader_crop_state_on
+                            } else {
+                                R.string.reader_crop_state_off
+                            },
+                        ),
                     ),
                 )
                 if (onOpenBookmarks != null) {
@@ -1556,30 +1692,157 @@ internal fun PageBitmap(
     maxHeight: Int,
     modifier: Modifier = Modifier,
     alignment: Alignment = Alignment.Center,
+    spreadPages: List<Int> = listOf(page),
+    spreadIndex: Int = 0,
+    autoCrop: Boolean = false,
+    sharedScale: Float? = null,
+    onMetrics: ((SpreadPageMetrics) -> Unit)? = null,
 ) {
-    var bitmap by remember(renderer, page, maxWidth, maxHeight) {
+    var bitmap by remember(renderer, page, maxWidth, maxHeight, autoCrop) {
         mutableStateOf(renderer.cached(page, maxWidth, maxHeight))
     }
-    LaunchedEffect(renderer, page, maxWidth, maxHeight) {
+    LaunchedEffect(renderer, page, maxWidth, maxHeight, autoCrop) {
         if (bitmap?.isRecycled != false) {
             bitmap = renderer.render(page, maxWidth, maxHeight)
+        }
+    }
+    // Per-page crop state: a new page's detection only updates that page (and its spread),
+    // never every visible PageBitmap like a global revision key did.
+    val crop by produceState<CropMargins?>(
+        initialValue = null,
+        renderer,
+        page,
+        spreadPages,
+        spreadIndex,
+        autoCrop,
+    ) {
+        if (!autoCrop) {
+            value = null
+            return@produceState
+        }
+        value = alignedCropFor(renderer, page, spreadPages, spreadIndex)
+        renderer.cropUpdates.collect {
+            val next = alignedCropFor(renderer, page, spreadPages, spreadIndex)
+            if (next != null && next != value) value = next
         }
     }
     val displayMode = LocalDisplayMode.current
     val colorFilter = remember(displayMode) { displayMode.colorFilter() }
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val bmp = bitmap
+        val pageCrop = crop
         if (bmp != null && !bmp.isRecycled) {
             val imageBitmap = remember(bmp) { bmp.asImageBitmap() }
-            Image(
-                bitmap = imageBitmap,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                alignment = alignment,
-                colorFilter = colorFilter,
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (pageCrop != null && !pageCrop.isNone) {
+                SideEffect {
+                    onMetrics?.invoke(SpreadPageMetrics(bmp.width, bmp.height, pageCrop))
+                }
+                CroppedPage(
+                    image = imageBitmap,
+                    width = bmp.width,
+                    height = bmp.height,
+                    crop = pageCrop,
+                    alignment = alignment,
+                    scale = sharedScale,
+                    colorFilter = colorFilter,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Image(
+                    bitmap = imageBitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    alignment = alignment,
+                    colorFilter = colorFilter,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
+    }
+}
+
+private fun alignedCropFor(
+    renderer: PageBitmaps,
+    page: Int,
+    spreadPages: List<Int>,
+    spreadIndex: Int,
+): CropMargins? {
+    if (spreadPages.size < 2) return renderer.cropMargins(page)
+    val left = renderer.cropMargins(spreadPages[0]) ?: return null
+    val right = renderer.cropMargins(spreadPages[1]) ?: return null
+    val aligned = alignedTwoPageMargins(left, right)
+    return if (spreadIndex == 0) aligned.first else aligned.second
+}
+
+internal data class SpreadPageMetrics(
+    val width: Int,
+    val height: Int,
+    val crop: CropMargins,
+) {
+    fun croppedWidth(): Int = (width - (crop.left + crop.right) * width).roundToInt().coerceAtLeast(1)
+
+    fun croppedHeight(): Int = (height - (crop.top + crop.bottom) * height).roundToInt().coerceAtLeast(1)
+}
+
+/**
+ * One scale shared by both halves of a spread, so two pages with different outer margins end up
+ * the same height. Null until both pages are measured (or for a single page).
+ */
+internal fun spreadCropScale(
+    metrics: List<SpreadPageMetrics?>,
+    slotWidths: List<Int>,
+    slotHeight: Int,
+): Float? {
+    if (metrics.size < 2 || metrics.any { it == null } || slotHeight <= 0) return null
+    var scale = Float.MAX_VALUE
+    metrics.forEachIndexed { index, page ->
+        val measured = page ?: return null
+        val slotWidth = slotWidths.getOrNull(index) ?: return null
+        if (slotWidth <= 0) return null
+        val srcWidth = measured.croppedWidth().toFloat()
+        val srcHeight = measured.croppedHeight().toFloat()
+        scale = min(scale, min(slotWidth / srcWidth, slotHeight / srcHeight))
+    }
+    return scale.takeIf { it.isFinite() && it > 0f }
+}
+
+@Composable
+internal fun CroppedPage(
+    image: ImageBitmap,
+    width: Int,
+    height: Int,
+    crop: CropMargins,
+    alignment: Alignment,
+    scale: Float? = null,
+    colorFilter: ColorFilter? = null,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier) {
+        val left = (crop.left * width).roundToInt().coerceIn(0, width - 1)
+        val top = (crop.top * height).roundToInt().coerceIn(0, height - 1)
+        val right = (crop.right * width).roundToInt().coerceIn(0, width - 1 - left)
+        val bottom = (crop.bottom * height).roundToInt().coerceIn(0, height - 1 - top)
+        val sourceWidth = (width - left - right).coerceAtLeast(1)
+        val sourceHeight = (height - top - bottom).coerceAtLeast(1)
+        val fitScale = min(size.width / sourceWidth, size.height / sourceHeight)
+        // A spread passes one shared scale; a single page fits its own slot.
+        val drawScale = (scale ?: fitScale).coerceAtMost(fitScale)
+        val drawWidth = (sourceWidth * drawScale).roundToInt().coerceAtLeast(1)
+        val drawHeight = (sourceHeight * drawScale).roundToInt().coerceAtLeast(1)
+        val offsetX = when {
+            alignment == Alignment.CenterStart -> 0
+            alignment == Alignment.CenterEnd -> size.width.roundToInt() - drawWidth
+            else -> (size.width.roundToInt() - drawWidth) / 2
+        }
+        val offsetY = (size.height.roundToInt() - drawHeight) / 2
+        drawImage(
+            image = image,
+            srcOffset = IntOffset(left, top),
+            srcSize = IntSize(sourceWidth, sourceHeight),
+            dstOffset = IntOffset(offsetX, offsetY),
+            dstSize = IntSize(drawWidth, drawHeight),
+            colorFilter = colorFilter,
+        )
     }
 }
 
