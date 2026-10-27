@@ -12,6 +12,7 @@ class NumericTextTest {
         assertEquals(listOf(0..4), numericRuns("3 / 7"))
         assertEquals(listOf(0..2), numericRuns("42%"))
         assertEquals(listOf(0..3), numericRuns("2.0×"))
+        assertEquals(listOf(0..8), numericRuns("12–13/180"))
         assertEquals(listOf(0..4), numericRuns("1.2.3"))
         assertEquals(emptyList<IntRange>(), numericRuns("책 권"))
     }

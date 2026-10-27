@@ -18,7 +18,7 @@ PRETENDARD_VERSION = "1.3.9"
 JETBRAINS_VERSION = "2.304"
 PUNCT = "·…‘’“”₩→"
 LATIN = "".join(chr(c) for c in range(0x20, 0x7F))
-MONO_CHARS = "0123456789.,%/×:- "
+MONO_CHARS = "0123456789.,%/×:-– "
 
 
 def ksx1001_hangul() -> str:
