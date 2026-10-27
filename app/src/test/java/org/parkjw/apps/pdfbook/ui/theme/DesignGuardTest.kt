@@ -362,6 +362,59 @@ class DesignGuardTest {
                 """.trimIndent(),
             ).isNotEmpty(),
         )
+        assertTrue(
+            "self-check: a Rect built in the draw phase must be caught",
+            findPerFrameAllocations(
+                """
+                fun draw() {
+                    val sheet = Rect(0f, 0f, size.width, size.height)
+                }
+                """.trimIndent(),
+            ).isNotEmpty(),
+        )
+        assertTrue(
+            "self-check: a RectF built in the draw phase must be caught",
+            findPerFrameAllocations(
+                """
+                fun draw() {
+                    val fit = RectF()
+                }
+                """.trimIndent(),
+            ).isNotEmpty(),
+        )
+        assertTrue(
+            "self-check: a fully qualified android Rect must be caught",
+            findPerFrameAllocations(
+                """
+                fun draw() {
+                    val rect = android.graphics.Rect()
+                }
+                """.trimIndent(),
+            ).isNotEmpty(),
+        )
+        assertTrue(
+            "self-check: a Matrix built in the draw phase must be caught",
+            findPerFrameAllocations(
+                """
+                fun draw() {
+                    val matrix = Matrix()
+                }
+                """.trimIndent(),
+            ).isNotEmpty(),
+        )
+        assertFalse(
+            "self-check: remembered rects and matrices are fine",
+            findPerFrameAllocations(
+                """
+                val rect = remember { Rect() }
+                val fit = remember { RectF() }
+                val matrix = remember { Matrix() }
+                fun draw() {
+                    fit.set(0f, 0f, 1f, 1f)
+                }
+                """.trimIndent(),
+            ).isNotEmpty(),
+        )
     }
 
     private fun projectRoot(): File {
@@ -424,7 +477,11 @@ class DesignGuardTest {
         private val rememberBlock =
             Regex("""remember\s*(?:\([^)]*\))?\s*\{""")
         private val perFrameAllocation =
-            Regex("""(?<![A-Za-z0-9_])(?:floatArrayOf|arrayOf|listOf|mutableListOf)\s*\(|\bPath\s*\(\s*\)""")
+            Regex(
+                """(?<![A-Za-z0-9_])(?:floatArrayOf|arrayOf|listOf|mutableListOf)\s*\(""" +
+                    """|\b(?:Path|Matrix|Paint|RectF|Rect)\s*\(""" +
+                    """|\bandroid\.graphics\.Rect\s*\(""",
+            )
 
         fun findPerFrameAllocations(source: String): List<String> {
             val lines = blankRememberBlocks(source)
