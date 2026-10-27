@@ -100,16 +100,15 @@ class TwoPageCurlFlatFoldTest {
     }
 
     @Test
-    fun pagesDrawnAtDifferentSizesFallBackToSlide() {
-        // Documented fallback (V071-TWOPAGE.md §4): a page 4 px shorter cannot land exactly on the
-        // settled target page, so the turn slides instead of jumping at the end.
+    fun pagesDrawnAtDifferentSizesStillCurl() {
+        // A page 4 px shorter is drawn at its own rect and the revealed page at its own, so
+        // both the first and the last frame match the settled spreads: no jump, no Slide.
         val shorter = bitmap(PAGE_WIDTH, PAGE_HEIGHT - 4)
         val built = build(
             Case("mixed sizes", listOf(2, 3), listOf(4, 5), ReadingDirection.LTR, CurlSide.Right),
             extra = mapOf(3 to shorter),
         )
-        assertNull(built.curl)
-        assertEquals(TwoPageCurlFallback.SheetLands, built.fallback)
+        assertTrue("mixed sizes must curl, was ${built.fallback}", built.curl != null)
     }
 
     @Test

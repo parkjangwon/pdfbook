@@ -1286,8 +1286,9 @@ internal data class TwoPageCurl(
  * page of [targetSpread], and the flap's back face is the opposite-side page, drawn at 100%.
  * The current spread's other page is returned as [TwoPageCurl.still] so the overlay can keep
  * it on screen while the pager is already on the target spread.
- * Null (Slide fallback) when the bitmap cache missed or when the sheet and the pages it
- * lands on differ by more than 1px (오대리 rule), so the last frame cannot jump.
+ * Each page keeps its own measured rect, so spreads whose pages differ by a few points (a real
+ * PDF) curl without the last frame jumping. Null (Slide fallback) when the bitmap cache missed
+ * or when the two slots do not meet at the spine (a hinge gap).
  */
 internal fun buildTwoPageCurl(
     renderer: PageBitmaps,
@@ -1336,10 +1337,21 @@ internal fun buildTwoPageCurl(
     val sheet = rectCurrent[turning]
     val landing = rectTarget[turning]
     val backFace = rectTarget[1 - turning]
-    // The current spread's other page must sit exactly where the back face lands, or its
-    // edges would show around the flap at progress 1.
+    // The current spread's other page stays on screen where it already was while the pager is
+    // on the target spread.
     val still = rectCurrent[1 - turning]
-    if (!sheetLandsOnSpread(sheet, landing, backFace, side, still)) {
+    val spineX = if (side == CurlSide.Right) sheet.left else sheet.right
+    if (!twoPageCurlMeetsAtSpine(
+            sheet = sheet,
+            landing = landing,
+            backFace = backFace,
+            side = side,
+            still = still,
+            spineX = spineX,
+            canvasWidth = canvas.size.width.toFloat(),
+            canvasHeight = canvas.size.height.toFloat(),
+        )
+    ) {
         return TwoPageCurlBuild(null, TwoPageCurlFallback.SheetLands)
     }
     return TwoPageCurlBuild(
@@ -1352,7 +1364,9 @@ internal fun buildTwoPageCurl(
                 sheet = sheet,
                 spread = sheet.expandedTo(backFace),
                 backFace = backFace,
-                spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+                spineX = spineX,
+                landing = landing,
+                still = still,
             ),
             frontCrop = cropsCurrent[turning].toContentRect(),
             backCrop = cropsTarget[turning].toContentRect(),

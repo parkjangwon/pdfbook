@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
@@ -40,11 +41,14 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
 /**
  * Canvas geometry of a two-page curl. All rects are canvas pixels.
  *
- * [sheet] is the drawn rect of the turning page, [spread] is the two facing pages, and
- * [backFace] is the opposite page's drawn rect (where the flap's back face lands). [spineX]
- * is the canvas x where the flap crosses the hinge. ReaderScreen builds these from the same
- * crop and spread scale as SpreadPageLayout and falls back to Slide when they differ by more
- * than 1px; the overlay itself derives the back-face rect from the sheet (R∘Mspine).
+ * [sheet] is the drawn rect of the turning page, [landing] the rect of the same-side page it
+ * reveals, [backFace] the opposite page's drawn rect (where the flap's back face lands) and
+ * [still] the current spread's opposite page, kept on screen while the pager is on the target
+ * spread. [spread] is the two facing page rects. [spineX] is the canvas x where the flap crosses
+ * the hinge. ReaderScreen measures each rect with the same fit as SpreadPageLayout, so pages of
+ * a real book that differ by a few points are drawn at their own rects and both the first and
+ * the last frame match the settled spreads; it falls back to Slide when the two slots do not
+ * meet at the spine (a hinge gap).
  *
  * A single-page curl passes null and keeps the v0.7.0 geometry (the whole canvas is the sheet).
  */
@@ -53,6 +57,8 @@ data class CurlSheetLayout(
     val spread: Rect,
     val backFace: Rect,
     val spineX: Float,
+    val landing: Rect = sheet,
+    val still: Rect = backFace,
 )
 
 /**
@@ -80,14 +86,17 @@ data class CurlSheetLayout(
  * unchanged.
  *
  * [layout] switches to the two-page curl: the front page is drawn into [CurlSheetLayout.sheet],
- * the revealed page under it, and the flap's back face into its still page across the spine.
+ * the revealed page under it into [CurlSheetLayout.landing], and the flap's back face into its
+ * still page across the spine.
  * Null keeps the single-sheet output byte-identical.
  *
  * [still] is the current spread's other page, the one that must not move during the turn.
  * With [layout] set the pager has already moved to the target spread, so the overlay first
- * paints its canvas with [ReaderBackground] and then draws [still] into
- * [CurlSheetLayout.backFace]; the flap's back face lands exactly there at progress 1 and
- * covers it, so the first frame equals the current spread and the last frame the target.
+ * paints its canvas with [ReaderBackground], then draws [still] into [CurlSheetLayout.still]
+ * and the revealed page into [CurlSheetLayout.landing]. Each page keeps its own measured rect,
+ * so the first frame equals the current spread and the last frame the target spread even when
+ * the book's pages differ in size by a few points. The flap's back face is drawn into
+ * [CurlSheetLayout.backFace] with the reflection that is the identity at progress 1.
  */
 @Composable
 fun PageCurlOverlay(
@@ -146,6 +155,12 @@ fun PageCurlOverlay(
     val stillDest = remember(layout) {
         layout?.let { RectF(it.backFace.left, it.backFace.top, it.backFace.right, it.backFace.bottom) }
     }
+    val stillPageDest = remember(layout) {
+        layout?.let { RectF(it.still.left, it.still.top, it.still.right, it.still.bottom) }
+    }
+    val revealDest = remember(layout) {
+        layout?.let { RectF(it.landing.left, it.landing.top, it.landing.right, it.landing.bottom) }
+    }
     val shadowBrush = remember(shadowColor, shadowAlpha, shadowMidAlpha) {
         Brush.linearGradient(
             0f to shadowColor.copy(alpha = shadowAlpha),
@@ -193,19 +208,40 @@ fun PageCurlOverlay(
             drawRect(ReaderBackground)
             val stillBitmap = stillImage
             val stillCropPx = stillCrop
-            val stillRect = stillDest
+            val stillRect = stillPageDest
             if (stillBitmap != null && stillCropPx != null && stillRect != null) {
                 drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
             }
         }
 
-        drawImageInto(backImage, backCrop, sheetRect, colorFilter, drawFit)
+        updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null)
+        if (twoPage != null) {
+            // The revealed page keeps its own measured rect, which can differ by a few pixels
+            // from the turning page. Clip it to the part the fold has uncovered so it never
+            // peeks out beside the turning page. Equal-size pages draw exactly as before.
+            val reveal = revealDest ?: sheetRect
+            val sameRect = abs(reveal.left - sheetRect.left) <= 1f &&
+                abs(reveal.top - sheetRect.top) <= 1f &&
+                abs(reveal.right - sheetRect.right) <= 1f &&
+                abs(reveal.bottom - sheetRect.bottom) <= 1f
+            if (p > 0.001f && shape.revealedCount >= 3) {
+                if (sameRect) {
+                    drawImageInto(backImage, backCrop, reveal, colorFilter, drawFit)
+                } else {
+                    revealedPath.setPolygon(shape.revealed, shape.revealedCount, left, top)
+                    clipPath(revealedPath) {
+                        drawImageInto(backImage, backCrop, reveal, colorFilter, drawFit)
+                    }
+                }
+            }
+        } else {
+            drawImageInto(backImage, backCrop, sheetRect, colorFilter, drawFit)
+        }
         if (p <= 0.001f) {
             drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
             return@Canvas
         }
 
-        updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null)
         if (!shape.foldValid) {
             drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
             return@Canvas

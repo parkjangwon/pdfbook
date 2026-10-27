@@ -211,37 +211,44 @@ fun Rect.expandedTo(other: Rect): Rect = Rect(
     maxOf(bottom, other.bottom),
 )
 
-/** The same drawn rect within [tolerance] px on every edge. */
-fun rectsMatch(a: Rect, b: Rect, tolerance: Float = 1f): Boolean =
-    abs(a.left - b.left) <= tolerance &&
-        abs(a.top - b.top) <= tolerance &&
-        abs(a.right - b.right) <= tolerance &&
-        abs(a.bottom - b.bottom) <= tolerance
-
 /**
- * 오대리 rule: the turning sheet must land exactly on the opposite page, so the sheet and
- * the pages it turns onto have to agree within 1px. Otherwise the end frame jumps and the
- * turn falls back to Slide. [still] is the current spread's other page: it is painted under
- * the turn, so it must occupy the same rect as [backFace].
+ * Two-page curl guard. The overlay draws the turning page, the revealed page, the still page
+ * and the flap's back face each at its own measured rect, so the first and last frames equal
+ * the two spreads pixel for pixel even when a book's pages differ by a few points (a real PDF
+ * rarely has identical page sizes). What must hold is that the two slots meet at the spine:
+ * each rect's spine-side edge lies on [spineX] and every rect stays inside the canvas. A hinge
+ * gap (Book posture) fails here, because its two spine edges are apart, and the turn slides.
  */
-fun sheetLandsOnSpread(
+fun twoPageCurlMeetsAtSpine(
     sheet: Rect,
-    targetSheet: Rect,
+    landing: Rect,
     backFace: Rect,
     side: CurlSide,
     still: Rect,
+    spineX: Float,
+    canvasWidth: Float,
+    canvasHeight: Float,
     tolerance: Float = 1f,
 ): Boolean {
-    if (!rectsMatch(sheet, targetSheet, tolerance)) return false
-    if (!rectsMatch(still, backFace, tolerance)) return false
-    if (abs(sheet.width - backFace.width) > tolerance) return false
-    if (abs(sheet.height - backFace.height) > tolerance) return false
-    if (abs(sheet.top - backFace.top) > tolerance) return false
-    val spine = if (side == CurlSide.Right) sheet.left else sheet.right
+    val rects = listOf(sheet, landing, backFace, still)
+    if (rects.any { it.width <= 0f || it.height <= 0f }) return false
+    if (rects.any {
+            it.left < -tolerance ||
+                it.top < -tolerance ||
+                it.right > canvasWidth + tolerance ||
+                it.bottom > canvasHeight + tolerance
+        }
+    ) {
+        return false
+    }
+    fun edgeAt(rect: Rect, leftEdge: Boolean): Boolean =
+        abs((if (leftEdge) rect.left else rect.right) - spineX) <= tolerance
     return if (side == CurlSide.Right) {
-        abs(backFace.right - spine) <= tolerance
+        edgeAt(sheet, leftEdge = true) && edgeAt(landing, leftEdge = true) &&
+            edgeAt(backFace, leftEdge = false) && edgeAt(still, leftEdge = false)
     } else {
-        abs(backFace.left - spine) <= tolerance
+        edgeAt(sheet, leftEdge = false) && edgeAt(landing, leftEdge = false) &&
+            edgeAt(backFace, leftEdge = true) && edgeAt(still, leftEdge = true)
     }
 }
 
