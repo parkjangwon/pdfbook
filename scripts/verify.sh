@@ -321,6 +321,37 @@ show_overlay() {
   expect_id reader_overlay_bottom
 }
 
+# Scrolls the current screen until a node with this text is visible, then stops.
+scroll_to_text() {
+  local pattern="$1" tries="${2:-6}"
+  for _ in $(seq 1 "$tries"); do
+    dump_ui
+    if find_node text "$pattern" >/dev/null; then
+      return 0
+    fi
+    "$ADB" shell input swipe 540 1600 540 900 300
+    sleep 1
+  done
+  return 1
+}
+
+# Reading settings from a deterministic start: restart, then library -> settings -> reading.
+reading_settings() {
+  "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
+  "$ADB" shell am start -W -n "$ACTIVITY" >/dev/null 2>&1
+  sleep 2
+  open_library
+  tap_id library_settings
+  expect_id settings_screen
+  tap_id settings_reading_entry
+  expect_id settings_reading_screen
+}
+
+leave_settings() {
+  "$ADB" shell input keyevent KEYCODE_BACK
+  "$ADB" shell input keyevent KEYCODE_BACK
+}
+
 slider_tap() {
   local fraction="$1" found
   found="$(wait_node resource-id reader_slider)" || die "Reader slider not found."
@@ -483,37 +514,132 @@ case "$FEATURE" in
     shot display-mode-invert
     ;;
   page-fit)
-    # Page fit targets the last read book, so read one first.
+    page_fit='쪽 맞춤|Page fit'
+    fit_width='너비 맞춤|Fit width'
+    fit_height='높이 맞춤|Fit height'
+    two_page='두쪽 보기|Two-page view'
+
+    # 1. No book read yet: the row is disabled, light and dark.
+    reading_settings
+    scroll_to_text "$page_fit" || die "Page fit row not found (last dump: $OUT/ui.xml)"
+    shot page-fit-row-disabled
+    "$ADB" shell cmd uimode night yes
+    sleep 3
+    reading_settings
+    scroll_to_text "$page_fit" || true
+    shot page-fit-row-disabled-dark
+    "$ADB" shell cmd uimode night no
+    sleep 3
+
+    # 2. Read a book so the row targets it; one page and fit width, light dialog (RTL).
+    reading_settings
+    leave_settings
     open_book
     "$ADB" shell input keyevent KEYCODE_BACK
-    open_library
-    tap_id library_settings
-    expect_id settings_screen
-    tap_id settings_reading_entry
-    expect_id settings_reading_screen
-    page_fit='쪽 맞춤|Page fit'
-    for _ in 1 2 3; do
-      wait_node text "$page_fit" 2 >/dev/null && break
-      "$ADB" shell input swipe 540 1600 540 900 300
-    done
-    shot page-fit-row
+    reading_settings
+    tap_node text "$two_page"
+    tap_node text '항상 한쪽|Always single'
+    scroll_to_text "$page_fit" || die "Page fit row not found (last dump: $OUT/ui.xml)"
     tap_node text "$page_fit"
-    wait_node text '너비 맞춤|Fit width' 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
+    wait_node text "$fit_width" 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
     shot page-fit-dialog
-    tap_node text '너비 맞춤|Fit width'
+    tap_node text "$fit_width"
     sleep 1
     shot page-fit-row-width
+
+    # 3. Dark dialog (ui mode recreates the activity, so start the scene again).
+    "$ADB" shell cmd uimode night yes
+    sleep 3
+    reading_settings
+    scroll_to_text "$page_fit" || true
+    tap_node text "$page_fit"
+    wait_node text "$fit_height" 20 >/dev/null || die "Page fit dialog did not open in dark (last dump: $OUT/ui.xml)"
+    shot page-fit-dialog-dark
     "$ADB" shell input keyevent KEYCODE_BACK
-    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell cmd uimode night no
+    sleep 3
+
+    # 4. Width fit, landscape single page: start, one screen down, end, next, previous.
+    leave_settings
     open_book
-    shot page-fit-reader-width
-    tap_id reader_zone_Next
-    shot page-fit-reader-width-scrolled
-    # Landscape is two-page (auto) on this device, so the fit must fall back to Fit screen.
     "$ADB" shell settings put system accelerometer_rotation 0
     "$ADB" shell settings put system user_rotation 1
-    sleep 3
+    sleep 4
+    shot page-fit-width-start
+    tap_id reader_zone_Next
+    shot page-fit-width-one-screen-down
+    tap_id reader_zone_Next
+    tap_id reader_zone_Next
+    shot page-fit-width-end
+    tap_id reader_zone_Next
+    shot page-fit-width-next-page-start
+    tap_id reader_zone_Previous
+    shot page-fit-width-previous-page-end
+
+    # 5. Auto-crop plus width fit: the cropped page must still fill the width.
+    show_overlay
+    tap_id reader_auto_crop
+    expect_id reader_crop_sheet
+    tap_id reader_crop_switch
+    tap_id reader_crop_done
+    show_overlay
+    tap_id reader_back
+    open_book
+    sleep 1
+    shot page-fit-crop-width-start
+
+    # 6. Two-page view in landscape falls back to Fit screen.
+    reading_settings
+    tap_node text "$two_page"
+    tap_node text '항상 두쪽|Always double'
+    leave_settings
+    open_book
+    sleep 1
     shot page-fit-two-page-fallback
+
+    # 7. Height fit portrait RTL starts at the right edge.
+    reading_settings
+    tap_node text "$two_page"
+    tap_node text '자동|Auto'
+    "$ADB" shell settings put system user_rotation 0
+    sleep 3
+    reading_settings
+    scroll_to_text "$page_fit" || true
+    tap_node text "$page_fit"
+    wait_node text "$fit_height" 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
+    tap_node text "$fit_height"
+    leave_settings
+    open_book
+    sleep 1
+    shot page-fit-height-rtl-start
+
+    # 8. LTR book: height fit starts at the left edge, and the dialog mirrors.
+    show_overlay
+    tap_id reader_direction_toggle
+    tap_id reader_back
+    open_book
+    sleep 1
+    shot page-fit-height-ltr-start
+    "$ADB" shell input keyevent KEYCODE_BACK
+    reading_settings
+    scroll_to_text "$page_fit" || true
+    tap_node text "$page_fit"
+    wait_node text "$fit_height" 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
+    shot page-fit-dialog-ltr
+    "$ADB" shell input keyevent KEYCODE_BACK
+
+    # 9. 320dp width at font scale 2: nothing in the dialog is clipped.
+    "$ADB" shell settings put system font_scale 2.0
+    "$ADB" shell wm density 540
+    sleep 4
+    reading_settings
+    scroll_to_text "$page_fit" 10 || true
+    tap_node text "$page_fit"
+    wait_node text "$fit_height" 30 >/dev/null || die "Page fit dialog did not open at 320dp/font 2 (last dump: $OUT/ui.xml)"
+    shot page-fit-dialog-320dp-font2
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell wm density reset
+    "$ADB" shell settings put system font_scale 1.0
     "$ADB" shell settings put system user_rotation 0
     "$ADB" shell settings put system accelerometer_rotation 1
     sleep 2
