@@ -892,6 +892,17 @@ private fun ReaderScreenContent(
                     } else {
                         null
                     }
+                    // The revealed page arrives on toIndex; it can have different margins,
+                    // so crop it with its own rect or the last frame jumps to the settled page.
+                    val backPage = curlEffect?.toIndex
+                        ?.let { currentSpreads.getOrNull(it) }
+                        ?.let { spreadLayout(it, direction) }
+                        ?.firstOrNull()
+                    val backCrop = if (autoCrop) {
+                        backPage?.let { renderer.cropMargins(it) }
+                    } else {
+                        null
+                    }
                     val displayMode = LocalDisplayMode.current
                     val curlFilter = remember(displayMode) { displayMode.colorFilter() }
                     val curlLook = remember(displayMode) { displayMode.curlLook() }
@@ -902,6 +913,9 @@ private fun ReaderScreenContent(
                         side = curlSideState,
                         modifier = overlayModifier.testTag("reader_page_curl"),
                         contentCrop = frontCrop?.takeIf { !it.isNone }?.let {
+                            Rect(it.left, it.top, 1f - it.right, 1f - it.bottom)
+                        },
+                        backContentCrop = backCrop?.takeIf { !it.isNone }?.let {
                             Rect(it.left, it.top, 1f - it.right, 1f - it.bottom)
                         },
                         colorFilter = curlFilter,

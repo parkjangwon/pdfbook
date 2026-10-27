@@ -43,8 +43,10 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
  *
  * [colorFilter] is applied to every page bitmap (front, back and the mirrored
  * front on the flap), never to the paper-back color, fold or shadow.
- * [contentCrop] crops the page bitmaps by a source rect fraction (0..1); null
- * draws the whole bitmap.
+ * [contentCrop] crops the front page bitmap by a source rect fraction (0..1); null
+ * draws the whole bitmap. [backContentCrop] crops the revealed page the same way
+ * and defaults to [contentCrop]; adjacent pages can have different margins, so a
+ * turn passes the to-page's own crop here.
  *
  * [flapColor], [shadowColor], [shadowAlpha], [shadowMidAlpha] and
  * [foldHighlightColor] carry the per-mode values (normal mode by default; the
@@ -59,6 +61,7 @@ fun PageCurlOverlay(
     modifier: Modifier = Modifier,
     colorFilter: ColorFilter? = null,
     contentCrop: Rect? = null,
+    backContentCrop: Rect? = contentCrop,
     flapColor: Color = ReaderPageBack,
     shadowColor: Color = ReaderPageShadow,
     shadowAlpha: Float = CURL_SHADOW_ALPHA,
@@ -71,8 +74,8 @@ fun PageCurlOverlay(
     val frontCrop = remember(front, contentCrop) {
         sourceCropPixels(front.width, front.height, contentCrop)
     }
-    val backCrop = remember(back, contentCrop) {
-        sourceCropPixels(back.width, back.height, contentCrop)
+    val backCrop = remember(back, backContentCrop) {
+        sourceCropPixels(back.width, back.height, backContentCrop)
     }
     val shape = remember { CurlShape() }
     val frontPath = remember { Path() }
