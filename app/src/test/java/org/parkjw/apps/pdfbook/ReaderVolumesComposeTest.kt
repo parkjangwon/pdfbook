@@ -71,6 +71,13 @@ class ReaderVolumesComposeTest {
         }
     }
 
+    private fun openBookList() {
+        composeRule.onNodeWithTag("reader_more_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_more_book_list").performClick()
+        composeRule.waitForIdle()
+    }
+
     private fun list(books: List<BookInfo>, current: BookInfo) =
         BookListUi("시리즈", bookListEntries(books, current, emptyMap()))
 
@@ -105,7 +112,7 @@ class ReaderVolumesComposeTest {
         val books = listOf(book(1), book(2), book(10))
         setReader(ReaderVolumes(bookList = list(books, book(2))))
         composeRule.onAllNodesWithTag(BOOK_LIST_SHEET_TAG).assertCountEquals(0)
-        composeRule.onNodeWithContentDescription("책 목록").performClick()
+        openBookList()
         composeRule.onNodeWithTag(BOOK_LIST_SHEET_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("책 3권").assertIsDisplayed()
         val tops = listOf("책 1권", "책 2권", "책 10권").map {
@@ -121,7 +128,7 @@ class ReaderVolumesComposeTest {
     fun bl2CurrentRowIsScrolledIntoViewInLongList() {
         val books = (1..40).map { book(it) }
         setReader(ReaderVolumes(bookList = list(books, book(33))))
-        composeRule.onNodeWithContentDescription("책 목록").performClick()
+        openBookList()
         composeRule.onNodeWithText("책 33권").assertIsDisplayed()
         composeRule.onNodeWithText("읽는 중").assertIsDisplayed()
     }
@@ -131,7 +138,7 @@ class ReaderVolumesComposeTest {
         val picked = mutableListOf<BookInfo>()
         val books = listOf(book(1), book(2))
         setReader(ReaderVolumes(bookList = list(books, book(1)), onPick = { picked += it }))
-        composeRule.onNodeWithContentDescription("책 목록").performClick()
+        openBookList()
         composeRule.onNode(hasText("책 2권") and hasClickAction()).performClick()
         composeRule.waitForIdle()
         assertEquals(listOf(book(2)), picked)
@@ -142,7 +149,7 @@ class ReaderVolumesComposeTest {
     fun bl4TappingCurrentBookOnlyClosesAndSingleBookStillOpens() {
         val picked = mutableListOf<BookInfo>()
         setReader(ReaderVolumes(bookList = list(listOf(book(1)), book(1)), onPick = { picked += it }))
-        composeRule.onNodeWithContentDescription("책 목록").performClick()
+        openBookList()
         composeRule.onNodeWithTag(BOOK_LIST_SHEET_TAG).assertIsDisplayed()
         composeRule.onNode(hasText("책 1권") and hasClickAction()).performClick()
         composeRule.waitForIdle()
@@ -153,7 +160,7 @@ class ReaderVolumesComposeTest {
     @Test
     fun backClosesSheet() {
         setReader(ReaderVolumes(bookList = list(listOf(book(1), book(2)), book(1))))
-        composeRule.onNodeWithContentDescription("책 목록").performClick()
+        openBookList()
         composeRule.onNodeWithTag(BOOK_LIST_SHEET_TAG).assertIsDisplayed()
         Espresso.pressBack()
         composeRule.waitForIdle()
@@ -163,7 +170,7 @@ class ReaderVolumesComposeTest {
     @Test
     fun scrimTapClosesSheet() {
         setReader(ReaderVolumes(bookList = list(listOf(book(1), book(2)), book(1))))
-        composeRule.onNodeWithContentDescription("책 목록").performClick()
+        openBookList()
         composeRule.onNodeWithTag(BOOK_LIST_SHEET_TAG).assertIsDisplayed()
         composeRule.onAllNodes(isRoot())[1].performTouchInput { click(Offset(width / 2f, 10f)) }
         composeRule.waitForIdle()
@@ -179,7 +186,7 @@ class ReaderVolumesComposeTest {
                 onPick = { picked += it.name },
             ),
         )
-        composeRule.onNodeWithContentDescription("책 목록").performClick()
+        openBookList()
         composeRule.waitForIdle()
         composeRule.mainClock.autoAdvance = false
         composeRule.onNode(hasText("책 2권") and hasClickAction()).performClick()
