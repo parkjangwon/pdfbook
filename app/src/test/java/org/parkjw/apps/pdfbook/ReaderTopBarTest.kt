@@ -7,10 +7,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsToggleable
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -18,6 +24,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -204,6 +211,31 @@ class ReaderTopBarTest {
         setBar(360, twoPage = true, spreadShift = true)
         openMenu()
         composeRule.onNodeWithTag("reader_more_spread_shift").assertIsOn()
+    }
+
+    @Test
+    fun shiftRowIsASwitchThatSpeaksItsLabelOnce() {
+        setBar(360, twoPage = true, spreadShift = false)
+        openMenu()
+        composeRule.onNodeWithTag("reader_more_spread_shift")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
+            .assertIsOff()
+            .assertHeightIsAtLeast(48.dp)
+            // The on/off value is cleared from semantics; the toggle state already carries it.
+            .assertTextEquals("두 쪽 짝 한 칸 밀기")
+    }
+
+    @Test
+    @Config(qualifiers = "ko-w320dp-h920dp", fontScale = 2f)
+    fun shiftRowWrapsAndGrowsPast48dpAtFontScale2() {
+        setBar(320, twoPage = true, spreadShift = true)
+        openMenu()
+        composeRule.onNodeWithTag("reader_more_spread_shift")
+            .assertHeightIsAtLeast(48.dp)
+            .assertTextEquals("두 쪽 짝 한 칸 밀기")
+        val row = composeRule.onNodeWithTag("reader_more_spread_shift").fetchSemanticsNode()
+        val height = with(composeRule.density) { row.size.height.toDp() }
+        assertTrue("the row did not grow with the font scale ($height)", height >= 72.dp)
     }
 
     @Test
