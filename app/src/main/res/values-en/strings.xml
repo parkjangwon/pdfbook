@@ -77,6 +77,10 @@
     <string name="reader_back">Back</string>
     <string name="reader_mode_single">Single</string>
     <string name="reader_mode_double">Spread</string>
+    <string name="reader_more">More</string>
+    <string name="reader_direction_menu">Page direction</string>
+    <string name="reader_mode_status_single">Single-page view</string>
+    <string name="reader_mode_status_double">Two-page view</string>
     <string name="reader_jump_back">Back to page %1$d</string>
     <string name="settings_section_update">Updates</string>
     <string name="update_check">Check for updates</string>

@@ -94,14 +94,14 @@ class PageRenderer(
 
     val cache = PageCache<Bitmap>(limitBytes) { it.byteCount.toLong() }
 
+    private val thumbs = object : LruCache<PageRequest, Bitmap>(thumbLimitBytes.toInt()) {
+        override fun sizeOf(key: PageRequest, value: Bitmap) = value.byteCount
+    }
+
     private val cropLock = Any()
     private val crops = HashMap<Int, CropMargins>()
     private val cropUpdatesFlow = MutableStateFlow(0)
     @Volatile private var autoCrop = false
-
-    private val thumbs = object : LruCache<PageRequest, Bitmap>(thumbLimitBytes.toInt()) {
-        override fun sizeOf(key: PageRequest, value: Bitmap) = value.byteCount
-    }
 
     override val pageCount: Int = source.pageCount
 
