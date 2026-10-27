@@ -496,7 +496,7 @@ class PageCurlTest {
     }
 
     @Test
-    fun twoPageTurnCurtsACachedSpreadAndFallsBackToSlideAtTheEnds() {
+    fun twoPageTurnServesACachedSpreadAndFallsBackToSlideAtTheEnds() {
         fun mode(
             twoPage: Boolean = true,
             zoomed: Boolean = false,
