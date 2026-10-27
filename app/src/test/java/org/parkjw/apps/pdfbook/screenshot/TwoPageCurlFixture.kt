@@ -15,6 +15,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
 import org.parkjw.apps.pdfbook.CropMargins
@@ -36,6 +37,9 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
  * colour pages; no real book, screenshot or private file is used. [mode] applies the same
  * page color filter and curl look the reader passes for that display mode. With [showOverlay]
  * false the pager alone is drawn: the settled target spread the last curl frame must match.
+ * [hingeGap] > 0 draws the turn on a folded Book posture with that hinge gap: the curl runs on
+ * the virtual spread and the overlay cuts it at the hinge, and the pager shows the gap between
+ * the two halves.
  */
 @Composable
 internal fun TwoPageCurlPreview(
@@ -47,12 +51,26 @@ internal fun TwoPageCurlPreview(
     targetRight: Bitmap,
     mode: DisplayMode = DisplayMode.Default,
     showOverlay: Boolean = true,
+    hingeGap: Int = 0,
 ) {
     val filter = mode.colorFilter()
     val look = mode.curlLook()
     BoxWithConstraints(Modifier.fillMaxSize().background(ReaderBackground)) {
         val window = IntSize(constraints.maxWidth, constraints.maxHeight)
-        val canvas = curlCanvas(window, FoldPosture.Flat) ?: return@BoxWithConstraints
+        val posture = if (hingeGap > 0) {
+            FoldPosture.Book(
+                IntRect(
+                    window.width / 2 - hingeGap / 2,
+                    0,
+                    window.width / 2 + hingeGap / 2,
+                    window.height,
+                ),
+            )
+        } else {
+            FoldPosture.Flat
+        }
+        val canvas = curlCanvas(window, posture) ?: return@BoxWithConstraints
+        val shift = canvas.hinge?.gap ?: 0f
         val slots = listOf(canvas.left, canvas.right)
         val none = CropMargins()
         fun rects(left: Bitmap, right: Bitmap) = listOf(
@@ -74,10 +92,10 @@ internal fun TwoPageCurlPreview(
             ComposeCanvas(Modifier.fillMaxSize()) {
                 if (index == 0) {
                     drawPage(currentLeft, currentRects[0], filter)
-                    drawPage(currentRight, currentRects[1], filter)
+                    drawPage(currentRight, currentRects[1].translate(shift, 0f), filter)
                 } else {
                     drawPage(targetLeft, targetRects[0], filter)
-                    drawPage(targetRight, targetRects[1], filter)
+                    drawPage(targetRight, targetRects[1].translate(shift, 0f), filter)
                 }
             }
         }
@@ -101,6 +119,7 @@ internal fun TwoPageCurlPreview(
                     spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
                     landing = targetRects[turning],
                     still = currentRects[1 - turning],
+                    hinge = canvas.hinge,
                 ),
                 flapColor = look.flapColor,
                 shadowColor = look.shadowColor,
