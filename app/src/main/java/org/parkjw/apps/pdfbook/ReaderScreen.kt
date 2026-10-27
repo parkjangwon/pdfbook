@@ -546,7 +546,7 @@ private fun ReaderScreenContent(
             if (mode != ResolvedPageTurn.Curl) {
                 // Field-report diagnostics: why the turn did not curl. Geometry and mode only,
                 // never page content, file names or numbers.
-                Log.i(TURN_LOG_TAG, "turn mode=${mode.name} twoPage=$twoPage")
+                Log.d(TURN_LOG_TAG, "turn mode=${mode.name} twoPage=$twoPage")
                 when (mode) {
                     ResolvedPageTurn.Instant -> pagerState.scrollToPage(target)
                     ResolvedPageTurn.Slide -> {

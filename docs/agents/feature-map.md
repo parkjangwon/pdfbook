@@ -69,7 +69,7 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Prerender and memory trim (SPEC-5) | Reader → turn pages | – | `PageCache.kt`, `MemoryTrim.kt`, `PageRenderer.kt` | `PageCacheTest`, `PrerenderTargetsTest`, `LargeBookPrerenderTest` |
 | Two-page page curl (#145) | Reading settings → "넘김 애니메이션" → "책장 넘김"; two-page spread, tap / swipe / volume at scale 1 | `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `PageCurlTurn.kt`, `ReaderScreen.kt`, `CropMargins.kt` | `PageCurlTest`, `PageCurlTwoPageScreenshotsTest`, `TwoPageCurlFlatFoldTest`, `TwoPageCurlFlatReaderTest` |
 
-Two-page view draws each page at its own measured rect, so a 2->2 turn curls whether or not the book's pages are identical (real PDFs are a few points apart) and with or without auto-crop. The first and last frames still match the settled spreads exactly. Still Slide, by design: turns that touch a single-page spread (the cover, a lone last page), and a Book posture with a hinge gap (#172, #173).
+Two-page view draws each page at its own measured rect, so a 2->2 turn curls whether or not the book's pages are identical (real PDFs are a few points apart); with auto-crop each page keeps its own outer margin. The fold runs over the union of the four page rects and each page is clipped to its own rect, so the first and last frames match the settled spreads exactly. Still Slide, by design: turns that touch a single-page spread (the cover, a lone last page), and a Book posture with a hinge gap (#172, #173).
 
 ## Settings
 

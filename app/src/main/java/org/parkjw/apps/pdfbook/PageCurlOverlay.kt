@@ -161,6 +161,11 @@ fun PageCurlOverlay(
     val revealDest = remember(layout) {
         layout?.let { RectF(it.landing.left, it.landing.top, it.landing.right, it.landing.bottom) }
     }
+    // A two-page turn whose four pages differ in size by a few pixels runs the fold over their
+    // union and clears the flap to the background; equal rects keep the v0.7.1 fast path.
+    val uniformRects = remember(layout) { layout == null || layout.rectsMatchSheet() }
+    val foldUnion = remember(layout) { layout?.let { curlFoldUnion(it) } }
+    val foldBounds = remember { FloatArray(4) }
     val shadowBrush = remember(shadowColor, shadowAlpha, shadowMidAlpha) {
         Brush.linearGradient(
             0f to shadowColor.copy(alpha = shadowAlpha),
@@ -214,7 +219,16 @@ fun PageCurlOverlay(
             }
         }
 
-        updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null)
+        val bounds = if (foldUnion != null && !uniformRects) {
+            foldBounds[0] = foldUnion.left - left
+            foldBounds[1] = foldUnion.top - top
+            foldBounds[2] = foldUnion.right - left
+            foldBounds[3] = foldUnion.bottom - top
+            foldBounds
+        } else {
+            null
+        }
+        updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null, bounds)
         if (twoPage != null) {
             // The revealed page keeps its own measured rect, which can differ by a few pixels
             // from the turning page. Clip it to the part the fold has uncovered so it never
@@ -278,7 +292,10 @@ fun PageCurlOverlay(
         // Flap: back face, inner shade, fold highlight.
         if (shape.flapCount >= 3) {
             flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
-            drawPath(flapPath, flapColor)
+            // The back face covers the paper at full opacity. With uneven page rects the flap is
+            // clipped to their union, so clearing it to the background keeps the still page's
+            // extra rows from showing beside the paper and makes the last frame the target spread.
+            drawPath(flapPath, if (uniformRects || flapBack == null) flapColor else ReaderBackground)
             clipPath(flapPath) {
                 val backFace = flapBack
                 val backFaceCrop = flapBackCrop

@@ -96,6 +96,8 @@ internal fun TwoPageCurlPreview(
                 spread = sheet.expandedTo(backFace),
                 backFace = backFace,
                 spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+                landing = targetRects[turning],
+                still = currentRects[1 - turning],
             ),
             flapColor = look.flapColor,
             shadowColor = look.shadowColor,
@@ -123,23 +125,27 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPage(
  * Left/right asymmetric page: a band down the left edge and a block in the top-left
  * corner. A mirrored back face puts both on the right, so the capture can tell it apart.
  */
-internal fun syntheticTwoPageCurlPage(fill: Int, accent: Int): Bitmap {
-    val bitmap = Bitmap.createBitmap(TWO_PAGE_WIDTH, TWO_PAGE_HEIGHT, Bitmap.Config.ARGB_8888)
+internal fun syntheticTwoPageCurlPage(
+    fill: Int,
+    accent: Int,
+    height: Int = TWO_PAGE_HEIGHT,
+): Bitmap {
+    val bitmap = Bitmap.createBitmap(TWO_PAGE_WIDTH, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     canvas.drawColor(fill)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
-    canvas.drawRect(0f, 0f, TWO_PAGE_WIDTH * 0.12f, TWO_PAGE_HEIGHT.toFloat(), paint)
+    canvas.drawRect(0f, 0f, TWO_PAGE_WIDTH * 0.12f, height.toFloat(), paint)
     paint.color = TWO_PAGE_INK
     canvas.drawRect(
         TWO_PAGE_WIDTH * 0.22f,
-        TWO_PAGE_HEIGHT * 0.1f,
+        height * 0.1f,
         TWO_PAGE_WIDTH * 0.46f,
-        TWO_PAGE_HEIGHT * 0.22f,
+        height * 0.22f,
         paint,
     )
     paint.style = Paint.Style.STROKE
     paint.strokeWidth = 6f
-    canvas.drawCircle(TWO_PAGE_WIDTH * 0.34f, TWO_PAGE_HEIGHT * 0.62f, TWO_PAGE_WIDTH * 0.16f, paint)
+    canvas.drawCircle(TWO_PAGE_WIDTH * 0.34f, height * 0.62f, TWO_PAGE_WIDTH * 0.16f, paint)
     return bitmap
 }
 

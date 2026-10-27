@@ -70,8 +70,9 @@ class TwoPageCurlFlatReaderTest {
 
     @Test
     fun portraitFlatFoldableTwoPageSpreadCurlsWithAutoCrop() {
-        // The two pages of a spread get one shared outer crop margin, so their drawn widths
-        // match and the 1px landing rule keeps the curl (it used to reject every turn).
+        // Each page keeps its own outer crop margin (the v0.7.1 rule), so the drawn widths can
+        // differ; the spine edges still meet and every page is drawn at its own rect, so the
+        // turn curls instead of sliding.
         assertCurls(ReadingDirection.LTR, autoCrop = true)
     }
 

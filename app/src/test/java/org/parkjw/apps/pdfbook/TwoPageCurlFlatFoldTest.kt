@@ -1,6 +1,7 @@
 package org.parkjw.apps.pdfbook
 
 import android.graphics.Bitmap
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -43,10 +44,10 @@ class TwoPageCurlFlatFoldTest {
     }
 
     @Test
-    fun portraitFlatAutoCropSpreadsCurlWithOneSharedOuterMargin() {
+    fun portraitFlatAutoCropSpreadsCurlWithUnequalOuterMargins() {
         // A real scan: both facing pages are the same size but their outer margins differ a little
-        // (left 0.1402, right 0.1380). One shared outer margin keeps the halves the same size, so
-        // the 1px landing rule holds instead of sliding every two-page turn.
+        // (left 0.1402, right 0.1380). Each page keeps its own outer margin (the v0.7.1 rule), so
+        // the drawn halves differ in width; the spine edges still meet, so the turn curls.
         val crops = mapOf(
             2 to CropMargins(left = 0.1402f, top = 0.0899f, right = 0.1380f, bottom = 0.25f),
             3 to CropMargins(left = 0.1402f, top = 0.0899f, right = 0.1380f, bottom = 0.25f),
@@ -115,35 +116,173 @@ class TwoPageCurlFlatFoldTest {
     fun everyTurnOfARealBookWithPageWidthsOffByAFewPointsCurls() {
         // 장원's book: 19 pages, all 1080pt tall, widths 743..747pt (1-4pt apart). PdfRenderer
         // renders each page at the width-limited half slot, so the heights differ by a few px.
-        // Every two-page turn in that book has to curl, not only the ones whose facing pages
-        // happen to render at the same size.
+        // Every two-page turn in that book has to curl, forward and backward, not only the ones
+        // whose facing pages happen to render at the same size.
         val renderer = BookRenderer(BOOK_PAGE_WIDTHS)
         val bookSpreads = spreads(BOOK_PAGE_WIDTHS.size, twoPage = true, coverAlone = true)
         for (window in listOf(portrait, landscape)) {
             for (direction in listOf(ReadingDirection.LTR, ReadingDirection.RTL)) {
-                val side = if (direction == ReadingDirection.LTR) CurlSide.Right else CurlSide.Left
-                for (i in 1 until bookSpreads.size - 1) {
-                    val from = bookSpreads[i]
-                    val to = bookSpreads[i + 1]
-                    if (from.size != 2 || to.size != 2) continue
+                for (forward in listOf(true, false)) {
+                    val side = curlSide(direction, forward)
+                    for (i in 1 until bookSpreads.size - 1) {
+                        val from = if (forward) bookSpreads[i] else bookSpreads[i + 1]
+                        val to = if (forward) bookSpreads[i + 1] else bookSpreads[i]
+                        if (from.size != 2 || to.size != 2) continue
+                        val built = buildTwoPageCurl(
+                            renderer = renderer,
+                            currentSpread = from,
+                            targetSpread = to,
+                            direction = direction,
+                            side = side,
+                            posture = FoldPosture.Flat,
+                            window = window,
+                            autoCrop = false,
+                        )
+                        assertTrue(
+                            "$from -> $to $direction ${window.width}x${window.height} " +
+                                "forward=$forward must curl, was ${built.fallback}",
+                            built.curl != null,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun mixedHeightPairLandsEachPageOnItsOwnRectAtBothEnds() {
+        // [6,7] -> [8,9] in 장원's book: the turning page renders 4px taller than the back face
+        // and 3px taller than the revealed page. The fold runs over the union of the four rects
+        // and every page is clipped to its own rect, so p=1 equals the settled target spread
+        // (no flap-color hem, no clipped rows) and p=0 equals the current spread.
+        val renderer = BookRenderer(BOOK_PAGE_WIDTHS)
+        val bookSpreads = spreads(BOOK_PAGE_WIDTHS.size, twoPage = true, coverAlone = true)
+        val from = bookSpreads.first { it == listOf(6, 7) }
+        val to = bookSpreads.first { it == listOf(8, 9) }
+        var sawUnevenRect = false
+        for (window in listOf(portrait, landscape)) {
+            for (direction in listOf(ReadingDirection.LTR, ReadingDirection.RTL)) {
+                for (forward in listOf(true, false)) {
+                    val side = curlSide(direction, forward)
                     val built = buildTwoPageCurl(
                         renderer = renderer,
-                        currentSpread = from,
-                        targetSpread = to,
+                        currentSpread = if (forward) from else to,
+                        targetSpread = if (forward) to else from,
                         direction = direction,
                         side = side,
                         posture = FoldPosture.Flat,
                         window = window,
                         autoCrop = false,
                     )
-                    assertTrue(
-                        "$from -> $to $direction ${window.width}x${window.height} must curl, " +
-                            "was ${built.fallback}",
-                        built.curl != null,
-                    )
+                    val curl = built.curl ?: error("$from -> $to $direction must curl: ${built.fallback}")
+                    val layout = curl.layout
+                    if (layout.backFace.height != layout.sheet.height ||
+                        layout.landing.height != layout.sheet.height
+                    ) {
+                        sawUnevenRect = true
+                    }
+                    assertTwoPageEndFrame(layout, curl.front, side)
                 }
             }
         }
+        assertTrue("the pair must exercise unequal page heights", sawUnevenRect)
+    }
+
+    /**
+     * Rebuilds the overlay's fold bounds (union of the four page rects, in the sheet's frame) and
+     * asserts the end frames: at p=1 the flap covers the whole back face and the revealed polygon
+     * covers the whole landing page; at p=0 the front polygon covers the sheet. The back-face
+     * matrix must be the identity at p=1, so the back face is drawn exactly at its own rect.
+     */
+    private fun assertTwoPageEndFrame(layout: CurlSheetLayout, front: Bitmap, side: CurlSide) {
+        val sheet = layout.sheet
+        val scale = minOf(sheet.width / front.width, sheet.height / front.height)
+        val w = front.width * scale
+        val h = front.height * scale
+        val left = sheet.left + (sheet.width - w) / 2f
+        val top = sheet.top + (sheet.height - h) / 2f
+        val union = curlFoldUnion(layout)
+        val bounds = floatArrayOf(
+            union.left - left,
+            union.top - top,
+            union.right - left,
+            union.bottom - top,
+        )
+        val shape = CurlShape()
+        updateCurlShape(w, h, 1f, side, shape, spreadFlap = true, bounds = bounds)
+        assertContains(
+            shape.flap,
+            shape.flapCount,
+            layout.backFace,
+            left,
+            top,
+            "flap at p=1 must cover the back face",
+        )
+        assertContains(
+            shape.revealed,
+            shape.revealedCount,
+            layout.landing,
+            left,
+            top,
+            "revealed page at p=1 must cover the landing page",
+        )
+        val matrix = FloatArray(9)
+        flapBackMatrixValues(shape, left, top, w, side, matrix)
+        val identity = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
+        for (i in identity.indices) {
+            assertEquals("back-face matrix[$i] at p=1", identity[i], matrix[i], 0.001f)
+        }
+
+        updateCurlShape(w, h, 0f, side, shape, spreadFlap = true, bounds = bounds)
+        assertContains(
+            shape.front,
+            shape.frontCount,
+            sheet,
+            left,
+            top,
+            "front at p=0 must cover the sheet",
+        )
+    }
+
+    private fun assertContains(
+        polygon: FloatArray,
+        count: Int,
+        rect: Rect,
+        left: Float,
+        top: Float,
+        message: String,
+    ) {
+        assertTrue("$message: polygon had $count points", count >= 3)
+        // Probe just inside each corner so an edge-exact point cannot be misread.
+        val inset = 0.5f
+        val probes = listOf(
+            rect.left + inset to rect.top + inset,
+            rect.right - inset to rect.top + inset,
+            rect.right - inset to rect.bottom - inset,
+            rect.left + inset to rect.bottom - inset,
+        )
+        probes.forEach { (x, y) ->
+            assertTrue(
+                "$message: (${x.toInt()}, ${y.toInt()}) is outside the polygon",
+                polygonContains(polygon, count, x - left, y - top),
+            )
+        }
+    }
+
+    private fun polygonContains(points: FloatArray, count: Int, x: Float, y: Float): Boolean {
+        var inside = false
+        var j = count - 1
+        for (i in 0 until count) {
+            val xi = points[i * 2]
+            val yi = points[i * 2 + 1]
+            val xj = points[j * 2]
+            val yj = points[j * 2 + 1]
+            if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) {
+                inside = !inside
+            }
+            j = i
+        }
+        return inside
     }
 
     @Test
