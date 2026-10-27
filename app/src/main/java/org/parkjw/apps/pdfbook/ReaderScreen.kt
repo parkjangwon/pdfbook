@@ -168,6 +168,7 @@ fun ReaderScreen(
     keepScreenOn: Boolean = true,
     spreadShift: Boolean = false,
     onSpreadShiftChange: (Boolean) -> Unit = {},
+    onRestorePage: (Int) -> Unit = {},
 ) {
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
@@ -218,6 +219,7 @@ fun ReaderScreen(
             fullScreenReading = fullScreenReading,
             spreadShift = spreadShift,
             onSpreadShiftChange = onSpreadShiftChange,
+            onRestorePage = onRestorePage,
         )
     }
 }
@@ -262,6 +264,7 @@ private fun ReaderScreenContent(
     fullScreenReading: Boolean,
     spreadShift: Boolean,
     onSpreadShiftChange: (Boolean) -> Unit,
+    onRestorePage: (Int) -> Unit,
 ) {
     SideEffect { renderer.setAutoCrop(autoCrop) }
     // Slider drags preview the window brightness without a DataStore write; only release persists.
@@ -627,7 +630,10 @@ private fun ReaderScreenContent(
     fun seekFinished() {
         val origin = seekOrigin ?: return
         seekOrigin = null
-        jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)
+        jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)?.let { jump ->
+            val from = currentSpreads.getOrNull(origin)
+            if (from != null && currentPage in from) jump.copy(page = currentPage) else jump
+        }
     }
 
     fun jumpToPage(page: Int) {
@@ -648,6 +654,7 @@ private fun ReaderScreenContent(
         val current = jumpBack ?: return
         val step = jumpBackStep(currentSpreads, current, pagerState.targetPage)
         jumpBack = step.next
+        onRestorePage(current.page)
         scrollTo(step.targetIndex)
     }
 

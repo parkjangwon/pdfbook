@@ -127,6 +127,7 @@ fun ReaderRoute(
             var anchorPage by rememberSaveable(key) {
                 mutableIntStateOf(state.page.coerceIn(1, renderer.pageCount.coerceAtLeast(1)))
             }
+            var anchorSync by remember { mutableStateOf(ReadingAnchor(anchorPage)) }
             var direction by rememberSaveable(
                 key,
                 stateSaver = ReadingDirectionSaver,
@@ -143,16 +144,16 @@ fun ReaderRoute(
                     pageCount = { spreadList.size },
                 )
                 LaunchedEffect(spreadList) {
-                    var sync = readingAnchorBeginSync(ReadingAnchor(anchorPage), spreadList)
-                    val index = readingAnchorTargetIndex(spreadList, sync)
+                    anchorSync = readingAnchorBeginSync(ReadingAnchor(anchorPage), spreadList)
+                    val index = readingAnchorTargetIndex(spreadList, anchorSync)
                     if (pagerState.currentPage != index) {
                         pagerState.scrollToPage(index)
                     } else {
-                        sync = sync.copy(pendingIndex = null)
+                        anchorSync = anchorSync.copy(pendingIndex = null)
                     }
                     snapshotFlow { pagerState.settledPage }.collectLatest { settled ->
-                        sync = readingAnchorAfterSettle(sync, spreadList, settled)
-                        if (sync.page != anchorPage) anchorPage = sync.page
+                        anchorSync = readingAnchorAfterSettle(anchorSync, spreadList, settled)
+                        if (anchorSync.page != anchorPage) anchorPage = anchorSync.page
                     }
                 }
                 LaunchedEffect(anchorPage, direction, autoCrop, spreadShift) {
@@ -210,6 +211,13 @@ fun ReaderRoute(
                     keepScreenOn = keepScreenOn,
                     spreadShift = spreadShift,
                     onSpreadShiftChange = { spreadShift = it },
+                    onRestorePage = { page ->
+                        anchorPage = page
+                        anchorSync = ReadingAnchor(
+                            page = page,
+                            pendingIndex = spreadIndexOf(spreadList, page),
+                        )
+                    },
                 )
             }
         }
