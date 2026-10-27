@@ -46,6 +46,13 @@ fun ScreenOrientation.toActivityOrientation(): Int = when (this) {
     ScreenOrientation.Landscape -> ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
 }
 
+// Persisted by name in SettingsRepository; renaming an entry resets users to Default.
+enum class DisplayMode {
+    Default,
+    Invert,
+    Sepia,
+}
+
 data class AppSettings(
     val startScreen: StartScreen = StartScreen.Folders,
     val themeMode: ThemeMode = ThemeMode.System,
@@ -66,4 +73,5 @@ data class AppSettings(
     val followSystemBrightness: Boolean = true,
     val readerBrightnessPercent: Int = DEFAULT_READER_BRIGHTNESS_PERCENT,
     val fullScreenReading: Boolean = true,
+    val displayMode: DisplayMode = DisplayMode.Default,
 )

@@ -105,6 +105,7 @@ import org.parkjw.apps.pdfbook.ui.theme.PdfBookShapeTokens
 import androidx.compose.foundation.layout.Spacer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 import kotlin.math.abs
@@ -146,6 +147,7 @@ fun ReaderScreen(
     bookmarks: ReaderBookmarks? = null,
     pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
     fullScreenReading: Boolean = true,
+    displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
 ) {
     ReaderBrightnessEffect(followSystemBrightness, brightnessPercent)
@@ -155,7 +157,10 @@ fun ReaderScreen(
         view.keepScreenOn = keepScreenOn
         onDispose { view.keepScreenOn = previous }
     }
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Ltr,
+        LocalDisplayMode provides displayMode,
+    ) {
         ReaderScreenContent(
             renderer = renderer,
             pagerState = pagerState,
@@ -856,12 +861,21 @@ private fun ReaderScreenContent(
                     } else {
                         Modifier.fillMaxSize()
                     }
+                    val displayMode = LocalDisplayMode.current
+                    val curlFilter = remember(displayMode) { displayMode.colorFilter() }
+                    val curlLook = remember(displayMode) { displayMode.curlLook() }
                     PageCurlOverlay(
                         front = frontBmp,
                         back = backBmp,
                         progress = { curlProgress },
                         side = curlSideState,
                         modifier = overlayModifier.testTag("reader_page_curl"),
+                        colorFilter = curlFilter,
+                        flapColor = curlLook.flapColor,
+                        shadowColor = curlLook.shadowColor,
+                        shadowAlpha = curlLook.shadowAlpha,
+                        shadowMidAlpha = curlLook.shadowMidAlpha,
+                        foldHighlightColor = curlLook.foldHighlightColor,
                     )
                 }
             }
@@ -1551,6 +1565,8 @@ internal fun PageBitmap(
             bitmap = renderer.render(page, maxWidth, maxHeight)
         }
     }
+    val displayMode = LocalDisplayMode.current
+    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val bmp = bitmap
         if (bmp != null && !bmp.isRecycled) {
@@ -1560,6 +1576,7 @@ internal fun PageBitmap(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 alignment = alignment,
+                colorFilter = colorFilter,
                 modifier = Modifier.fillMaxSize(),
             )
         }

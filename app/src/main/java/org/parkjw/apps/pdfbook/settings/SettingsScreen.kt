@@ -82,6 +82,7 @@ private enum class SettingsChoice {
     Direction,
     TwoPage,
     Animation,
+    Display,
     Orientation,
 }
 
@@ -102,6 +103,7 @@ fun SettingsScreen(
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.Main,
     initiallyShowStartChoice: Boolean = false,
     initiallyShowTapWidthSheet: Boolean = false,
+    initiallyShowDisplayChoice: Boolean = false,
     // Test hook: opens the animation choice dialog on first composition.
     initiallyShowAnimationChoice: Boolean = false,
 ) {
@@ -114,6 +116,7 @@ fun SettingsScreen(
             onSettingsChange = onSettingsChange,
             onBack = { subScreen = SettingsSubScreen.Main.name },
             initiallyShowTapWidthSheet = initiallyShowTapWidthSheet,
+            initiallyShowDisplayChoice = initiallyShowDisplayChoice,
             initiallyShowAnimationChoice = initiallyShowAnimationChoice,
             modifier = modifier,
         )
@@ -345,12 +348,19 @@ private fun ReadingSettingsScreen(
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     onBack: () -> Unit,
     initiallyShowTapWidthSheet: Boolean,
+    initiallyShowDisplayChoice: Boolean,
     initiallyShowAnimationChoice: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
     var choice by rememberSaveable {
-        mutableStateOf(if (initiallyShowAnimationChoice) SettingsChoice.Animation.name else null)
+        mutableStateOf<String?>(
+            when {
+                initiallyShowDisplayChoice -> SettingsChoice.Display.name
+                initiallyShowAnimationChoice -> SettingsChoice.Animation.name
+                else -> null
+            },
+        )
     }
     var showTapWidthSheet by rememberSaveable { mutableStateOf(initiallyShowTapWidthSheet) }
     val directionOptions = listOf(
@@ -374,6 +384,15 @@ private fun ReadingSettingsScreen(
         ScreenOrientation.Auto to stringResource(R.string.settings_orientation_auto),
         ScreenOrientation.Portrait to stringResource(R.string.settings_orientation_portrait),
         ScreenOrientation.Landscape to stringResource(R.string.settings_orientation_landscape),
+    )
+    val displayOptions = listOf(
+        DisplayMode.Default to stringResource(R.string.settings_display_default),
+        DisplayMode.Invert to stringResource(R.string.settings_display_invert),
+        DisplayMode.Sepia to stringResource(R.string.settings_display_sepia),
+    )
+    val displayDescriptions = mapOf(
+        DisplayMode.Invert to stringResource(R.string.settings_display_invert_desc),
+        DisplayMode.Sepia to stringResource(R.string.settings_display_sepia_desc),
     )
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -443,6 +462,12 @@ private fun ReadingSettingsScreen(
                     supporting = stringResource(R.string.settings_full_screen_reading_desc),
                     checked = settings.fullScreenReading,
                     onCheckedChange = { checked -> onSettingsChange { it.copy(fullScreenReading = checked) } },
+                )
+                GroupDivider()
+                SecurityValueRow(
+                    label = stringResource(R.string.settings_display_mode),
+                    value = displayOptions.first { it.first == settings.displayMode }.second,
+                    onClick = { choice = SettingsChoice.Display.name },
                 )
                 GroupDivider()
                 SwitchRow(
@@ -542,6 +567,17 @@ private fun ReadingSettingsScreen(
             selected = settings.screenOrientation,
             onSelect = { value ->
                 onSettingsChange { it.copy(screenOrientation = value) }
+                choice = null
+            },
+            onDismiss = { choice = null },
+        )
+        SettingsChoice.Display.name -> SettingsChoiceDialog(
+            title = stringResource(R.string.settings_display_mode),
+            options = displayOptions,
+            selected = settings.displayMode,
+            descriptions = displayDescriptions,
+            onSelect = { value ->
+                onSettingsChange { it.copy(displayMode = value) }
                 choice = null
             },
             onDismiss = { choice = null },
