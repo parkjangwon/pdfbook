@@ -610,6 +610,14 @@ class PageCurlTest {
         assertEquals(expectedBook.width, bookSlot.width)
         assertEquals(expectedBook.height, bookSlot.height)
 
+        // A two-page Book with a hinge gap renders each half at the virtual spread / 2.
+        val gapped = pageRenderSlot(window, book, ReadingDirection.LTR, twoPage = true)
+        assertEquals(780, gapped.width)
+        assertEquals(600, gapped.height)
+        // A flush Book keeps the window, exactly as before.
+        val flush = FoldPosture.Book(IntRect(400, 0, 400, 600))
+        assertEquals(800, pageRenderSlot(window, flush, ReadingDirection.LTR, twoPage = true).width)
+
         val flat = pageRenderSlot(window, FoldPosture.Flat, ReadingDirection.LTR, twoPage = false)
         assertEquals(800, flat.width)
         assertEquals(600, flat.height)
@@ -666,9 +674,24 @@ class PageCurlTest {
 
         val book = FoldPosture.Book(IntRect(390, 0, 410, 600))
         val bookCanvas = curlCanvas(window, book)!!
-        assertEquals(IntSize(800, 600), bookCanvas.size)
+        // A real hinge gap (20px) curls on the virtual spread: the halves are butted together
+        // and the overlay cuts the frame at the spine on each side of the gap.
+        assertEquals(IntSize(780, 600), bookCanvas.size)
         assertEquals(IntRect(0, 0, 390, 600), bookCanvas.left)
-        assertEquals(IntRect(410, 0, 800, 600), bookCanvas.right)
+        assertEquals(IntRect(390, 0, 780, 600), bookCanvas.right)
+        assertEquals(20f, bookCanvas.hinge!!.gap, 0.001f)
+
+        val flush = curlCanvas(window, FoldPosture.Book(IntRect(400, 0, 400, 600)))!!
+        assertEquals(IntSize(800, 600), flush.size)
+        assertNull(flush.hinge)
+
+        // One pixel is not a hinge gap: it stays on the flush path, where the 1px rule holds.
+        val onePixel = curlCanvas(window, FoldPosture.Book(IntRect(400, 0, 401, 600)))!!
+        assertEquals(IntSize(800, 600), onePixel.size)
+        assertNull(onePixel.hinge)
+        assertEquals(IntRect(0, 0, 400, 600), onePixel.left)
+        assertEquals(IntRect(401, 0, 800, 600), onePixel.right)
+
         assertNull(curlCanvas(IntSize(0, 600), FoldPosture.Flat))
     }
 
