@@ -361,7 +361,11 @@ private fun ReaderMoreMenu(
                 }
                 if (spreadShift != null) {
                     ReaderMenuRow(
-                        iconRes = R.drawable.ic_spread_shift,
+                        iconRes = if (direction == ReadingDirection.RTL) {
+                            R.drawable.ic_spread_shift_rtl
+                        } else {
+                            R.drawable.ic_spread_shift
+                        },
                         label = stringResource(R.string.reader_spread_shift),
                         value = stringResource(
                             if (spreadShift) R.string.reader_crop_state_on else R.string.reader_crop_state_off,
