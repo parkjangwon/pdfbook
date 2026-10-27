@@ -56,6 +56,16 @@ data class CurlSheetLayout(
 )
 
 /**
+ * One page of the incoming spread, drawn under a single-sheet turn in canvas pixels.
+ * [crop] is a source rect fraction (0..1) and [dest] is where the cropped page is fitted.
+ */
+data class CurlUnderlay(
+    val bitmap: Bitmap,
+    val crop: Rect?,
+    val dest: Rect,
+)
+
+/**
  * Draws a mid-curl (or any progress) using cached page bitmaps.
  * [progress] is read in the draw phase, and every path, matrix and brush is
  * created once, so a turn does not recompose or allocate per frame.
@@ -83,6 +93,11 @@ data class CurlSheetLayout(
  * the revealed page under it, and the flap's back face into its still page across the spine.
  * Null keeps the single-sheet output byte-identical.
  *
+ * [frontRect] switches to a single-sheet turn over the whole pane: the curl geometry runs over
+ * the pane, the front is drawn into [frontRect] (a lone page sits in one half in Book posture)
+ * and [underlay] pages (the target spread) are painted only where the sheet has peeled away.
+ * This is the cover / last-page turn; [layout] stays null for it.
+ *
  * [still] is the current spread's other page, the one that must not move during the turn.
  * With [layout] set the pager has already moved to the target spread, so the overlay first
  * paints its canvas with [ReaderBackground] and then draws [still] into
@@ -105,6 +120,8 @@ fun PageCurlOverlay(
     stillContentCrop: Rect? = null,
     spreadFlap: Boolean = false,
     layout: CurlSheetLayout? = null,
+    frontRect: Rect? = null,
+    underlay: List<CurlUnderlay> = emptyList(),
     flapColor: Color = ReaderPageBack,
     shadowColor: Color = ReaderPageShadow,
     shadowAlpha: Float = CURL_SHADOW_ALPHA,
@@ -146,6 +163,20 @@ fun PageCurlOverlay(
     val stillDest = remember(layout) {
         layout?.let { RectF(it.backFace.left, it.backFace.top, it.backFace.right, it.backFace.bottom) }
     }
+    val singleDest = remember(frontRect) {
+        frontRect?.let { RectF(it.left, it.top, it.right, it.bottom) }
+    }
+    val underlayDraws = remember(underlay) {
+        Array(underlay.size) { index ->
+            val page = underlay[index]
+            UnderlayDraw(
+                image = page.bitmap.asImageBitmap(),
+                crop = sourceCropPixels(page.bitmap.width, page.bitmap.height, page.crop),
+                dest = RectF(page.dest.left, page.dest.top, page.dest.right, page.dest.bottom),
+            )
+        }
+    }
+    val scratch = remember { RectF() }
     val shadowBrush = remember(shadowColor, shadowAlpha, shadowMidAlpha) {
         Brush.linearGradient(
             0f to shadowColor.copy(alpha = shadowAlpha),
@@ -168,6 +199,7 @@ fun PageCurlOverlay(
         if (crop.width <= 0 || crop.height <= 0) return@Canvas
         val p = clampCurlProgress(progress())
         val twoPage = layout
+        val singlePage = singleDest
         val sheetRect = sheet
         if (twoPage != null) {
             sheetRect.set(
@@ -181,34 +213,56 @@ fun PageCurlOverlay(
         }
         if (sheetRect.width() <= 0f || sheetRect.height() <= 0f) return@Canvas
         // ContentScale.Fit in primitives: the draw phase must not allocate.
-        fitInto(crop, sheetRect, fit)
+        if (singlePage != null) {
+            // A lone page turns over the whole pane but keeps its own drawn rect.
+            fit.set(0f, 0f, size.width, size.height)
+            fitInto(crop, singlePage, drawFit)
+        } else {
+            fitInto(crop, sheetRect, fit)
+            drawFit.set(fit)
+        }
         val left = fit.left
         val top = fit.top
         val w = fit.width()
         val h = fit.height()
+        // Keep the v0.7.0 draw dest for the existing paths; a lone page has its own rect.
+        val frontDest = if (singlePage != null) drawFit else sheetRect
 
-        // The pager already shows the target spread, so two-page mode repaints its canvas
-        // and the page that must stay still from the current spread.
-        if (twoPage != null) {
+        // The pager already shows the target spread, so two-page and single-page-over-spread
+        // turns repaint its canvas and the page that must stay still from the current spread.
+        if (twoPage != null || singlePage != null) {
             drawRect(ReaderBackground)
             val stillBitmap = stillImage
             val stillCropPx = stillCrop
             val stillRect = stillDest
-            if (stillBitmap != null && stillCropPx != null && stillRect != null) {
-                drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
+            if (twoPage != null && stillBitmap != null && stillCropPx != null && stillRect != null) {
+                drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, scratch)
             }
         }
 
-        drawImageInto(backImage, backCrop, sheetRect, colorFilter, drawFit)
+        if (singlePage == null) {
+            drawImageInto(backImage, backCrop, sheetRect, colorFilter, scratch)
+        }
         if (p <= 0.001f) {
-            drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
+            drawImageInto(frontImage, crop, frontDest, colorFilter, scratch)
             return@Canvas
         }
 
         updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null)
         if (!shape.foldValid) {
-            drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
+            drawImageInto(frontImage, crop, frontDest, colorFilter, scratch)
             return@Canvas
+        }
+
+        // The incoming spread shows only where the sheet has peeled away.
+        if (underlayDraws.isNotEmpty() && shape.revealedCount >= 3) {
+            revealedPath.setPolygon(shape.revealed, shape.revealedCount, left, top)
+            clipPath(revealedPath) {
+                for (i in 0 until underlayDraws.size) {
+                    val page = underlayDraws[i]
+                    drawImageInto(page.image, page.crop, page.dest, colorFilter, scratch)
+                }
+            }
         }
 
         val diag = hypot(w, h)
@@ -235,7 +289,7 @@ fun PageCurlOverlay(
         if (shape.frontCount >= 3) {
             frontPath.setPolygon(shape.front, shape.frontCount, left, top)
             clipPath(frontPath) {
-                drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
+                drawImageInto(frontImage, crop, frontDest, colorFilter, scratch)
             }
         }
 
@@ -250,7 +304,9 @@ fun PageCurlOverlay(
                     drawMirroredPage(
                         bitmap = backFace,
                         crop = backFaceCrop,
-                        frontFit = fit,
+                        frontFit = drawFit,
+                        midBaseX = left,
+                        midBaseY = top,
                         stillDest = stillDest,
                         shape = shape,
                         mirror = mirror,
@@ -266,7 +322,9 @@ fun PageCurlOverlay(
                     drawMirroredPage(
                         bitmap = front,
                         crop = crop,
-                        frontFit = fit,
+                        frontFit = drawFit,
+                        midBaseX = left,
+                        midBaseY = top,
                         stillDest = null,
                         shape = shape,
                         mirror = mirror,
@@ -333,13 +391,17 @@ private fun DrawScope.drawFoldGradient(
  * Draws [bitmap] into the turning flap.
  *
  * With [spineSide] null the transform is the fold reflection alone (the v0.7.0 mirror) and
- * the bitmap is drawn into [frontFit]. With [spineSide] set it is R∘Mspine and the bitmap is
+ * the bitmap is drawn into [frontFit]. [midBaseX]/[midBaseY] are the shape's origin offset,
+ * which is the front fit's top-left except for a lone page turning over the whole pane.
+ * With [spineSide] set it is R∘Mspine and the bitmap is
  * turned into its still page across the spine, so at progress 1 it lands right-side up.
  */
 private fun DrawScope.drawMirroredPage(
     bitmap: Bitmap,
     crop: PixelCrop,
     frontFit: RectF,
+    midBaseX: Float,
+    midBaseY: Float,
     stillDest: RectF?,
     shape: CurlShape,
     mirror: Matrix,
@@ -358,8 +420,8 @@ private fun DrawScope.drawMirroredPage(
         val a = 1f - 2f * nx * nx
         val b = -2f * nx * ny
         val d = 1f - 2f * ny * ny
-        val midX = frontFit.left + shape.midX
-        val midY = frontFit.top + shape.midY
+        val midX = midBaseX + shape.midX
+        val midY = midBaseY + shape.midY
         // Filled in place: the draw phase must not allocate.
         mirrorValues[0] = a
         mirrorValues[1] = b
@@ -372,7 +434,7 @@ private fun DrawScope.drawMirroredPage(
         mirrorValues[8] = 1f
         dstRect.set(frontFit.left, frontFit.top, frontFit.right, frontFit.bottom)
     } else {
-        flapBackMatrixValues(shape, frontFit.left, frontFit.top, frontFit.width(), spineSide, mirrorValues)
+        flapBackMatrixValues(shape, midBaseX, midBaseY, frontFit.width(), spineSide, mirrorValues)
         if (stillDest != null) {
             // Two-page: land on the target page's measured rect so the last frame matches.
             dstRect.set(stillDest.left, stillDest.top, stillDest.right, stillDest.bottom)
@@ -429,6 +491,13 @@ internal fun flapBackMatrixValues(
     out[7] = 0f
     out[8] = 1f
 }
+
+/** A resolved underlay page: image, source crop and dest rect, ready for the draw phase. */
+private class UnderlayDraw(
+    val image: ImageBitmap,
+    val crop: PixelCrop,
+    val dest: RectF,
+)
 
 /** Draws the cropped source of [image] fit and centered inside [dest]. */
 private fun DrawScope.drawImageInto(

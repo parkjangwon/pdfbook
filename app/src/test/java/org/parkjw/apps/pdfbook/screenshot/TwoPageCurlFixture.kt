@@ -15,11 +15,13 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
 import org.parkjw.apps.pdfbook.CropMargins
 import org.parkjw.apps.pdfbook.CurlSheetLayout
 import org.parkjw.apps.pdfbook.CurlSide
+import org.parkjw.apps.pdfbook.CurlUnderlay
 import org.parkjw.apps.pdfbook.FoldPosture
 import org.parkjw.apps.pdfbook.PageCurlOverlay
 import org.parkjw.apps.pdfbook.SlotAlignment
@@ -96,6 +98,70 @@ internal fun TwoPageCurlPreview(
                 spread = sheet.expandedTo(backFace),
                 backFace = backFace,
                 spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+            ),
+            flapColor = look.flapColor,
+            shadowColor = look.shadowColor,
+            shadowAlpha = look.shadowAlpha,
+            shadowMidAlpha = look.shadowMidAlpha,
+            foldHighlightColor = look.foldHighlightColor,
+        )
+    }
+}
+
+/**
+ * Lone-page (cover / last page) turn preview shared by the #173 captures: the sheet peels
+ * over the pane and the target spread shows only where it has peeled away. Pages are
+ * generated synthetic colour pages; no real book, screenshot or private file is used.
+ */
+@Composable
+internal fun SingleSheetCurlPreview(
+    side: CurlSide,
+    progress: Float,
+    page: Bitmap,
+    targetLeft: Bitmap,
+    targetRight: Bitmap,
+    mode: DisplayMode = DisplayMode.Default,
+) {
+    val filter = mode.colorFilter()
+    val look = mode.curlLook()
+    BoxWithConstraints(Modifier.fillMaxSize().background(ReaderBackground)) {
+        val window = IntSize(constraints.maxWidth, constraints.maxHeight)
+        val canvas = curlCanvas(window, FoldPosture.Flat) ?: return@BoxWithConstraints
+        val slots = listOf(canvas.left, canvas.right)
+        val none = CropMargins()
+        val pane = IntRect(0, 0, canvas.size.width, canvas.size.height)
+        val frontRect = pageDrawRect(page.width, page.height, none, pane, SlotAlignment.Center, null)
+        val targetRects = listOf(
+            pageDrawRect(targetLeft.width, targetLeft.height, none, slots[0], SlotAlignment.End, null),
+            pageDrawRect(targetRight.width, targetRight.height, none, slots[1], SlotAlignment.Start, null),
+        )
+        // The pager below sits on the target spread; the overlay repaints the pane.
+        val pagerState = rememberPagerState(initialPage = 1) { 2 }
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            userScrollEnabled = false,
+        ) { index ->
+            ComposeCanvas(Modifier.fillMaxSize()) {
+                if (index == 0) {
+                    drawPage(page, frontRect, filter)
+                } else {
+                    drawPage(targetLeft, targetRects[0], filter)
+                    drawPage(targetRight, targetRects[1], filter)
+                }
+            }
+        }
+        PageCurlOverlay(
+            front = page,
+            back = targetLeft,
+            progress = { progress },
+            side = side,
+            modifier = Modifier.fillMaxSize(),
+            colorFilter = filter,
+            frontRect = frontRect,
+            underlay = listOf(
+                CurlUnderlay(targetLeft, null, targetRects[0]),
+                CurlUnderlay(targetRight, null, targetRects[1]),
             ),
             flapColor = look.flapColor,
             shadowColor = look.shadowColor,

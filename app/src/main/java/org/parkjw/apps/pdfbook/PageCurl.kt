@@ -127,6 +127,13 @@ fun resolvePageTurn(
     else -> ResolvedPageTurn.Curl
 }
 
+/**
+ * Two-page view peels a lone page (the cover alone or a lone last page) over the target
+ * spread, one or two pages wide, as a single sheet.
+ */
+fun curlsLoneSheet(twoPage: Boolean, fromSpreadPages: Int, toSpreadPages: Int): Boolean =
+    twoPage && fromSpreadPages == 1 && toSpreadPages in 1..2
+
 data class CurlEffectState(
     val fromIndex: Int,
     val toIndex: Int,

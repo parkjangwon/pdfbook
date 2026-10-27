@@ -67,9 +67,9 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Volume key paging | Reader → volume up / down | – | `MainActivity.kt`, `VolumeNav.kt` | `VolumeNavTest` |
 | Full screen reading (#115) | Reader with full screen reading on (default) | – | `ReaderSystemBars.kt`, `ReaderScreen.kt` | `ReaderSystemBarsTest`, `ReaderImmersiveComposeTest` |
 | Prerender and memory trim (SPEC-5) | Reader → turn pages | – | `PageCache.kt`, `MemoryTrim.kt`, `PageRenderer.kt` | `PageCacheTest`, `PrerenderTargetsTest`, `LargeBookPrerenderTest` |
-| Two-page page curl (#145) | Reading settings → "넘김 애니메이션" → "책장 넘김"; two-page spread, tap / swipe / volume at scale 1 | `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `PageCurlTurn.kt`, `ReaderScreen.kt` | `PageCurlTest`, `PageCurlTwoPageScreenshotsTest` |
+| Two-page page curl (#145, #173) | Reading settings → "넘김 애니메이션" → "책장 넘김"; two-page spread, tap / swipe / volume at scale 1. A lone page (cover alone, lone last page) peels over the target spread. | `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `PageCurlTurn.kt`, `ReaderScreen.kt` | `PageCurlTest`, `PageCurlComposeTest`, `PageCurlTwoPageScreenshotsTest`, `PageCurlCoverScreenshotsTest` |
 
-A Book posture with a hinge gap and the cover-to-spread turn still use Slide (#172, #173).
+A Book posture with a hinge gap still uses Slide (#172). A two-page spread turning onto a lone page also slides (#173).
 
 ## Settings
 

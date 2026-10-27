@@ -254,16 +254,16 @@ class PageCurlComposeTest {
     }
 
     @Test
-    fun twoPageViewUsesSlideWithoutCurl() {
+    fun twoPageCoverCurlsOntoTheFirstSpread() {
+        // Spread 0 is the cover alone; #173 peels it over the 2·3 spread.
         setReader(twoPage = true)
         freezeClock()
         tapNext(ReadingDirection.LTR)
-        repeat(20) {
-            composeRule.mainClock.advanceTimeByFrame()
-            composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
-        }
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
         composeRule.mainClock.advanceTimeBy(2_000)
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
         assertEquals(1, pagerState.currentPage)
     }
 
