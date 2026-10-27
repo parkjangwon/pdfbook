@@ -4,19 +4,20 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import android.util.LruCache
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.Closeable
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 
 interface PageBitmaps {
@@ -52,8 +53,13 @@ class PdfPageSource(
             val width = (pdfPage.width * scale).toInt().coerceAtLeast(1)
             val height = (pdfPage.height * scale).toInt().coerceAtLeast(1)
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            bitmap.eraseColor(Color.WHITE)
-            pdfPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            try {
+                bitmap.eraseColor(Color.WHITE)
+                pdfPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            } catch (t: Throwable) {
+                bitmap.recycle()
+                throw t
+            }
             return bitmap
         }
     }
@@ -76,6 +82,8 @@ class PageRenderer(
     private var prerenderJob: Job? = null
     private var pending: List<PageRequest> = emptyList()
     @Volatile private var closed = false
+    @Volatile private var closeJob: Job? = null
+    private val failedPages = ConcurrentHashMap.newKeySet<Int>()
 
     val cache = PageCache<Bitmap>(limitBytes) { it.byteCount.toLong() }
 
@@ -153,6 +161,7 @@ class PageRenderer(
             prerenderJob = scope.launch {
                 for (target in targets) {
                     ensureActive()
+                    if (target.page in failedPages) continue
                     renderLocked(target)
                 }
             }
@@ -163,31 +172,48 @@ class PageRenderer(
         if (closed || key.page < 1 || key.page > pageCount || key.maxWidth <= 0 || key.maxHeight <= 0) {
             return null
         }
+        if (key.page in failedPages) return null
         cache.get(key)?.let { return it }
         return withContext(renderDispatcher) {
             mutex.withLock {
                 if (closed) return@withLock null
+                if (key.page in failedPages) return@withLock null
                 cache.get(key)?.let { return@withLock it }
-                source.draw(key.page, key.maxWidth, key.maxHeight).also { cache.put(key, it) }
+                try {
+                    source.draw(key.page, key.maxWidth, key.maxHeight).also { cache.put(key, it) }
+                } catch (c: CancellationException) {
+                    throw c
+                } catch (t: Throwable) {
+                    failedPages += key.page
+                    Log.w(TAG, "draw failed for page ${key.page} (${t.javaClass.simpleName})")
+                    null
+                }
             }
         }
     }
 
     override fun close() {
-        synchronized(jobLock) { prerenderJob?.cancel() }
-        scope.cancel()
-        runBlocking(renderDispatcher) {
-            mutex.withLock {
-                if (closed) return@withLock
-                closed = true
-                cache.clear()
-                thumbs.evictAll()
-                source.close()
+        synchronized(jobLock) {
+            if (closed) return
+            closed = true
+            prerenderJob?.cancel()
+            closeJob = scope.launch {
+                mutex.withLock {
+                    cache.clear()
+                    thumbs.evictAll()
+                    source.close()
+                }
             }
         }
     }
 
+    suspend fun awaitClosed() {
+        closeJob?.join()
+    }
+
     companion object {
+        private const val TAG = "PageRenderer"
+
         fun open(pfd: ParcelFileDescriptor): PageRenderer {
             val pdf = try {
                 PdfRenderer(pfd)
