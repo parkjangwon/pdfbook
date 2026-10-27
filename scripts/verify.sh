@@ -472,10 +472,19 @@ case "$FEATURE" in
     open_book
     "$ADB" shell input keyevent KEYCODE_BACK
     open_library
-    tap_id library_settings
-    expect_id settings_screen
-    tap_id settings_reading_entry
-    expect_id settings_reading_screen
+    open_image_adjust() {
+      tap_id library_settings
+      expect_id settings_screen
+      tap_id settings_reading_entry
+      expect_id settings_reading_screen
+      for _ in 1 2 3; do
+        wait_node text "$image_adjust" 2 >/dev/null && break
+        "$ADB" shell input swipe 540 1600 540 900 300
+      done
+      tap_node text "$image_adjust"
+      expect_id image_adjust_screen
+      sleep 2
+    }
     image_adjust='Image adjustments|이미지 보정'
     for _ in 1 2 3; do
       wait_node text "$image_adjust" 2 >/dev/null && break
@@ -493,7 +502,17 @@ case "$FEATURE" in
     "$ADB" shell input tap "$tap_x" "$2"
     sleep 1
     shot image-adjust-on
-    # Dark theme capture.
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_reading_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_book
+    shot image-adjust-reader
+    # Reopen the screen last: the window resizes below must not feed navigation.
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_library
+    open_image_adjust
     "$ADB" shell cmd uimode night yes
     sleep 2
     shot image-adjust-on-dark
@@ -508,14 +527,6 @@ case "$FEATURE" in
     "$ADB" shell settings put system font_scale 1.0
     "$ADB" shell wm size reset
     "$ADB" shell wm density reset
-    sleep 2
-    "$ADB" shell input keyevent KEYCODE_BACK
-    expect_id settings_reading_screen
-    "$ADB" shell input keyevent KEYCODE_BACK
-    expect_id settings_screen
-    "$ADB" shell input keyevent KEYCODE_BACK
-    open_book
-    shot image-adjust-reader
     ;;
 esac
 
