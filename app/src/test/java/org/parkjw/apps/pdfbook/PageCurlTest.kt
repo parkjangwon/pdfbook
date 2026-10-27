@@ -125,6 +125,33 @@ class PageCurlTest {
     }
 
     @Test
+    fun flapBackMatrixTurnsTheBackFaceIntoTheStillSpread() {
+        val width = 400f
+        val height = 600f
+        val left = 120f
+        val top = 40f
+        val identity = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
+        for (side in listOf(CurlSide.Left, CurlSide.Right)) {
+            val shape = CurlShape()
+            updateCurlShape(width, height, 1f, side, shape, spreadFlap = true)
+            val values = FloatArray(9)
+            flapBackMatrixValues(shape, left, top, width, side, values)
+            for (i in identity.indices) {
+                assertEquals("M[$i] at p=1, $side", identity[i], values[i], 1e-4f)
+            }
+
+            // At the half turn the tip sits on the spine and no flap has crossed it yet.
+            val half = CurlShape()
+            updateCurlShape(width, height, 0.5f, side, half, spreadFlap = true)
+            val spine = if (side == CurlSide.Right) 0f else width
+            assertEquals("tip at the spine, $side", spine, half.tipX, 0.01f)
+            val box = boundsOf(half.flap, half.flapCount)
+            val past = if (side == CurlSide.Right) box[0] else width - box[1]
+            assertEquals("flap past the spine at p=0.5, $side", 0f, past, 0.01f)
+        }
+    }
+
+    @Test
     fun releaseCompletesByDistanceOrFlingOnly() {
         // Slow drags: a quarter turn from the mockup completes.
         assertTrue(curlReleaseCompletes(0.25f, alongVelocityPx = 0f, flingVelocityPx = 1000f))
