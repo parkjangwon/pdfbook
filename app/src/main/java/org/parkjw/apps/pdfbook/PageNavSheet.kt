@@ -198,6 +198,8 @@ private fun OutlineList(outline: List<OutlineEntry>, currentPage: Int, onPick: (
 @Composable
 private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, onPick: (Int) -> Unit) {
     val density = LocalDensity.current.density
+    val displayMode = LocalDisplayMode.current
+    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
     val state = rememberLazyGridState(initialFirstVisibleItemIndex = (currentPage - 1).coerceAtLeast(0))
     LazyVerticalGrid(
         state = state,
@@ -236,7 +238,13 @@ private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, o
                         .background(ReaderChip),
                 ) {
                     bitmap?.let {
-                        Image(it, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                        Image(
+                            it,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize(),
+                            colorFilter = colorFilter,
+                        )
                     }
                 }
                 Text(
