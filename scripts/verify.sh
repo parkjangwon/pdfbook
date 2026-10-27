@@ -321,6 +321,18 @@ show_overlay() {
   expect_id reader_overlay_bottom
 }
 
+# reader_progress lives in the main window. While the more-menu popup is open,
+# uiautomator dumps only the popup, so close it, read the page, then reopen.
+progress_with_menu_closed() {
+  local value
+  "$ADB" shell input keyevent KEYCODE_BACK
+  wait_node resource-id reader_progress 10 >/dev/null \
+    || die "reader_progress is not on screen with the more menu closed (last dump: $OUT/ui.xml)"
+  value="$(node_text reader_progress || true)"
+  [ -n "$value" ] || die "reader_progress was empty with the more menu closed (last dump: $OUT/ui.xml)"
+  printf '%s\n' "$value"
+}
+
 slider_tap() {
   local fraction="$1" found
   found="$(wait_node resource-id reader_slider)" || die "Reader slider not found."
@@ -511,43 +523,50 @@ case "$FEATURE" in
     # Page 1 is [1], then [2·3], [4·5] ... so six turns land on [12·13].
     for _ in $(seq 1 6); do tap_id reader_zone_Next; done
     show_overlay
+    expect_id reader_progress
+    page_before="$(node_text reader_progress || true)"
+    [ -n "$page_before" ] || die "reader_progress was empty before the shift (last dump: $OUT/ui.xml)"
+    [ "$page_before" = "12 / 30" ] \
+      || die "Expected the reader at page 12 before the shift (got '$page_before')."
     tap_id reader_more_button
     expect_id reader_more_status
     expect_id reader_more_spread_shift
-    page_before="$(node_text reader_progress || true)"
-    [ -z "$page_before" ] || [ "$page_before" = "12 / 30" ] \
-      || die "Expected the reader at page 12 before the shift (got $page_before)."
     shot spread-shift-menu-off
     # The reader does not expose reader_page_* to uiautomator, so read the two
     # pages from their colours (scripts/make-test-pdf.py paints one per page).
+    # The book is RTL: the right-hand page comes first in the pair.
     pair_off="$(python3 "$ROOT/scripts/page-pair.py" "$OUT/"*-spread-shift-menu-off.png)" \
       || die "Could not read the pair before the shift (last dump: $OUT/ui.xml)"
     case "$pair_off" in
-      "12 13" | "13 12") ;;
-      *) die "Expected the plain pair 12·13 before the shift, saw '$pair_off' (last dump: $OUT/ui.xml)" ;;
+      "13 12") ;;
+      *) die "Expected the plain RTL pair 13 12 before the shift, saw '$pair_off' (last dump: $OUT/ui.xml)" ;;
     esac
     tap_id reader_more_spread_shift
     shot spread-shift-menu-on
     pair_on="$(python3 "$ROOT/scripts/page-pair.py" "$OUT/"*-spread-shift-menu-on.png)" \
       || die "Could not read the pair after the shift (last dump: $OUT/ui.xml)"
     case "$pair_on" in
-      "11 12" | "12 11") ;;
-      *) die "Shift must pair 11 and 12, saw '$pair_on' (last dump: $OUT/ui.xml)" ;;
+      "12 11") ;;
+      *) die "Shift must pair 11 and 12 as 12 11, saw '$pair_on' (last dump: $OUT/ui.xml)" ;;
     esac
-    [ "$(node_text reader_progress || true)" = "$page_before" ] \
-      || die "Shift must keep the page being read ($page_before -> $(node_text reader_progress || true))."
+    page_on="$(progress_with_menu_closed)"
+    [ "$page_on" = "$page_before" ] \
+      || die "Shift must keep the page being read ($page_before -> $page_on)."
+    tap_id reader_more_button
+    expect_id reader_more_status
+    expect_id reader_more_spread_shift
     tap_id reader_more_spread_shift
     shot spread-shift-menu-back
     pair_back="$(python3 "$ROOT/scripts/page-pair.py" "$OUT/"*-spread-shift-menu-back.png)" \
       || die "Could not read the pair after toggling back (last dump: $OUT/ui.xml)"
     case "$pair_back" in
-      "12 13" | "13 12") ;;
-      *) die "Toggling back must pair 12 and 13 again, saw '$pair_back' (last dump: $OUT/ui.xml)" ;;
+      "13 12") ;;
+      *) die "Toggling back must pair 12 and 13 as 13 12 again, saw '$pair_back' (last dump: $OUT/ui.xml)" ;;
     esac
-    [ "$(node_text reader_progress || true)" = "$page_before" ] \
-      || die "Toggling back must keep the page being read ($page_before -> $(node_text reader_progress || true))."
+    page_back="$(progress_with_menu_closed)"
+    [ "$page_back" = "$page_before" ] \
+      || die "Toggling back must keep the page being read ($page_before -> $page_back)."
     # Put the reading settings back so a rerun starts where this one did.
-    "$ADB" shell input keyevent KEYCODE_BACK
     tap_id reader_back
     open_library
     tap_id library_settings
