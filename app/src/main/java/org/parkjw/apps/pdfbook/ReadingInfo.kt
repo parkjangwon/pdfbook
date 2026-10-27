@@ -131,6 +131,7 @@ fun ReadingInfoHost(
     showTime: Boolean,
     showBattery: Boolean,
     omitPage: Boolean,
+    atFold: Boolean,
     visible: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -144,16 +145,14 @@ fun ReadingInfoHost(
     val endInset = with(density) {
         readingInfoEdgeInsetPx(cutoutRight, cornerRadiusPx, density.density).toDp()
     }
-    val bottomInset = with(density) {
-        readingInfoEdgeInsetPx(cutoutBottom, cornerRadiusPx, density.density).toDp()
-    }
-    val page = if (showPage && !omitPage) {
-        readingInfoPage(spreads.getOrNull(pagerState.settledPage).orEmpty(), pagerState.pageCount)
+    // The tabletop pill sits at the hinge, not at a rounded screen edge.
+    val bottomInset = if (atFold) {
+        READING_INFO_MIN_MARGIN
     } else {
-        null
+        with(density) {
+            readingInfoEdgeInsetPx(cutoutBottom, cornerRadiusPx, density.density).toDp()
+        }
     }
-    val clock = if (showTime) rememberReadingInfoClock() else null
-    val battery = if (showBattery) rememberReadingInfoBattery() else null
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(tween(END_NOTICE_FADE_MILLIS)),
@@ -161,8 +160,37 @@ fun ReadingInfoHost(
         modifier = modifier
             .padding(end = endInset, bottom = bottomInset),
     ) {
-        ReadingInfoChip(page = page, clock = clock, battery = battery, maxWidth = maxWidth)
+        // Clock and battery listeners live here so they stop while the chip is hidden.
+        ReadingInfoLive(
+            spreads = spreads,
+            pagerState = pagerState,
+            maxWidth = maxWidth,
+            showPage = showPage,
+            showTime = showTime,
+            showBattery = showBattery,
+            omitPage = omitPage,
+        )
     }
+}
+
+@Composable
+private fun ReadingInfoLive(
+    spreads: List<List<Int>>,
+    pagerState: PagerState,
+    maxWidth: Dp,
+    showPage: Boolean,
+    showTime: Boolean,
+    showBattery: Boolean,
+    omitPage: Boolean,
+) {
+    val page = if (showPage && !omitPage) {
+        readingInfoPage(spreads.getOrNull(pagerState.settledPage).orEmpty(), pagerState.pageCount)
+    } else {
+        null
+    }
+    val clock = if (showTime) rememberReadingInfoClock() else null
+    val battery = if (showBattery) rememberReadingInfoBattery() else null
+    ReadingInfoChip(page = page, clock = clock, battery = battery, maxWidth = maxWidth)
 }
 
 @OptIn(ExperimentalLayoutApi::class)

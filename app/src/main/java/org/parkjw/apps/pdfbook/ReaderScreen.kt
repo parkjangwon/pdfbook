@@ -1044,6 +1044,7 @@ private fun ReaderScreenContent(
                         showTime = readingInfoTime,
                         showBattery = readingInfoBattery,
                         omitPage = tabletop != null,
+                        atFold = tabletop != null,
                         visible = !overlayVisible,
                         modifier = Modifier.align(Alignment.BottomEnd),
                     )
