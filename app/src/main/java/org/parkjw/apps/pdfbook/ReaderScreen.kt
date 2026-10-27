@@ -566,7 +566,7 @@ private fun ReaderScreenContent(
                     posture = posture,
                     window = windowSize,
                     autoCrop = autoCrop,
-                )
+                ).curl
                 if (two == null) {
                     if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                     return@launch
@@ -783,7 +783,7 @@ private fun ReaderScreenContent(
                                                 posture = posture,
                                                 window = windowSize,
                                                 autoCrop = autoCrop,
-                                            )
+                                            ).curl
                                         } else {
                                             null
                                         }
@@ -1258,8 +1258,16 @@ private fun ReaderScreenContent(
     }
 }
 
+/** Why [buildTwoPageCurl] refused the curl and the turn used Slide instead. */
+internal enum class TwoPageCurlFallback { SpreadPages, NoCanvas, CacheMiss, SheetLands }
+
+internal data class TwoPageCurlBuild(
+    val curl: TwoPageCurl?,
+    val fallback: TwoPageCurlFallback?,
+)
+
 /** Everything the two-page curl overlay needs beyond the shared front/back bitmaps. */
-private data class TwoPageCurl(
+internal data class TwoPageCurl(
     val front: Bitmap,
     val back: Bitmap,
     val flapBack: Bitmap,
@@ -1281,7 +1289,7 @@ private data class TwoPageCurl(
  * Null (Slide fallback) when the bitmap cache missed or when the sheet and the pages it
  * lands on differ by more than 1px (오대리 rule), so the last frame cannot jump.
  */
-private fun buildTwoPageCurl(
+internal fun buildTwoPageCurl(
     renderer: PageBitmaps,
     currentSpread: List<Int>,
     targetSpread: List<Int>,
@@ -1290,9 +1298,12 @@ private fun buildTwoPageCurl(
     posture: FoldPosture,
     window: IntSize,
     autoCrop: Boolean,
-): TwoPageCurl? {
-    if (currentSpread.size != 2 || targetSpread.size != 2) return null
-    val canvas = curlCanvas(window, posture) ?: return null
+): TwoPageCurlBuild {
+    if (currentSpread.size != 2 || targetSpread.size != 2) {
+        return TwoPageCurlBuild(null, TwoPageCurlFallback.SpreadPages)
+    }
+    val canvas = curlCanvas(window, posture)
+        ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.NoCanvas)
     val visualCurrent = spreadLayout(currentSpread, direction)
     val visualTarget = spreadLayout(targetSpread, direction)
     val slots = listOf(canvas.left, canvas.right)
@@ -1302,12 +1313,12 @@ private fun buildTwoPageCurl(
     val bitmapsCurrent = visualCurrent.map { page ->
         renderer.cached(page, requestWidth, canvas.size.height)
             ?.takeUnless { it.isRecycled }
-            ?: return null
+            ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
     val bitmapsTarget = visualTarget.map { page ->
         renderer.cached(page, requestWidth, canvas.size.height)
             ?.takeUnless { it.isRecycled }
-            ?: return null
+            ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
     val cropsCurrent = spreadCrops(renderer, visualCurrent, autoCrop)
     val cropsTarget = spreadCrops(renderer, visualTarget, autoCrop)
@@ -1328,22 +1339,27 @@ private fun buildTwoPageCurl(
     // The current spread's other page must sit exactly where the back face lands, or its
     // edges would show around the flap at progress 1.
     val still = rectCurrent[1 - turning]
-    if (!sheetLandsOnSpread(sheet, landing, backFace, side, still)) return null
-    return TwoPageCurl(
-        front = bitmapsCurrent[turning],
-        back = bitmapsTarget[turning],
-        flapBack = bitmapsTarget[1 - turning],
-        still = bitmapsCurrent[1 - turning],
-        layout = CurlSheetLayout(
-            sheet = sheet,
-            spread = sheet.expandedTo(backFace),
-            backFace = backFace,
-            spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+    if (!sheetLandsOnSpread(sheet, landing, backFace, side, still)) {
+        return TwoPageCurlBuild(null, TwoPageCurlFallback.SheetLands)
+    }
+    return TwoPageCurlBuild(
+        TwoPageCurl(
+            front = bitmapsCurrent[turning],
+            back = bitmapsTarget[turning],
+            flapBack = bitmapsTarget[1 - turning],
+            still = bitmapsCurrent[1 - turning],
+            layout = CurlSheetLayout(
+                sheet = sheet,
+                spread = sheet.expandedTo(backFace),
+                backFace = backFace,
+                spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+            ),
+            frontCrop = cropsCurrent[turning].toContentRect(),
+            backCrop = cropsTarget[turning].toContentRect(),
+            flapCrop = cropsTarget[1 - turning].toContentRect(),
+            stillCrop = cropsCurrent[1 - turning].toContentRect(),
         ),
-        frontCrop = cropsCurrent[turning].toContentRect(),
-        backCrop = cropsTarget[turning].toContentRect(),
-        flapCrop = cropsTarget[1 - turning].toContentRect(),
-        stillCrop = cropsCurrent[1 - turning].toContentRect(),
+        null,
     )
 }
 
