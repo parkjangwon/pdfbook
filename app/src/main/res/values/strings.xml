@@ -76,6 +76,10 @@
     <string name="reader_back">뒤로</string>
     <string name="reader_mode_single">한쪽</string>
     <string name="reader_mode_double">두쪽</string>
+    <string name="reader_more">더보기</string>
+    <string name="reader_direction_menu">넘김 방향</string>
+    <string name="reader_mode_status_single">지금은 한쪽 보기예요</string>
+    <string name="reader_mode_status_double">지금은 두쪽 보기예요</string>
     <string name="reader_jump_back">%1$d쪽으로 돌아가기</string>
     <string name="settings_section_update">업데이트</string>
     <string name="update_check">업데이트 확인</string>
