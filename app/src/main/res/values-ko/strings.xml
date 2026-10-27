@@ -104,6 +104,15 @@
     <string name="reader_zone_menu_a11y">메뉴를 열거나 닫아요</string>
     <string name="reader_zone_next_a11y">다음 쪽으로 넘겨요</string>
     <string name="reader_tap_zone_label">탭 영역</string>
+    <string name="reader_auto_crop_label">여백 자르기</string>
+    <string name="reader_crop_subtitle_single">흰 여백을 자동으로 찾아 잘라요</string>
+    <string name="reader_crop_subtitle_spread">두 쪽을 같은 크기로 맞춰요</string>
+    <string name="reader_crop_notice">원본 PDF는 그대로예요. 화면에서만 잘라서 보여 줘요.</string>
+    <string name="reader_crop_reset">원래대로</string>
+    <string name="reader_crop_done">완료</string>
+    <string name="reader_crop_empty">자를 여백이 없어요</string>
+    <string name="reader_crop_state_on">켜짐</string>
+    <string name="reader_crop_state_off">꺼짐</string>
     <string name="reader_tap_zone_adjust">폭 조절</string>
     <string name="reader_tap_width_title">탭 영역 폭</string>
     <string name="reader_tap_width_body">왼쪽·오른쪽 영역의 폭이에요. 가운데는 메뉴를 열어요.</string>

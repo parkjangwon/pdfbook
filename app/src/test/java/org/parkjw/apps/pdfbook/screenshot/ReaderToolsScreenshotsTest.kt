@@ -97,13 +97,12 @@ class ReaderToolsScreenshotsTest {
                                 testTag = "reader_bookmark_list_button",
                                 onClick = {},
                             ),
-                            ReaderToolItem.Toggle(
+                            ReaderToolItem.Action(
                                 tool = ReaderTool.AutoCrop,
-                                iconRes = R.drawable.ic_brightness,
-                                label = "자동 자르기",
+                                iconRes = R.drawable.ic_crop,
+                                label = "여백 자르기",
                                 testTag = "reader_auto_crop",
-                                checked = true,
-                                onCheckedChange = {},
+                                onClick = {},
                             ),
                         ),
                     )
