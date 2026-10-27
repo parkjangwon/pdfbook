@@ -60,6 +60,7 @@ fun ReaderRoute(
     showTapZoneGuide: Boolean = true,
     tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     onTapZoneSidePercentChange: (Int) -> Unit = {},
+    oneFingerZoom: Boolean = false,
     volumes: ReaderVolumes = ReaderVolumes(),
     showTitleToast: Boolean = false,
     onTitleToastShown: () -> Unit = {},
@@ -82,8 +83,10 @@ fun ReaderRoute(
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
     var saved by remember(key) { mutableStateOf<BookState?>(null) }
+    var initialAdjust by remember(key) { mutableStateOf<ImageAdjust?>(null) }
     LaunchedEffect(key) {
         saved = store.state(key)
+        initialAdjust = store.adjust(key)
         loaded = true
     }
     if (!loaded) return
@@ -92,7 +95,8 @@ fun ReaderRoute(
 
     val context = LocalContext.current
     val uri = remember(key) { Uri.parse(book.uri) }
-    val imageAdjust by remember(key) { store.adjustFlow(key) }.collectAsState(ImageAdjust.Default)
+    val imageAdjust by remember(key) { store.adjustFlow(key) }
+        .collectAsState(initialAdjust ?: ImageAdjust.Default)
     val openResult by produceState<PdfOpenResult>(
         initialValue = rendererOverride?.let { PdfOpenResult.Ready(it) } ?: PdfOpenResult.Loading,
         uri,
@@ -189,6 +193,7 @@ fun ReaderRoute(
                         showTapZoneGuide = showTapZoneGuide,
                         tapZoneSidePercent = tapZoneSidePercent,
                         onTapZoneSidePercentChange = onTapZoneSidePercentChange,
+                        oneFingerZoom = oneFingerZoom,
                         volumes = volumes,
                         showTitleToast = showTitleToast,
                         onTitleToastShown = onTitleToastShown,

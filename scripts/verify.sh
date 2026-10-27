@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom display-mode image-adjust"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode image-adjust"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -448,6 +448,21 @@ case "$FEATURE" in
     tap_node text "$keep_zoom"
     shot keep-zoom-on
     ;;
+  one-finger-zoom)
+    open_library
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    one_finger_zoom='One-finger zoom|한 손가락 확대'
+    for _ in 1 2 3 4; do
+      wait_node text "$one_finger_zoom" 2>/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    shot one-finger-zoom-off
+    tap_node text "$one_finger_zoom"
+    shot one-finger-zoom-on
+    ;;
   display-mode)
     open_library
     tap_id library_settings
@@ -468,11 +483,8 @@ case "$FEATURE" in
     shot display-mode-invert
     ;;
   image-adjust)
-    # The row targets the last read book, so open one first.
-    open_book
-    "$ADB" shell input keyevent KEYCODE_BACK
-    open_library
     image_adjust='Image adjustments|이미지 보정'
+    page_color='Page color|페이지 색'
     scroll_image_adjust_row() {
       found=""
       for _ in 1 2 3 4 5 6; do
@@ -481,21 +493,32 @@ case "$FEATURE" in
       done
       return 1
     }
-    open_image_adjust() {
+    open_reading_settings() {
       tap_id library_settings
       expect_id settings_screen
       tap_id settings_reading_entry
       expect_id settings_reading_screen
+    }
+    open_image_adjust() {
+      open_reading_settings
       scroll_image_adjust_row || die "image adjustment row not found"
       set -- $found
       "$ADB" shell input tap "$1" "$2"
       expect_id image_adjust_screen
       sleep 2
     }
-    tap_id library_settings
-    expect_id settings_screen
-    tap_id settings_reading_entry
-    expect_id settings_reading_screen
+    # No book has been read yet after pm clear: the row is disabled.
+    open_library
+    open_reading_settings
+    scroll_image_adjust_row || die "image adjustment row not found"
+    shot image-adjust-no-book-row
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell input keyevent KEYCODE_BACK
+    # The row targets the last read book, so open one first.
+    open_book
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_library
+    open_reading_settings
     scroll_image_adjust_row || die "image adjustment row not found"
     shot image-adjust-off-row
     set -- $found
@@ -512,11 +535,30 @@ case "$FEATURE" in
     shot image-adjust-on
     "$ADB" shell input keyevent KEYCODE_BACK
     expect_id settings_reading_screen
+    shot image-adjust-on-row
     "$ADB" shell input keyevent KEYCODE_BACK
     expect_id settings_screen
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
     shot image-adjust-reader
+    with_page_color() {
+      local label="$1" name="$2"
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_reading_settings
+      local color_found=""
+      for _ in 1 2 3; do
+        if color_found="$(wait_node text "$page_color" 2)"; then break; fi
+        "$ADB" shell input swipe 540 1600 540 900 300
+      done
+      tap_node text "$page_color"
+      tap_node text "$label"
+      "$ADB" shell input keyevent KEYCODE_BACK
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_book
+      shot "$name"
+    }
+    with_page_color 'Inverted|색 반전' image-adjust-reader-invert
+    with_page_color 'Sepia|세피아' image-adjust-reader-sepia
     # Reopen the screen last: the window resizes below must not feed navigation.
     "$ADB" shell input keyevent KEYCODE_BACK
     open_library
@@ -526,8 +568,8 @@ case "$FEATURE" in
     shot image-adjust-on-dark
     "$ADB" shell cmd uimode night no
     sleep 1
-    # 320dp width with the 2.0x font scale.
-    "$ADB" shell wm size 320x640
+    # 320dp width with the 2.0x font scale; taller so the sliders and 원래대로 all fit.
+    "$ADB" shell wm size 320x1400
     "$ADB" shell wm density 160
     "$ADB" shell settings put system font_scale 2.0
     sleep 3

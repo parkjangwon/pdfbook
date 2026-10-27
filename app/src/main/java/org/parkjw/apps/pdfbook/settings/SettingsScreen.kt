@@ -549,6 +549,13 @@ private fun ReadingSettingsScreen(
                 )
                 GroupDivider()
                 SwitchRow(
+                    title = stringResource(R.string.settings_one_finger_zoom),
+                    supporting = stringResource(R.string.settings_one_finger_zoom_desc),
+                    checked = settings.oneFingerZoom,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(oneFingerZoom = checked) } },
+                )
+                GroupDivider()
+                SwitchRow(
                     title = stringResource(R.string.settings_volume_key_paging),
                     checked = settings.volumeKeyPaging,
                     onCheckedChange = { checked -> onSettingsChange { it.copy(volumeKeyPaging = checked) } },
