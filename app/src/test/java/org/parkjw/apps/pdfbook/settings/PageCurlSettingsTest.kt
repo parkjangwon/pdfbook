@@ -69,8 +69,10 @@ class PageCurlSettingsTest {
             }
         }
         composeRule.onNodeWithText("책장 넘김").assertIsDisplayed()
-        composeRule.onNodeWithText("한쪽 보기에서만 써요. 두쪽 보기에서는 슬라이드로 넘겨요.")
-            .assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "한쪽·두쪽 보기 모두 책처럼 넘겨요. 확대 중이거나 다음 쪽을 준비 중이면 슬라이드로 넘어가요. " +
+                "두쪽 보기에서 표지나 마지막 쪽으로 갈 때도 슬라이드예요.",
+        ).assertIsDisplayed()
         composeRule.onNodeWithTag("settings_animation_option_Curl").performClick()
         assertEquals(PageTurnAnimation.Curl, settings.pageTurnAnimation)
         composeRule.onNodeWithText(text(R.string.settings_page_turn_animation))
@@ -83,12 +85,14 @@ class PageCurlSettingsTest {
     fun stringsMatchSpec() {
         assertEquals("책장 넘김", localized(Locale.KOREAN, R.string.settings_animation_curl))
         assertEquals(
-            "한쪽 보기에서만 써요. 두쪽 보기에서는 슬라이드로 넘겨요.",
+            "한쪽·두쪽 보기 모두 책처럼 넘겨요. 확대 중이거나 다음 쪽을 준비 중이면 슬라이드로 넘어가요. " +
+                "두쪽 보기에서 표지나 마지막 쪽으로 갈 때도 슬라이드예요.",
             localized(Locale.KOREAN, R.string.settings_animation_curl_desc),
         )
         assertEquals("Page curl", localized(Locale.ENGLISH, R.string.settings_animation_curl))
         assertEquals(
-            "Single-page view only. Two-page view uses Slide.",
+            "Turns pages like a book in single- and two-page view. Uses Slide while zoomed in or " +
+                "while the next page is loading, and in two-page view when going to the cover or the last page.",
             localized(Locale.ENGLISH, R.string.settings_animation_curl_desc),
         )
     }

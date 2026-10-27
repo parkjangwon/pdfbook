@@ -526,7 +526,7 @@ private fun ReaderScreenContent(
                 }
                 return@launch
             }
-            if (twoPage) {
+            if (twoPage && fromSpread.size == 2 && nextSpread.size == 2) {
                 val windowSize = IntSize(
                     viewport.width.roundToInt().coerceAtLeast(1),
                     viewport.height.roundToInt().coerceAtLeast(1),
@@ -747,7 +747,7 @@ private fun ReaderScreenContent(
                                             viewport.width.roundToInt().coerceAtLeast(1),
                                             viewport.height.roundToInt().coerceAtLeast(1),
                                         )
-                                        val two = if (twoPage) {
+                                        val two = if (twoPage && fromSpread.size == 2 && toSpread.size == 2) {
                                             buildTwoPageCurl(
                                                 renderer = renderer,
                                                 currentSpread = fromSpread,
