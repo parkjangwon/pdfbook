@@ -532,6 +532,12 @@ case "$FEATURE" in
     tap_x=$(( $3 + ($5 - $3) * 3 / 4 ))
     "$ADB" shell input tap "$tap_x" "$2"
     sleep 1
+    # Grayscale at 50%: a partial value must keep some colour, not turn the page gray.
+    found="$(wait_node resource-id image_adjust_grayscale)" || die "grayscale slider not found"
+    set -- $found
+    tap_x=$(( $3 + ($5 - $3) / 2 ))
+    "$ADB" shell input tap "$tap_x" "$2"
+    sleep 1
     shot image-adjust-on
     "$ADB" shell input keyevent KEYCODE_BACK
     expect_id settings_reading_screen
