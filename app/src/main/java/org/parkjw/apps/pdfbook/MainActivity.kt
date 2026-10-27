@@ -716,6 +716,9 @@ private fun App(
                 displayMode = settings.displayMode,
                 coverAlone = settings.coverAlone,
                 keepScreenOn = settings.keepScreenOn,
+                readingInfoPage = settings.readingInfoPage,
+                readingInfoTime = settings.readingInfoTime,
+                readingInfoBattery = settings.readingInfoBattery,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },
                 volumes = ReaderVolumes(
                     onPrevious = adjacent.previous?.let { { switchTo(it) } },
