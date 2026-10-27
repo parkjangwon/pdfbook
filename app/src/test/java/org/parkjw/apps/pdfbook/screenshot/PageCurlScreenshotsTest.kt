@@ -17,7 +17,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.parkjw.apps.pdfbook.CurlSide
 import org.parkjw.apps.pdfbook.PageCurlOverlay
+import org.parkjw.apps.pdfbook.colorFilter
+import org.parkjw.apps.pdfbook.curlLook
 import org.parkjw.apps.pdfbook.settings.AppSettings
+import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.SettingsSubScreen
@@ -169,5 +172,50 @@ class PageCurlScreenshotsTest {
         }
         composeRule.waitForIdle()
         composeRule.onRoot().captureRoboImage("reader-page-curl-mid-night-folded.png")
+    }
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun pageCurlMidSepiaFolded() {
+        captureMidCurl("reader-page-curl-mid-sepia-folded.png", DisplayMode.Sepia)
+    }
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun pageCurlMidInvertedFolded() {
+        captureMidCurl("reader-page-curl-mid-inverted-folded.png", DisplayMode.Invert)
+    }
+
+    private fun captureMidCurl(file: String, mode: DisplayMode) {
+        val look = mode.curlLook()
+        val pages = SolidPageBitmaps(2, 0xFFF7F2E8.toInt(), 0xFF3D5A80.toInt())
+        val front = runBlocking { pages.render(1, 360, 640)!! }
+        val back = runBlocking { pages.render(2, 360, 640)!! }
+        composeRule.setContent {
+            ScreenshotTheme(dark = false, systemBarsColor = ReaderBackground) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(ReaderBackground),
+                ) {
+                    // Same filter and per-mode paper values the ReaderScreen passes.
+                    PageCurlOverlay(
+                        front = front,
+                        back = back,
+                        progress = { 0.45f },
+                        side = CurlSide.Left,
+                        modifier = Modifier.fillMaxSize(),
+                        colorFilter = mode.colorFilter(),
+                        flapColor = look.flapColor,
+                        shadowColor = look.shadowColor,
+                        shadowAlpha = look.shadowAlpha,
+                        shadowMidAlpha = look.shadowMidAlpha,
+                        foldHighlightColor = look.foldHighlightColor,
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onRoot().captureRoboImage(file)
     }
 }
