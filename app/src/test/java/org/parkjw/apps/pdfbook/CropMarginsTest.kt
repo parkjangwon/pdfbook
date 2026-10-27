@@ -96,6 +96,20 @@ class CropMarginsTest {
     }
 
     @Test
+    fun twoPageRuleKeepsEachPagesOuterMargin() {
+        val leftPage = CropMargins(left = 0.14f, top = 0.09f, right = 0.15f, bottom = 0.09f)
+        val rightPage = CropMargins(left = 0.16f, top = 0.09f, right = 0.12f, bottom = 0.09f)
+        val (left, right) = alignedTwoPageMargins(leftPage, rightPage)
+        assertEquals(0f, left.right)
+        assertEquals(0f, right.left)
+        // Each page keeps its own outer margin (v0.7.1): the spine edges stay aligned and the
+        // shared scale keeps the halves the same height, so the two-page curl still meets at the
+        // spine even when the outer edges differ.
+        assertClose(0.14f, left.left)
+        assertClose(0.12f, right.right)
+    }
+
+    @Test
     fun creamPaperIsMeasuredAgainstItsOwnBackground() {
         val margins = detectCropMargins(
             page(background = 0xFFF7F2E8.toInt()),
