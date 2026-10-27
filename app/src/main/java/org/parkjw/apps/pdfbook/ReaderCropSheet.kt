@@ -59,6 +59,7 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
 import org.parkjw.apps.pdfbook.ui.theme.ReaderOverlay
 import org.parkjw.apps.pdfbook.ui.theme.ReaderTrack
+import org.parkjw.apps.pdfbook.ui.theme.pdfBookTextButtonColors
 import kotlin.math.min
 
 const val READER_CROP_SHEET_TAG = "reader_crop_sheet"
@@ -209,11 +210,11 @@ fun ReaderCropSheet(
             if (enabled) {
                 TextButton(
                     onClick = { onEnabledChange(false) },
+                    colors = pdfBookTextButtonColors(contentColor = ReaderOnOverlay),
                     modifier = Modifier.height(40.dp).testTag(READER_CROP_RESET_TAG),
                 ) {
                     Text(
                         text = stringResource(R.string.reader_crop_reset),
-                        color = ReaderOnOverlay,
                         fontSize = 14.sp,
                     )
                 }
