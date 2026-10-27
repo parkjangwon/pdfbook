@@ -383,10 +383,6 @@ private fun ReaderScreenContent(
         is FoldPosture.Book -> "book:${posture.foldBounds}"
         is FoldPosture.Tabletop -> "tabletop:${posture.foldBounds}"
     }
-    LaunchedEffect(postureKey) {
-        zoom = ZoomState()
-    }
-
     // Remap shownAt so a posture/spread remount does not dismiss the pill (ZF-3 / SPEC-4).
     LaunchedEffect(spreads) {
         val jb = jumpBack ?: return@LaunchedEffect
@@ -441,6 +437,13 @@ private fun ReaderScreenContent(
         curlBack = null
         curlTwoPage = null
         curlProgress = 0f
+    }
+
+    LaunchedEffect(postureKey) {
+        zoom = ZoomState()
+        // A fold or unfold during a turn must not keep the old hinge layout up for the rest of
+        // the animation (an unpainted gap column and a short right edge).
+        clearCurlOverlay()
     }
 
     fun beginCurl(effect: CurlEffectState, front: Bitmap, back: Bitmap, twoPage: TwoPageCurl? = null) {
@@ -1373,8 +1376,12 @@ internal data class TwoPageCurl(
  * The current spread's other page is returned as [TwoPageCurl.still] so the overlay can keep
  * it on screen while the pager is already on the target spread.
  * Each page keeps its own measured rect, so spreads whose pages differ by a few points (a real
- * PDF) curl without the last frame jumping. Null (Slide fallback) when the bitmap cache missed
- * or when the two slots do not meet at the spine (a hinge gap).
+ * PDF) curl without the last frame jumping.
+ * A Book posture with a hinge gap is computed on the virtual spread (halves butted together)
+ * and carries the [CurlHinge], so the overlay cuts the turn at the fold instead of sliding.
+ * Null (Slide fallback) when the bitmap cache missed, when the two slots do not meet at the
+ * spine, or when the sheet and the pages it lands on differ by more than 1px (오대리 rule),
+ * so the last frame cannot jump.
  */
 internal fun buildTwoPageCurl(
     renderer: PageBitmaps,
@@ -1394,16 +1401,19 @@ internal fun buildTwoPageCurl(
     val visualCurrent = spreadLayout(currentSpread, direction)
     val visualTarget = spreadLayout(targetSpread, direction)
     val slots = listOf(canvas.left, canvas.right)
-    // spreadRequests() renders both pages at canvasWidth / 2, so look them up with that key:
-    // the curl slots can differ by one pixel on an odd width and would always miss the cache.
-    val requestWidth = (canvas.size.width / 2).coerceAtLeast(1)
+    // spreadRequests() renders both pages of a spread at slotWidth / 2 x slotHeight, with the
+    // slot from pageRenderSlot(): the window for Flat, the top half for Tabletop, and the
+    // virtual spread for a two-page Book with a hinge gap (so each half matches what
+    // BookHalfPage renders). Look them up with that key.
+    val slot = pageRenderSlot(window, posture, direction, twoPage = true)
+    val requestWidth = (slot.width / 2).coerceAtLeast(1)
     val bitmapsCurrent = visualCurrent.map { page ->
-        renderer.cached(page, requestWidth, canvas.size.height)
+        renderer.cached(page, requestWidth, slot.height)
             ?.takeUnless { it.isRecycled }
             ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
     val bitmapsTarget = visualTarget.map { page ->
-        renderer.cached(page, requestWidth, canvas.size.height)
+        renderer.cached(page, requestWidth, slot.height)
             ?.takeUnless { it.isRecycled }
             ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
@@ -1453,6 +1463,7 @@ internal fun buildTwoPageCurl(
                 spineX = spineX,
                 landing = landing,
                 still = still,
+                hinge = canvas.hinge,
             ),
             frontCrop = cropsCurrent[turning].toContentRect(),
             backCrop = cropsTarget[turning].toContentRect(),

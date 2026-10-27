@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
@@ -49,7 +50,11 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
  * the hinge. ReaderScreen measures each rect with the same fit as SpreadPageLayout, so pages of
  * a real book that differ by a few points are drawn at their own rects and both the first and
  * the last frame match the settled spreads; it falls back to Slide when the two slots do not
- * meet at the spine (a hinge gap).
+ * meet at the spine.
+ *
+ * [hinge] marks a Book posture with a real hinge gap: the rects are then in virtual-spread
+ * coordinates (the halves butted together) and the overlay paints the frame clipped on each
+ * side of the gap, so the flap never covers the hinge.
  *
  * A single-page curl passes null and keeps the v0.7.0 geometry (the whole canvas is the sheet).
  */
@@ -60,6 +65,8 @@ data class CurlSheetLayout(
     val spineX: Float,
     val landing: Rect = sheet,
     val still: Rect = backFace,
+    /** Set for a Book posture with a hinge gap: the overlay cuts the frame at [spineX]. */
+    val hinge: CurlHinge? = null,
 )
 
 /**
@@ -207,36 +214,8 @@ fun PageCurlOverlay(
         val top = fit.top
         val w = fit.width()
         val h = fit.height()
-
-        // The pager already shows the target spread, so two-page mode repaints its canvas
-        // and the page that must stay still from the current spread.
-        if (twoPage != null) {
-            drawRect(ReaderBackground)
-            val stillBitmap = stillImage
-            val stillCropPx = stillCrop
-            val stillRect = stillPageDest
-            if (stillBitmap != null && stillCropPx != null && stillRect != null) {
-                // Uneven pages: the flap's opaque back face can be a few pixels shorter than the
-                // still page, so retire the still page's extra rows at its own outer edge as the
-                // turn advances. Exact at progress 0 (the whole still page) and 1 (only the rows
-                // under the back face), so the first and last frames equal the settled spreads.
-                if (uniformRects || flapBack == null) {
-                    drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
-                } else {
-                    val face = twoPage.backFace
-                    val clipTop = stillRect.top +
-                        (face.top.coerceAtLeast(stillRect.top) - stillRect.top) * p
-                    val clipBottom = stillRect.bottom +
-                        (face.bottom.coerceAtMost(stillRect.bottom) - stillRect.bottom) * p
-                    if (clipBottom > clipTop) {
-                        clipRect(top = clipTop, bottom = clipBottom) {
-                            drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
-                        }
-                    }
-                }
-            }
-        }
-
+        // One shape and one set of polygons per frame. A Book hinge gap draws the frame in two
+        // clipped passes, so building them inside drawPass() would do the same work twice.
         val bounds = if (foldUnion != null && !uniformRects) {
             foldBounds[0] = foldUnion.left - left
             foldBounds[1] = foldUnion.top - top
@@ -247,143 +226,196 @@ fun PageCurlOverlay(
             null
         }
         updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null, bounds)
-        if (twoPage != null) {
-            // The revealed page keeps its own measured rect, which can differ by a few pixels
-            // from the turning page. Clip it to the part the fold has uncovered so it never
-            // peeks out beside the turning page. Equal-size pages draw exactly as before.
-            val reveal = revealDest ?: sheetRect
-            val sameRect = abs(reveal.left - sheetRect.left) <= 1f &&
-                abs(reveal.top - sheetRect.top) <= 1f &&
-                abs(reveal.right - sheetRect.right) <= 1f &&
-                abs(reveal.bottom - sheetRect.bottom) <= 1f
-            if (p > 0.001f && shape.revealedCount >= 3) {
-                if (sameRect) {
-                    drawImageInto(backImage, backCrop, reveal, colorFilter, drawFit)
-                } else {
-                    revealedPath.setPolygon(shape.revealed, shape.revealedCount, left, top)
-                    clipPath(revealedPath) {
-                        drawImageInto(backImage, backCrop, reveal, colorFilter, drawFit)
-                    }
-                }
-            }
-        } else {
-            drawImageInto(backImage, backCrop, sheetRect, colorFilter, drawFit)
-        }
-        if (p <= 0.001f) {
-            drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
-            return@Canvas
-        }
-
-        if (!shape.foldValid) {
-            drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
-            return@Canvas
-        }
-
+        val foldValid = shape.foldValid
         val diag = hypot(w, h)
         val foldTop = Offset(left + shape.foldTopX, top + shape.foldTopY)
         val foldBottom = Offset(left + shape.foldBottomX, top + shape.foldBottomY)
         val mid = Offset(left + shape.midX, top + shape.midY)
-
-        // Shadow: one linear gradient from the fold onto the revealed page only.
         val shadowWidth = CURL_SHADOW_WIDTH_DP.dp.toPx() * curlShadowWidthFraction(p)
-        if (shadowWidth > 0.5f && shape.revealedCount >= 3) {
+        // The revealed page keeps its own measured rect, which can differ by a few pixels from the
+        // turning page. Clip it to the part the fold has uncovered so it never peeks out beside
+        // the turning page. Equal-size pages draw exactly as before.
+        val reveal = revealDest ?: sheetRect
+        val sameRect = abs(reveal.left - sheetRect.left) <= 1f &&
+            abs(reveal.top - sheetRect.top) <= 1f &&
+            abs(reveal.right - sheetRect.right) <= 1f &&
+            abs(reveal.bottom - sheetRect.bottom) <= 1f
+        if (shape.revealedCount >= 3) {
             revealedPath.setPolygon(shape.revealed, shape.revealedCount, left, top)
-            clipPath(revealedPath) {
-                drawFoldGradient(
-                    brush = shadowBrush,
-                    origin = mid,
-                    angle = atan2(-shape.normalY, -shape.normalX),
-                    lengthPx = shadowWidth,
-                    diagonal = diag,
-                )
-            }
         }
-
-        // Front page: everything the fold has not peeled yet.
         if (shape.frontCount >= 3) {
             frontPath.setPolygon(shape.front, shape.frontCount, left, top)
-            clipPath(frontPath) {
+        }
+        if (shape.flapCount >= 3) {
+            flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
+        }
+
+        // One pass of the whole frame in virtual-spread coordinates. A Book hinge gap draws it
+        // twice with a clip on each side of the spine, so the flap is cut at the fold and the
+        // gap keeps showing the fold gap (V071-TWOPAGE.md §4, option A).
+        // Local function: the draw phase must not allocate.
+        fun DrawScope.drawPass() {
+
+            // The pager already shows the target spread, so two-page mode repaints its canvas
+            // and the page that must stay still from the current spread.
+            if (twoPage != null) {
+                drawRect(ReaderBackground)
+                val stillBitmap = stillImage
+                val stillCropPx = stillCrop
+                val stillRect = stillPageDest
+                if (stillBitmap != null && stillCropPx != null && stillRect != null) {
+                    // Uneven pages: the flap's opaque back face can be a few pixels shorter than the
+                    // still page, so retire the still page's extra rows at its own outer edge as the
+                    // turn advances. Exact at progress 0 (the whole still page) and 1 (only the rows
+                    // under the back face), so the first and last frames equal the settled spreads.
+                    if (uniformRects || flapBack == null) {
+                        drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
+                    } else {
+                        val face = twoPage.backFace
+                        val clipTop = stillRect.top +
+                            (face.top.coerceAtLeast(stillRect.top) - stillRect.top) * p
+                        val clipBottom = stillRect.bottom +
+                            (face.bottom.coerceAtMost(stillRect.bottom) - stillRect.bottom) * p
+                        if (clipBottom > clipTop) {
+                            clipRect(top = clipTop, bottom = clipBottom) {
+                                drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (twoPage != null) {
+                if (p > 0.001f && shape.revealedCount >= 3) {
+                    if (sameRect) {
+                        drawImageInto(backImage, backCrop, reveal, colorFilter, drawFit)
+                    } else {
+                        clipPath(revealedPath) {
+                            drawImageInto(backImage, backCrop, reveal, colorFilter, drawFit)
+                        }
+                    }
+                }
+            } else {
+                drawImageInto(backImage, backCrop, sheetRect, colorFilter, drawFit)
+            }
+            if (p <= 0.001f) {
                 drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
+                return
+            }
+
+            if (!foldValid) {
+                drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
+                return
+            }
+
+            // Shadow: one linear gradient from the fold onto the revealed page only.
+            if (shadowWidth > 0.5f && shape.revealedCount >= 3) {
+                clipPath(revealedPath) {
+                    drawFoldGradient(
+                        brush = shadowBrush,
+                        origin = mid,
+                        angle = atan2(-shape.normalY, -shape.normalX),
+                        lengthPx = shadowWidth,
+                        diagonal = diag,
+                    )
+                }
+            }
+
+            // Front page: everything the fold has not peeled yet.
+            if (shape.frontCount >= 3) {
+                clipPath(frontPath) {
+                    drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
+                }
+            }
+
+            // Flap: back face, inner shade, fold highlight.
+            if (shape.flapCount >= 3) {
+                // The back face covers the flap at full opacity. With uneven page rects it is shorter
+                // than the flap polygon (the union), so clearing the whole flap would leave a black
+                // hem over the paper; drawing nothing there lets the front or still page underneath
+                // show, and the still page's own rows are retired above. Equal rects keep the fill.
+                if (uniformRects || flapBack == null) {
+                    drawPath(flapPath, flapColor)
+                }
+                clipPath(flapPath) {
+                    val backFace = flapBack
+                    val backFaceCrop = flapBackCrop
+                    if (backFace != null && backFaceCrop != null) {
+                        drawMirroredPage(
+                            bitmap = backFace,
+                            crop = backFaceCrop,
+                            frontFit = fit,
+                            stillDest = stillDest,
+                            shape = shape,
+                            mirror = mirror,
+                            mirrorValues = backFaceValues,
+                            paint = mirrorPaint,
+                            androidFilter = androidFilter,
+                            srcRect = srcRect,
+                            dstRect = dstRect,
+                            alpha = 255,
+                            spineSide = side,
+                        )
+                    } else {
+                        drawMirroredPage(
+                            bitmap = front,
+                            crop = crop,
+                            frontFit = fit,
+                            stillDest = null,
+                            shape = shape,
+                            mirror = mirror,
+                            mirrorValues = mirrorValues,
+                            paint = mirrorPaint,
+                            androidFilter = androidFilter,
+                            srcRect = srcRect,
+                            dstRect = dstRect,
+                            alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt(),
+                            spineSide = null,
+                        )
+                    }
+                    drawFoldGradient(
+                        brush = shadeBrush,
+                        origin = mid,
+                        angle = atan2(shape.normalY, shape.normalX),
+                        lengthPx = CURL_SHADE_WIDTH_DP.dp.toPx(),
+                        diagonal = diag,
+                    )
+                }
+                // The crease reaches the union's rows, which can be a few pixels past the pages that
+                // are actually there at the end of the turn; clip it to the rows both the back face
+                // and the landing page cover so the 1dp stroke does not stick out over the background.
+                val creaseTop: Float
+                val creaseBottom: Float
+                if (!uniformRects && twoPage != null) {
+                    val face = twoPage.backFace
+                    val landingRect = twoPage.landing
+                    creaseTop = foldTop.y.coerceAtLeast(maxOf(face.top, landingRect.top))
+                    creaseBottom = foldBottom.y.coerceAtMost(minOf(face.bottom, landingRect.bottom))
+                } else {
+                    creaseTop = foldTop.y
+                    creaseBottom = foldBottom.y
+                }
+                if (creaseBottom > creaseTop) {
+                    clipRect(top = creaseTop, bottom = creaseBottom) {
+                        drawLine(
+                            color = foldHighlightColor,
+                            start = foldTop,
+                            end = foldBottom,
+                            strokeWidth = CURL_FOLD_HIGHLIGHT_DP.dp.toPx(),
+                        )
+                    }
+                }
             }
         }
 
-        // Flap: back face, inner shade, fold highlight.
-        if (shape.flapCount >= 3) {
-            flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
-            // The back face covers the flap at full opacity. With uneven page rects it is shorter
-            // than the flap polygon (the union), so clearing the whole flap would leave a black
-            // hem over the paper; drawing nothing there lets the front or still page underneath
-            // show, and the still page's own rows are retired above. Equal rects keep the fill.
-            if (uniformRects || flapBack == null) {
-                drawPath(flapPath, flapColor)
-            }
-            clipPath(flapPath) {
-                val backFace = flapBack
-                val backFaceCrop = flapBackCrop
-                if (backFace != null && backFaceCrop != null) {
-                    drawMirroredPage(
-                        bitmap = backFace,
-                        crop = backFaceCrop,
-                        frontFit = fit,
-                        stillDest = stillDest,
-                        shape = shape,
-                        mirror = mirror,
-                        mirrorValues = backFaceValues,
-                        paint = mirrorPaint,
-                        androidFilter = androidFilter,
-                        srcRect = srcRect,
-                        dstRect = dstRect,
-                        alpha = 255,
-                        spineSide = side,
-                    )
-                } else {
-                    drawMirroredPage(
-                        bitmap = front,
-                        crop = crop,
-                        frontFit = fit,
-                        stillDest = null,
-                        shape = shape,
-                        mirror = mirror,
-                        mirrorValues = mirrorValues,
-                        paint = mirrorPaint,
-                        androidFilter = androidFilter,
-                        srcRect = srcRect,
-                        dstRect = dstRect,
-                        alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt(),
-                        spineSide = null,
-                    )
-                }
-                drawFoldGradient(
-                    brush = shadeBrush,
-                    origin = mid,
-                    angle = atan2(shape.normalY, shape.normalX),
-                    lengthPx = CURL_SHADE_WIDTH_DP.dp.toPx(),
-                    diagonal = diag,
-                )
-            }
-            // The crease reaches the union's rows, which can be a few pixels past the pages that
-            // are actually there at the end of the turn; clip it to the rows both the back face
-            // and the landing page cover so the 1dp stroke does not stick out over the background.
-            val creaseTop: Float
-            val creaseBottom: Float
-            if (!uniformRects && twoPage != null) {
-                val face = twoPage.backFace
-                val landingRect = twoPage.landing
-                creaseTop = foldTop.y.coerceAtLeast(maxOf(face.top, landingRect.top))
-                creaseBottom = foldBottom.y.coerceAtMost(minOf(face.bottom, landingRect.bottom))
-            } else {
-                creaseTop = foldTop.y
-                creaseBottom = foldBottom.y
-            }
-            if (creaseBottom > creaseTop) {
-                clipRect(top = creaseTop, bottom = creaseBottom) {
-                    drawLine(
-                        color = foldHighlightColor,
-                        start = foldTop,
-                        end = foldBottom,
-                        strokeWidth = CURL_FOLD_HIGHLIGHT_DP.dp.toPx(),
-                    )
-                }
+        val hinge = twoPage?.hinge
+        if (hinge == null) {
+            drawPass()
+        } else {
+            val spine = twoPage.spineX
+            clipRect(0f, 0f, spine, size.height) { drawPass() }
+            clipRect(spine + hinge.gap, 0f, size.width, size.height) {
+                translate(hinge.gap, 0f) { drawPass() }
             }
         }
     }
