@@ -80,6 +80,7 @@
     <string name="reader_direction_menu">넘김 방향</string>
     <string name="reader_mode_status_single">지금은 한쪽 보기예요</string>
     <string name="reader_mode_status_double">지금은 두쪽 보기예요</string>
+    <string name="reader_spread_shift">두 쪽 짝 한 칸 밀기</string>
     <string name="reader_jump_back">%1$d쪽으로 돌아가기</string>
     <string name="settings_section_update">업데이트</string>
     <string name="update_check">업데이트 확인</string>
