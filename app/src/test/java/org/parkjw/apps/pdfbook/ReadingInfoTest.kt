@@ -1,11 +1,18 @@
 package org.parkjw.apps.pdfbook
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.parkjw.apps.pdfbook.ui.theme.ReaderOnOverlayVariant
+import org.parkjw.apps.pdfbook.ui.theme.ReaderTapZoneLabel
 
 class ReadingInfoTest {
     private val utc = TimeZone.getTimeZone("UTC")
@@ -115,6 +122,40 @@ class ReadingInfoTest {
         assertEquals(16f, readingInfoEdgeInsetPx(0, 0, 2f), 0.01f)
         assertEquals(24f, readingInfoEdgeInsetPx(0, 80, 2f), 0.01f)
         assertEquals(54f, readingInfoEdgeInsetPx(30, 80, 2f), 0.01f)
+    }
+
+    @Test
+    fun chipTextStaysAtFiveToOneOverEveryPageMode() {
+        // Default (white paper) is the worst case; inverted paper is black and sepia is warm.
+        for (page in listOf(Color.White, Color.Black, Color(0xFFF4ECD8))) {
+            val ratio = chipContrast(page)
+            assertTrue("chip on ${page.value.toString(16)} = $ratio", ratio + 1e-6 >= 5.0)
+        }
+    }
+
+    private fun chipContrast(page: Color): Double {
+        val overlay = ReaderTapZoneLabel
+        val alpha = overlay.alpha
+        val background = Color(
+            red = overlay.red * alpha + page.red * (1 - alpha),
+            green = overlay.green * alpha + page.green * (1 - alpha),
+            blue = overlay.blue * alpha + page.blue * (1 - alpha),
+        )
+        return contrastRatio(ReaderOnOverlayVariant, background)
+    }
+
+    private fun contrastRatio(foreground: Color, background: Color): Double {
+        val first = luminance(foreground)
+        val second = luminance(background)
+        return (max(first, second) + 0.05) / (min(first, second) + 0.05)
+    }
+
+    private fun luminance(color: Color): Double {
+        fun channel(value: Float): Double {
+            val s = value.toDouble()
+            return if (s <= 0.03928) s / 12.92 else ((s + 0.055) / 1.055).pow(2.4)
+        }
+        return 0.2126 * channel(color.red) + 0.7152 * channel(color.green) + 0.0722 * channel(color.blue)
     }
 
     @Test

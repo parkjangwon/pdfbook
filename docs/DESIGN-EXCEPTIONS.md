@@ -51,6 +51,11 @@ The book page is the hero. The reader is always on black with neutral gray overl
 - Fixed left-to-right order: Brightness, AutoTurn, Bookmarks, AutoCrop. Only tools that are passed in are shown, always in that enum order. The row does **not** mirror with RTL reading direction (volume buttons and the page slider still do).
 - Each item: 24dp line icon over `labelSmall`, `readerOnOverlay` content, ~56dp tall equal-width slots (min 48×48 touch target). No `readerAccent`, no elevation, no new shapes.
 
+## Reading info pill (#152, off by default)
+- One small pill at the reader's bottom right, on `readerTapZoneLabel` (readerOverlay 86%), fully rounded, with `readerOnOverlayVariant` text in the 11sp numeric style (5.0:1 over a white page).
+- The battery line icon is drawn on the 24dp grid but rendered at 12dp; pill padding is 4dp vertical and 8dp between items.
+- The pill hides while the reader overlay is open, and raises the end notices from 28dp to 40dp only while it is shown.
+
 ## Page curl (approved exception)
 - The optional page-curl turn (Settings > Reading > Page turn animation > Page curl; default stays Slide) is the one place that uses a shadow and a gradient. The shadow is a single linear gradient cast from the fold line onto the revealed page only, perpendicular to the fold, 20dp wide (shrinking to 0dp over the last 20% of the turn), with stops 0 / 0.35 / 1 at alpha 0.24 / 0.10 / 0 in black (sepia: #3B2A14 at 0.26 / 0.11 / 0; inverted: black at 0.50 / 0.20 / 0).
 - The back of the turned page is a flat paper-back color (`readerPageBack` #EFEEEA, sepia `readerPageBackSepia` #E6DBC2, inverted `readerListCurrent` #262626), the front page mirrored at 8% opacity, a 24dp inner shade (black 0.10 to 0) and a 1dp white highlight on the fold (50%, sepia 45%, inverted 12%). Page bitmaps in the curl use the same display-mode color filter as the page.
