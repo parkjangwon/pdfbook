@@ -532,9 +532,11 @@ case "$FEATURE" in
     "$ADB" shell settings put system font_scale 2.0
     sleep 3
     shot image-adjust-a11y
-    "$ADB" shell settings put system font_scale 1.0
-    "$ADB" shell wm size reset
-    "$ADB" shell wm density reset
+    # Last feature in the run: the emulator is discarded, so a failed restore
+    # (adb sometimes drops during a resize) must not fail the captured evidence.
+    "$ADB" shell settings put system font_scale 1.0 || true
+    "$ADB" shell wm size reset || true
+    "$ADB" shell wm density reset || true
     ;;
 esac
 
