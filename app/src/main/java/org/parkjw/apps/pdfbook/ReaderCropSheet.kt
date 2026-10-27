@@ -65,6 +65,7 @@ import kotlin.math.min
 const val READER_CROP_SHEET_TAG = "reader_crop_sheet"
 const val READER_CROP_SWITCH_TAG = "reader_crop_switch"
 const val READER_CROP_PREVIEW_TAG = "reader_crop_preview"
+const val READER_CROP_PREVIEW_IMAGE_TAG = "reader_crop_preview_image"
 const val READER_CROP_DONE_TAG = "reader_crop_done"
 const val READER_CROP_RESET_TAG = "reader_crop_reset"
 
@@ -168,7 +169,12 @@ fun ReaderCropSheet(
         ) {
             val data = preview
             if (data != null) {
-                Canvas(Modifier.fillMaxWidth().height(previewHeight - 24.dp)) {
+                Canvas(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(previewHeight - 24.dp)
+                        .testTag(READER_CROP_PREVIEW_IMAGE_TAG),
+                ) {
                     drawCropPreview(data, enabled, colorFilter)
                 }
             }

@@ -7,6 +7,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -16,6 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.parkjw.apps.pdfbook.LocalDisplayMode
+import org.parkjw.apps.pdfbook.READER_CROP_PREVIEW_IMAGE_TAG
 import org.parkjw.apps.pdfbook.ReaderCropSheet
 import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
@@ -85,6 +87,11 @@ class ReaderCropSheetScreenshotsTest {
             }
         }
         composeRule.waitForIdle()
+        // Detection runs off the main dispatcher, so wait for the preview to finish drawing.
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithTag(READER_CROP_PREVIEW_IMAGE_TAG, useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onRoot().captureRoboImage(file)
     }
 }
