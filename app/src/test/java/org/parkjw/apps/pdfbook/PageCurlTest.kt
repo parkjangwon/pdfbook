@@ -429,10 +429,20 @@ class PageCurlTest {
             cached: Boolean = true,
             animOff: Boolean = false,
             endNotice: Boolean = false,
-        ) = resolvePageTurn(preference, twoPage, zoomed, cached, animOff, endNotice)
+            fromPages: Int = 1,
+            toPages: Int = 1,
+        ) = resolvePageTurn(
+            preference,
+            twoPage,
+            zoomed,
+            cached,
+            animOff,
+            endNotice,
+            fromSpreadPages = fromPages,
+            toSpreadPages = toPages,
+        )
 
         assertEquals(ResolvedPageTurn.Curl, mode())
-        assertEquals(ResolvedPageTurn.Slide, mode(twoPage = true))
         assertEquals(ResolvedPageTurn.Slide, mode(zoomed = true))
         assertEquals(ResolvedPageTurn.Slide, mode(cached = false))
         assertEquals(ResolvedPageTurn.Instant, mode(animOff = true))
@@ -440,6 +450,47 @@ class PageCurlTest {
         assertEquals(ResolvedPageTurn.Instant, mode(preference = PageTurnAnimation.None))
         assertEquals(ResolvedPageTurn.Slide, mode(preference = PageTurnAnimation.Slide))
         assertEquals(ResolvedPageTurn.Instant, mode(preference = PageTurnAnimation.Slide, animOff = true))
+    }
+
+    @Test
+    fun twoPageTurnCurtsACachedSpreadAndFallsBackToSlideAtTheEnds() {
+        fun mode(
+            twoPage: Boolean = true,
+            zoomed: Boolean = false,
+            cached: Boolean = true,
+            animOff: Boolean = false,
+            fromPages: Int = 2,
+            toPages: Int = 2,
+        ) = resolvePageTurn(
+            PageTurnAnimation.Curl,
+            twoPage,
+            zoomed,
+            cached,
+            animOff,
+            endNoticeOnly = false,
+            fromSpreadPages = fromPages,
+            toSpreadPages = toPages,
+        )
+
+        // Two pages onto two pages (LTR and RTL) curls.
+        assertEquals(ResolvedPageTurn.Curl, mode())
+        // Cover alone forward (1 -> 2) curls with the single-page sheet.
+        assertEquals(ResolvedPageTurn.Curl, mode(fromPages = 1, toPages = 2))
+        // Last odd page reached backward (1 -> 2) curls too.
+        assertEquals(ResolvedPageTurn.Curl, mode(fromPages = 1, toPages = 2))
+        // Two pages onto a lone page (cover / last odd) has no facing page: Slide.
+        assertEquals(ResolvedPageTurn.Slide, mode(fromPages = 2, toPages = 1))
+        // A one-page spread onto a lone page still curls (the single sheet turns).
+        assertEquals(ResolvedPageTurn.Curl, mode(fromPages = 1, toPages = 1))
+        // Zoomed or an uncached target spread always slides.
+        assertEquals(ResolvedPageTurn.Slide, mode(zoomed = true))
+        assertEquals(ResolvedPageTurn.Slide, mode(cached = false))
+        assertEquals(ResolvedPageTurn.Instant, mode(animOff = true))
+        // Single-page view is unchanged: the sizes are always 1.
+        assertEquals(
+            ResolvedPageTurn.Curl,
+            mode(twoPage = false, fromPages = 1, toPages = 1),
+        )
     }
 
     @Test

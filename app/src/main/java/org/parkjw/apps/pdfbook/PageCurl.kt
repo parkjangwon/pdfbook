@@ -98,6 +98,16 @@ fun curlProgressFromDrag(dx: Float, width: Float, side: CurlSide): Float {
     return (along / width).coerceIn(0f, 1f)
 }
 
+/**
+ * Decides how a turn runs. Two-page view curls a full spread of two pages (and a lone
+ * cover / last odd page onto its neighbour). It falls back to Slide when zoomed, when the
+ * target spread is not cached, and when a two-page spread turns onto a one-page spread:
+ * there is no facing page to paint on the flap's back face.
+ *
+ * [fromSpreadPages] and [toSpreadPages] are the real page counts of the spreads
+ * (`currentSpreads[from].size` / `[to].size`), not positions. The single-page callers keep
+ * the defaults and behave exactly as in v0.7.0.
+ */
 fun resolvePageTurn(
     preference: PageTurnAnimation,
     twoPage: Boolean,
@@ -105,12 +115,15 @@ fun resolvePageTurn(
     nextPageCached: Boolean,
     animationsOff: Boolean,
     endNoticeOnly: Boolean,
+    fromSpreadPages: Int = 1,
+    toSpreadPages: Int = 1,
 ): ResolvedPageTurn = when {
     endNoticeOnly -> ResolvedPageTurn.Instant
     animationsOff -> ResolvedPageTurn.Instant
     preference == PageTurnAnimation.None -> ResolvedPageTurn.Instant
     preference == PageTurnAnimation.Slide -> ResolvedPageTurn.Slide
-    twoPage || zoomed || !nextPageCached -> ResolvedPageTurn.Slide
+    zoomed || !nextPageCached -> ResolvedPageTurn.Slide
+    twoPage && fromSpreadPages >= 2 && toSpreadPages <= 1 -> ResolvedPageTurn.Slide
     else -> ResolvedPageTurn.Curl
 }
 
