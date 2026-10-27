@@ -40,7 +40,7 @@
     <string name="settings_keep_zoom">넘겨도 확대 유지</string>
     <string name="settings_keep_zoom_desc">확대한 배율 그대로 다음 쪽의 시작 모서리부터 보여 줘요</string>
     <string name="settings_one_finger_zoom">한 손가락 확대</string>
-    <string name="settings_one_finger_zoom_desc">두 번 탭한 뒤 누르고 있는 동안만 확대하고, 떼면 원래 크기로 돌아가요</string>
+    <string name="settings_one_finger_zoom_desc">두 번째 탭을 누른 채 끌면 그동안만 확대돼요. 떼면 원래 크기로 돌아와요</string>
     <string name="settings_full_screen_reading">전체 화면으로 읽기</string>
     <string name="settings_full_screen_reading_desc">읽는 동안 상태 표시줄과 내비게이션 바를 숨겨요.</string>
 </resources>

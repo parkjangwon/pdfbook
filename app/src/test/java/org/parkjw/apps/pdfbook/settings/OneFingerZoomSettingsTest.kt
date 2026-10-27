@@ -69,7 +69,7 @@ class OneFingerZoomSettingsTest {
             }
         }
         composeRule.onNodeWithText("한 손가락 확대").performScrollTo().assertIsDisplayed().assertIsOff()
-        composeRule.onNodeWithText("두 번 탭한 뒤 누르고 있는 동안만 확대하고, 떼면 원래 크기로 돌아가요")
+        composeRule.onNodeWithText("두 번째 탭을 누른 채 끌면 그동안만 확대돼요. 떼면 원래 크기로 돌아와요")
             .assertIsDisplayed()
         composeRule.onNodeWithText("한 손가락 확대").performClick()
         composeRule.onNodeWithText("한 손가락 확대").assertIsOn()
@@ -82,12 +82,12 @@ class OneFingerZoomSettingsTest {
     fun stringsMatchSpec() {
         assertEquals("한 손가락 확대", localized(Locale.KOREAN, R.string.settings_one_finger_zoom))
         assertEquals(
-            "두 번 탭한 뒤 누르고 있는 동안만 확대하고, 떼면 원래 크기로 돌아가요",
+            "두 번째 탭을 누른 채 끌면 그동안만 확대돼요. 떼면 원래 크기로 돌아와요",
             localized(Locale.KOREAN, R.string.settings_one_finger_zoom_desc),
         )
         assertEquals("One-finger zoom", localized(Locale.ENGLISH, R.string.settings_one_finger_zoom))
         assertEquals(
-            "Double-tap and hold to zoom in, then release to zoom back out",
+            "Double-tap and hold to zoom while you drag. Release to return",
             localized(Locale.ENGLISH, R.string.settings_one_finger_zoom_desc),
         )
     }
