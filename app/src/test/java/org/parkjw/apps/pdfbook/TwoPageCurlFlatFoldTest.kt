@@ -113,6 +113,41 @@ class TwoPageCurlFlatFoldTest {
     }
 
     @Test
+    fun everyTurnOfARealBookWithPageWidthsOffByAFewPointsCurls() {
+        // 장원's book: 19 pages, all 1080pt tall, widths 743..747pt (1-4pt apart). PdfRenderer
+        // renders each page at the width-limited half slot, so the heights differ by a few px.
+        // Every two-page turn in that book has to curl, not only the ones whose facing pages
+        // happen to render at the same size.
+        val renderer = BookRenderer(BOOK_PAGE_WIDTHS)
+        val bookSpreads = spreads(BOOK_PAGE_WIDTHS.size, twoPage = true, coverAlone = true)
+        for (window in listOf(portrait, landscape)) {
+            for (direction in listOf(ReadingDirection.LTR, ReadingDirection.RTL)) {
+                val side = if (direction == ReadingDirection.LTR) CurlSide.Right else CurlSide.Left
+                for (i in 1 until bookSpreads.size - 1) {
+                    val from = bookSpreads[i]
+                    val to = bookSpreads[i + 1]
+                    if (from.size != 2 || to.size != 2) continue
+                    val built = buildTwoPageCurl(
+                        renderer = renderer,
+                        currentSpread = from,
+                        targetSpread = to,
+                        direction = direction,
+                        side = side,
+                        posture = FoldPosture.Flat,
+                        window = window,
+                        autoCrop = false,
+                    )
+                    assertTrue(
+                        "$from -> $to $direction ${window.width}x${window.height} must curl, " +
+                            "was ${built.fallback}",
+                        built.curl != null,
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
     fun singlePageSpreadsDoNotBuildATwoPageCurl() {
         val cover = build(
             Case("cover", listOf(1), listOf(2, 3), ReadingDirection.LTR, CurlSide.Right),
@@ -186,6 +221,27 @@ class TwoPageCurlFlatFoldTest {
         override fun cropMargins(page: Int): CropMargins? = if (autoCrop) crops[page] else null
     }
 
+    /** Renders like [PdfPageSource.draw]: each page keeps its own aspect inside the box. */
+    private class BookRenderer(private val widths: IntArray) : PageBitmaps {
+        override val pageCount = widths.size
+
+        override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? =
+            cached(page, maxWidth, maxHeight)
+
+        override fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
+            val pageWidth = widths.getOrNull(page - 1) ?: return null
+            val scale = minOf(
+                maxWidth.toFloat() / pageWidth,
+                maxHeight.toFloat() / BOOK_PAGE_HEIGHT,
+            )
+            return Bitmap.createBitmap(
+                (pageWidth * scale).toInt().coerceAtLeast(1),
+                (BOOK_PAGE_HEIGHT * scale).toInt().coerceAtLeast(1),
+                Bitmap.Config.ARGB_8888,
+            )
+        }
+    }
+
     private fun bitmap(width: Int, height: Int): Bitmap =
         Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
 
@@ -194,5 +250,12 @@ class TwoPageCurlFlatFoldTest {
         const val WINDOW_HEIGHT = 2208
         const val PAGE_WIDTH = 920
         const val PAGE_HEIGHT = 1301
+        const val BOOK_PAGE_HEIGHT = 1080
+
+        /** Pages 1..19 of the book in 장원's v0.7.2 report, in points. */
+        val BOOK_PAGE_WIDTHS = intArrayOf(
+            745, 743, 746, 743, 746, 746, 743, 747, 745, 745,
+            744, 743, 746, 746, 745, 745, 745, 744, 745,
+        )
     }
 }
