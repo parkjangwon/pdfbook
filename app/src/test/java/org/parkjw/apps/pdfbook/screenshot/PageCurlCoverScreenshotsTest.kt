@@ -47,10 +47,16 @@ class PageCurlCoverScreenshotsTest {
         val lastPage = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFF6A4C93.toInt())
         val targetLeft = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFF2E7D32.toInt())
         val targetRight = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFFD9534F.toInt())
+        // The last-page turn lands on its own previous spread, so the p95 frames differ from
+        // the cover turn's (they were byte-identical when both reused the cover's targets).
+        val previousLeft = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFF8D6E63.toInt())
+        val previousRight = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFF00796B.toInt())
 
         var page by mutableStateOf(cover)
         var side by mutableStateOf(CurlSide.Right)
         var progress by mutableStateOf(0.5f)
+        var targetA by mutableStateOf(targetLeft)
+        var targetB by mutableStateOf(targetRight)
 
         composeRule.setContent {
             ScreenshotTheme(dark = false, systemBarsColor = ReaderBackground) {
@@ -58,8 +64,8 @@ class PageCurlCoverScreenshotsTest {
                     side = side,
                     progress = progress,
                     page = page,
-                    targetLeft = targetLeft,
-                    targetRight = targetRight,
+                    targetLeft = targetA,
+                    targetRight = targetB,
                 )
             }
         }
@@ -70,6 +76,8 @@ class PageCurlCoverScreenshotsTest {
                 page = cover
                 side = CurlSide.Right
                 progress = p
+                targetA = targetLeft
+                targetB = targetRight
             }
             composeRule.waitForIdle()
             composeRule.onRoot().captureRoboImage("reader-page-curl-cover-ltr-p${percent(p)}.png")
@@ -79,6 +87,8 @@ class PageCurlCoverScreenshotsTest {
                 page = cover
                 side = CurlSide.Left
                 progress = p
+                targetA = targetLeft
+                targetB = targetRight
             }
             composeRule.waitForIdle()
             composeRule.onRoot().captureRoboImage("reader-page-curl-cover-rtl-p${percent(p)}.png")
@@ -89,6 +99,8 @@ class PageCurlCoverScreenshotsTest {
                 page = lastPage
                 side = CurlSide.Left
                 progress = p
+                targetA = previousLeft
+                targetB = previousRight
             }
             composeRule.waitForIdle()
             composeRule.onRoot().captureRoboImage("reader-page-curl-last-ltr-p${percent(p)}.png")
@@ -98,6 +110,8 @@ class PageCurlCoverScreenshotsTest {
                 page = lastPage
                 side = CurlSide.Right
                 progress = p
+                targetA = previousLeft
+                targetB = previousRight
             }
             composeRule.waitForIdle()
             composeRule.onRoot().captureRoboImage("reader-page-curl-last-rtl-p${percent(p)}.png")

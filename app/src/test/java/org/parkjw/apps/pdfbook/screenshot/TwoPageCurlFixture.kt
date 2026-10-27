@@ -121,6 +121,7 @@ internal fun SingleSheetCurlPreview(
     targetLeft: Bitmap,
     targetRight: Bitmap,
     mode: DisplayMode = DisplayMode.Default,
+    twoPageTarget: Boolean = true,
 ) {
     val filter = mode.colorFilter()
     val look = mode.curlLook()
@@ -131,10 +132,15 @@ internal fun SingleSheetCurlPreview(
         val none = CropMargins()
         val pane = IntRect(0, 0, canvas.size.width, canvas.size.height)
         val frontRect = pageDrawRect(page.width, page.height, none, pane, SlotAlignment.Center, null)
-        val targetRects = listOf(
-            pageDrawRect(targetLeft.width, targetLeft.height, none, slots[0], SlotAlignment.End, null),
-            pageDrawRect(targetRight.width, targetRight.height, none, slots[1], SlotAlignment.Start, null),
-        )
+        val targetRects = if (twoPageTarget) {
+            listOf(
+                pageDrawRect(targetLeft.width, targetLeft.height, none, slots[0], SlotAlignment.End, null),
+                pageDrawRect(targetRight.width, targetRight.height, none, slots[1], SlotAlignment.Start, null),
+            )
+        } else {
+            // A lone page as the target: it lands on its own drawn rect, inside the sheet.
+            listOf(pageDrawRect(targetLeft.width, targetLeft.height, none, pane, SlotAlignment.Center, null))
+        }
         // The pager below sits on the target spread; the overlay repaints the pane.
         val pagerState = rememberPagerState(initialPage = 1) { 2 }
         HorizontalPager(
@@ -145,9 +151,11 @@ internal fun SingleSheetCurlPreview(
             ComposeCanvas(Modifier.fillMaxSize()) {
                 if (index == 0) {
                     drawPage(page, frontRect, filter)
-                } else {
+                } else if (twoPageTarget) {
                     drawPage(targetLeft, targetRects[0], filter)
                     drawPage(targetRight, targetRects[1], filter)
+                } else {
+                    drawPage(targetLeft, targetRects[0], filter)
                 }
             }
         }
@@ -159,10 +167,14 @@ internal fun SingleSheetCurlPreview(
             modifier = Modifier.fillMaxSize(),
             colorFilter = filter,
             frontRect = frontRect,
-            underlay = listOf(
-                CurlUnderlay(targetLeft, null, targetRects[0]),
-                CurlUnderlay(targetRight, null, targetRects[1]),
-            ),
+            underlay = if (twoPageTarget) {
+                listOf(
+                    CurlUnderlay(targetLeft, null, targetRects[0]),
+                    CurlUnderlay(targetRight, null, targetRects[1]),
+                )
+            } else {
+                listOf(CurlUnderlay(targetLeft, null, targetRects[0]))
+            },
             flapColor = look.flapColor,
             shadowColor = look.shadowColor,
             shadowAlpha = look.shadowAlpha,
