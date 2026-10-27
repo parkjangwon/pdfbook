@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom display-mode spread-shift"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode spread-shift"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -447,6 +447,21 @@ case "$FEATURE" in
     shot keep-zoom-off
     tap_node text "$keep_zoom"
     shot keep-zoom-on
+    ;;
+  one-finger-zoom)
+    open_library
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    one_finger_zoom='One-finger zoom|한 손가락 확대'
+    for _ in 1 2 3 4; do
+      wait_node text "$one_finger_zoom" 2>/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    shot one-finger-zoom-off
+    tap_node text "$one_finger_zoom"
+    shot one-finger-zoom-on
     ;;
   display-mode)
     open_library
