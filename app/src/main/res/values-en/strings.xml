@@ -64,7 +64,7 @@
     <string name="settings_display_sepia">Sepia</string>
     <string name="settings_display_sepia_desc">Warm, paper-like colors. Color pictures turn brown-toned.</string>
     <string name="settings_animation_curl">Page curl</string>
-    <string name="settings_animation_curl_desc">Turns pages like a book in single- and two-page view. Uses Slide while zoomed in or while the next page is loading, and when a turn touches a single-page spread such as the cover or a lone last page.</string>
+    <string name="settings_animation_curl_desc">Turns pages like a book in single- and two-page view. Uses Slide while zoomed in or while the next page is loading. In two-page view, it also uses Slide when a turn touches a single-page spread such as the cover or a lone last page.</string>
     <string name="settings_screen_orientation">Screen orientation</string>
     <string name="settings_orientation_auto">Auto</string>
     <string name="settings_orientation_portrait">Portrait</string>
