@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom display-mode"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom display-mode page-fit"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -466,6 +466,39 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
     shot display-mode-invert
+    ;;
+  page-fit)
+    open_library
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    page_fit='쪽 맞춤|Page fit'
+    for _ in 1 2 3; do
+      wait_node text "$page_fit" 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    shot page-fit-row
+    tap_node text "$page_fit"
+    expect_id settings_page_fit_option_Width
+    shot page-fit-dialog
+    tap_id settings_page_fit_option_Width
+    sleep 1
+    shot page-fit-row-width
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_book
+    shot page-fit-reader-width
+    tap_id reader_zone_Next
+    shot page-fit-reader-width-scrolled
+    # Landscape is two-page (auto) on this device, so the fit must fall back to Fit screen.
+    "$ADB" shell settings put system accelerometer_rotation 0
+    "$ADB" shell settings put system user_rotation 1
+    sleep 3
+    shot page-fit-two-page-fallback
+    "$ADB" shell settings put system user_rotation 0
+    "$ADB" shell settings put system accelerometer_rotation 1
+    sleep 2
     ;;
 esac
 

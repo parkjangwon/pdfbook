@@ -1,6 +1,8 @@
 package org.parkjw.apps.pdfbook.settings
 
 import android.app.Application
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -8,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -84,6 +87,28 @@ class PageFitSettingsTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText(app.getString(R.string.settings_page_fit))
             .assertIsNotEnabled()
+    }
+
+    @Test
+    @Config(sdk = [37], qualifiers = "ko-w320dp-h800dp-mdpi")
+    fun dialogScrollsAt320dpAndFontScale2() {
+        composeRule.setContent {
+            val base = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale = 2f)) {
+                PdfBookTheme(themeMode = ThemeMode.Light) {
+                    SettingsScreen(
+                        settings = AppSettings(),
+                        onSettingsChange = {},
+                        versionName = "0.8.0",
+                        initialSubScreen = SettingsSubScreen.Reading,
+                        pageFitBookTitle = "원피스 01",
+                    )
+                }
+            }
+        }
+        openDialog()
+        composeRule.onNodeWithTag("settings_page_fit_option_Height").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(app.getString(R.string.page_fit_note_rtl)).performScrollTo().assertIsDisplayed()
     }
 
     private fun openDialog() {
