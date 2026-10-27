@@ -475,8 +475,9 @@ case "$FEATURE" in
     wait_node resource-id reader_more_spread_shift 1 >/dev/null \
       && die "Shift row must stay hidden in single-page view (last dump: $OUT/ui.xml)"
     shot spread-shift-single-page
+    # Back closes the more menu popup first; the top bar's back button then leaves the reader.
     "$ADB" shell input keyevent KEYCODE_BACK
-    "$ADB" shell input keyevent KEYCODE_BACK
+    tap_id reader_back
     open_library
     tap_id library_settings
     expect_id settings_screen
