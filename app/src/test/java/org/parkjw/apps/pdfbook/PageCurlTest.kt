@@ -596,6 +596,14 @@ class PageCurlTest {
         assertEquals(expectedBook.width, bookSlot.width)
         assertEquals(expectedBook.height, bookSlot.height)
 
+        // A two-page Book with a hinge gap renders each half at the virtual spread / 2.
+        val gapped = pageRenderSlot(window, book, ReadingDirection.LTR, twoPage = true)
+        assertEquals(780, gapped.width)
+        assertEquals(600, gapped.height)
+        // A flush Book keeps the window, exactly as before.
+        val flush = FoldPosture.Book(IntRect(400, 0, 400, 600))
+        assertEquals(800, pageRenderSlot(window, flush, ReadingDirection.LTR, twoPage = true).width)
+
         val flat = pageRenderSlot(window, FoldPosture.Flat, ReadingDirection.LTR, twoPage = false)
         assertEquals(800, flat.width)
         assertEquals(600, flat.height)
@@ -652,30 +660,65 @@ class PageCurlTest {
 
         val book = FoldPosture.Book(IntRect(390, 0, 410, 600))
         val bookCanvas = curlCanvas(window, book)!!
-        assertEquals(IntSize(800, 600), bookCanvas.size)
+        // A real hinge gap (20px) curls on the virtual spread: the halves are butted together
+        // and the overlay cuts the frame at the spine on each side of the gap.
+        assertEquals(IntSize(780, 600), bookCanvas.size)
         assertEquals(IntRect(0, 0, 390, 600), bookCanvas.left)
-        assertEquals(IntRect(410, 0, 800, 600), bookCanvas.right)
+        assertEquals(IntRect(390, 0, 780, 600), bookCanvas.right)
+        assertEquals(20f, bookCanvas.hinge!!.gap, 0.001f)
+
+        val flush = curlCanvas(window, FoldPosture.Book(IntRect(400, 0, 400, 600)))!!
+        assertEquals(IntSize(800, 600), flush.size)
+        assertNull(flush.hinge)
+
+        // One pixel is not a hinge gap: it stays on the flush path, where the 1px rule holds.
+        val onePixel = curlCanvas(window, FoldPosture.Book(IntRect(400, 0, 401, 600)))!!
+        assertEquals(IntSize(800, 600), onePixel.size)
+        assertNull(onePixel.hinge)
+        assertEquals(IntRect(0, 0, 400, 600), onePixel.left)
+        assertEquals(IntRect(401, 0, 800, 600), onePixel.right)
+
         assertNull(curlCanvas(IntSize(0, 600), FoldPosture.Flat))
     }
 
     @Test
-    fun twoPageSheetMustLandOnTheOppositePageWithinOnePixel() {
+    fun twoPageCurlNeedsTheTwoSlotsToMeetAtTheSpine() {
+        // Real pages differ by a few points; each rect keeps its own measured size and the
+        // spine-side edges still meet, so the turn curls.
         val sheet = Rect(400f, 0f, 800f, 600f)
-        val backFace = Rect(0f, 0f, 400f, 600f)
-        val still = Rect(0f, 0f, 400f, 600f)
-        assertTrue(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right, still))
-        // One pixel of difference is tolerated; two is not.
-        assertTrue(sheetLandsOnSpread(sheet, sheet.translate(1f, 0f), backFace, CurlSide.Right, still))
-        assertFalse(sheetLandsOnSpread(sheet, sheet.translate(2f, 0f), backFace, CurlSide.Right, still))
-        // The back face must be the same size and sit on the other side of the spine.
-        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(0f, 0f, 390f, 600f), CurlSide.Right, still))
-        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(10f, 0f, 410f, 600f), CurlSide.Right, still))
-        // The current still page must land exactly where the back face does.
-        assertTrue(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right, still.translate(1f, 0f)))
-        assertFalse(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right, still.translate(2f, 0f)))
+        val landing = Rect(400f, 2f, 800f, 598f)
+        val backFace = Rect(0f, 3f, 400f, 597f)
+        val still = Rect(0f, 1f, 400f, 599f)
+        assertTrue(twoPageCurlMeetsAtSpine(sheet, landing, backFace, CurlSide.Right, still, 400f, 800f, 600f))
+        // The spine edge is the slot boundary: one pixel of slack, not two.
+        assertTrue(
+            twoPageCurlMeetsAtSpine(
+                sheet, sheet.translate(1f, 0f), backFace, CurlSide.Right, still, 400f, 800f, 600f,
+            ),
+        )
+        assertFalse(
+            twoPageCurlMeetsAtSpine(
+                sheet, sheet.translate(2f, 0f), backFace, CurlSide.Right, still, 400f, 900f, 600f,
+            ),
+        )
+        // A hinge gap: the left slot ends 4px before the spine.
+        assertFalse(
+            twoPageCurlMeetsAtSpine(
+                sheet, landing, Rect(0f, 3f, 396f, 597f), CurlSide.Right,
+                Rect(0f, 1f, 396f, 599f), 400f, 800f, 600f,
+            ),
+        )
+        // A rect that spills out of the canvas is not a valid sheet.
+        assertFalse(
+            twoPageCurlMeetsAtSpine(
+                sheet, Rect(400f, 0f, 800f, 700f), backFace, CurlSide.Right, still, 400f, 800f, 600f,
+            ),
+        )
         // Mirrored side: the left sheet lands on the right page.
         val left = Rect(0f, 0f, 400f, 600f)
-        assertTrue(sheetLandsOnSpread(left, left, Rect(400f, 0f, 800f, 600f), CurlSide.Left, sheet))
+        assertTrue(
+            twoPageCurlMeetsAtSpine(left, left, Rect(400f, 0f, 800f, 600f), CurlSide.Left, sheet, 400f, 800f, 600f),
+        )
     }
 
     @Test

@@ -64,13 +64,14 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Book posture fold gap (SPEC-7) | Foldable half-opened, vertical hinge | `book_posture_fold_gap`, `reader_page_*` | `FoldLayout.kt`, `ReaderScreen.kt` | `FoldPostureComposeTest`, `FoldPostureScreenshotsTest` |
 | Pinch / double-tap zoom | Reader → pinch, or double-tap a page | `reader_screen` | `ZoomPan.kt` | `ZoomPanTest` |
 | Page fit (#150) | Reading settings → `쪽 맞춤` → 너비 맞춤 / 높이 맞춤; single-page view only (two-page uses 화면 맞춤). The page starts at the reading-direction corner; tap zones and volume keys scroll one screen (10% overlap) and turn only from the edge, swipes only pan | `settings_page_fit_option_Screen`, `settings_page_fit_option_Width`, `settings_page_fit_option_Height` | `PageFit.kt`, `ReaderScreen.kt`, `BookStore.kt`, `settings/SettingsScreen.kt` | `PageFitTest`, `PageFitReaderComposeTest`, `PageFitSettingsTest`, `BookStoreTest` |
+| One-finger zoom (#151) | Reading settings → "한 손가락 확대" on → double-tap and hold a page, drag to look around, release to restore | `reader_screen` (`ReaderZoomKey`) | `OneFingerZoom.kt`, `ReaderScreen.kt`, `settings/AppSettings.kt` | `OneFingerZoomTest`, `OneFingerZoomGestureTest` |
 | Zoom lock and keep zoom (SPEC-6) | Reader → zoom in; swipes only pan, tap zones and volume keys still turn | `reader_screen` (`ReaderZoomKey` semantics), `reader_zone_Next` | `ZoomPan.kt`, `ReaderScreen.kt` | `ZoomLockComposeTest`, `ZoomPanTest`, `TapZoneTimingTest` |
 | Volume key paging | Reader → volume up / down | – | `MainActivity.kt`, `VolumeNav.kt` | `VolumeNavTest` |
 | Full screen reading (#115) | Reader with full screen reading on (default) | – | `ReaderSystemBars.kt`, `ReaderScreen.kt` | `ReaderSystemBarsTest`, `ReaderImmersiveComposeTest` |
 | Prerender and memory trim (SPEC-5) | Reader → turn pages | – | `PageCache.kt`, `MemoryTrim.kt`, `PageRenderer.kt` | `PageCacheTest`, `PrerenderTargetsTest`, `LargeBookPrerenderTest` |
-| Two-page page curl (#145) | Reading settings → "넘김 애니메이션" → "책장 넘김"; two-page spread, tap / swipe / volume at scale 1 | `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `PageCurlTurn.kt`, `ReaderScreen.kt` | `PageCurlTest`, `PageCurlTwoPageScreenshotsTest` |
+| Two-page page curl (#145) | Reading settings → "넘김 애니메이션" → "책장 넘김"; two-page spread, tap / swipe / volume at scale 1 | `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `PageCurlTurn.kt`, `ReaderScreen.kt`, `CropMargins.kt` | `PageCurlTest`, `PageCurlTwoPageScreenshotsTest`, `TwoPageCurlFlatFoldTest`, `TwoPageCurlFlatReaderTest`, `TwoPageCurlMixedHeightScreenshotsTest`, `PageCurlHingeTest`, `TwoPageCurlHingeScreenshotsTest` |
 
-A Book posture with a hinge gap and the cover-to-spread turn still use Slide (#172, #173).
+Two-page view draws each page at its own measured rect, so a 2->2 turn curls whether or not the book's pages are identical (real PDFs are a few points apart); with auto-crop each page keeps its own outer margin. The fold runs over the union of the four page rects and each page is drawn at its own rect — the revealed page clipped to the part the fold uncovers, the still page's extra rows retired at its outer edge as the turn advances — so the first and last frames match the settled spreads exactly, and mid-turn no background shows between the rows the four pages share. A Book posture with a real hinge gap (> 1px) also curls (#172): the turn is measured on the virtual spread (the two halves butted together) and the overlay paints it clipped on each side of the hinge, so the flap is cut at the fold, the gap keeps showing the fold gap and nothing is drawn over the hinge; a flush hinge and a 1px seam keep the old path. Still Slide, by design: turns that touch a single-page spread (the cover, a lone last page) and turns whose target bitmap is not cached.
 
 ## Settings
 
@@ -80,6 +81,7 @@ A Book posture with a hinge gap and the cover-to-spread turn still use Slide (#1
 | General: start screen, theme, language | Settings → rows by text | text only | `settings/SettingsScreen.kt`, `settings/AppLocale.kt` | `AppLocaleTest`, `SettingsBUiTest` |
 | Reading settings | Settings → `settings_reading_entry` | `settings_reading_screen`, `settings_reading_back` | `settings/SettingsScreen.kt` | `SettingsBUiTest` |
 | Keep zoom when turning pages (SPEC-6) | Reading settings → "Keep zoom when turning pages" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt` | `KeepZoomSettingsTest`, `SettingsBUiTest` |
+| One-finger zoom (#151) | Reading settings → "한 손가락 확대" / "One-finger zoom" switch (off by default) | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt`, `OneFingerZoom.kt`, `ReaderScreen.kt` | `OneFingerZoomSettingsTest`, `OneFingerZoomGestureTest` |
 | Page curl turn animation (#103) | Reading settings → "넘김 애니메이션" → "책장 넘김"; reader tap/swipe/volume at scale 1, single-page | `settings_animation_option_Curl`, `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `ReaderScreen.kt`, `settings/AppSettings.kt` | `PageCurlTest`, `PageCurlComposeTest`, `PageCurlSettingsTest`, `PageCurlScreenshotsTest` |
 | Full screen reading (#115) | Reading settings → "전체 화면으로 읽기" switch | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt` | `FullScreenReadingSettingsTest` |
 | Page color: original, inverted, sepia | Reading settings → "페이지 색 / Page color" row → choose | text only | `settings/SettingsScreen.kt`, `settings/AppSettings.kt`, `DisplayMode.kt`, `ReaderScreen.kt` | `DisplayModeTest`, `SettingsBUiTest`, `PageColorScreenshotsTest` |
@@ -105,6 +107,7 @@ A Book posture with a hinge gap and the cover-to-spread turn still use Slide (#1
 | `scripts/verify.sh bookmarks` | Bookmarks the current page, then opens the bookmark list | – |
 | `scripts/verify.sh settings` | Settings, then reading settings | – |
 | `scripts/verify.sh keep-zoom` | Reading settings with "Keep zoom when turning pages" off, then on | ZL-3/ZL-4 setting |
+| `scripts/verify.sh one-finger-zoom` | Reading settings with "한 손가락 확대" off, then on | #151 setting |
 | `scripts/verify.sh display-mode` | Reading settings with "페이지 색 / Page color" on original, then a book opened in inverted | #57 |
 | `scripts/verify.sh page-fit` | Reading settings with "쪽 맞춤 / Page fit", the choice dialog, the row after choosing width, a width-fit page at its start then one screen down, and the landscape two-page fallback | #150 |
 

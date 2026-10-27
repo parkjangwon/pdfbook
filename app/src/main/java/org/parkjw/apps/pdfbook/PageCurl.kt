@@ -217,6 +217,11 @@ const val CURL_MAX_VERTS = 12
  * (sheet and the page across the spine). The fold and tip math is unchanged, so at
  * progress 1 the flap lands exactly on the opposite page. The default keeps the
  * single-sheet output byte-identical.
+ *
+ * [bounds] is the clip rect `[left, top, right, bottom]` in the page's local coordinates and
+ * defaults to the page rect. A two-page turn passes the union of its four page rects, so the
+ * fold line reaches the rows of a taller landing page and the flap reaches the rows of a
+ * taller back face. The tip and fold math still use [width] and [height], the turning sheet.
  */
 fun updateCurlShape(
     width: Float,
@@ -225,6 +230,7 @@ fun updateCurlShape(
     side: CurlSide,
     out: CurlShape,
     spreadFlap: Boolean = false,
+    bounds: FloatArray? = null,
 ) {
     out.frontCount = 0
     out.revealedCount = 0
@@ -232,6 +238,21 @@ fun updateCurlShape(
     out.foldValid = false
     if (width <= 0f || height <= 0f) return
     val p = clampCurlProgress(progress)
+    val boundLeft: Float
+    val boundTop: Float
+    val boundRight: Float
+    val boundBottom: Float
+    if (bounds != null) {
+        boundLeft = bounds[0]
+        boundTop = bounds[1]
+        boundRight = bounds[2]
+        boundBottom = bounds[3]
+    } else {
+        boundLeft = 0f
+        boundTop = 0f
+        boundRight = width
+        boundBottom = height
+    }
 
     val originX = if (side == CurlSide.Left) 0f else width
     val originY = height
@@ -246,7 +267,7 @@ fun updateCurlShape(
     val dy = tipY - originY
     val len = hypot(dx, dy)
     if (len < 1f) {
-        fillPageRect(width, height, out.front)
+        fillPageRect(boundLeft, boundTop, boundRight, boundBottom, out.front)
         out.frontCount = 4
         return
     }
@@ -258,7 +279,17 @@ fun updateCurlShape(
     out.normalX = dx / len
     out.normalY = dy / len
 
-    val ends = collectFoldEnds(midX, midY, -dy / len, dx / len, width, height, out.pageRect)
+    val ends = collectFoldEnds(
+        midX,
+        midY,
+        -dy / len,
+        dx / len,
+        boundLeft,
+        boundTop,
+        boundRight,
+        boundBottom,
+        out.pageRect,
+    )
     if (ends >= 2) {
         val aY = out.pageRect[1]
         val bY = out.pageRect[3]
@@ -270,7 +301,7 @@ fun updateCurlShape(
         out.foldValid = true
     }
 
-    fillPageRect(width, height, out.scratchA)
+    fillPageRect(boundLeft, boundTop, boundRight, boundBottom, out.scratchA)
     // Front page: the part on the far side of the fold from the origin.
     val frontCount = clipHalfPlane(out.scratchA, 4, out.front, midX, midY, dx, dy, keepPositive = true)
     out.frontCount = clipRect(
@@ -278,25 +309,25 @@ fun updateCurlShape(
         out.front,
         out.scratchA,
         out.scratchB,
-        0f,
-        0f,
-        width,
-        height,
+        boundLeft,
+        boundTop,
+        boundRight,
+        boundBottom,
         out.front,
     )
 
     // Revealed next page: the part the flap uncovers.
-    fillPageRect(width, height, out.scratchA)
+    fillPageRect(boundLeft, boundTop, boundRight, boundBottom, out.scratchA)
     val revealedCount = clipHalfPlane(out.scratchA, 4, out.scratchB, midX, midY, dx, dy, keepPositive = false)
     out.revealedCount = clipRect(
         revealedCount,
         out.scratchB,
         out.scratchA,
         out.revealed,
-        0f,
-        0f,
-        width,
-        height,
+        boundLeft,
+        boundTop,
+        boundRight,
+        boundBottom,
         out.revealed,
     )
 
@@ -312,17 +343,34 @@ fun updateCurlShape(
         len,
         out.scratchA,
     )
-    val flapLeft = if (spreadFlap && side == CurlSide.Right) -width else 0f
-    val flapRight = if (spreadFlap && side == CurlSide.Left) 2f * width else width
+    val flapLeft: Float
+    val flapTop: Float
+    val flapRight: Float
+    val flapBottom: Float
+    if (bounds != null) {
+        // The flap sweeps across the turning half and lands on the opposite half, so its clip
+        // covers the bounds and their mirror about the spine (local 0 for Right, width for Left).
+        val mirrorLeft = if (side == CurlSide.Right) -boundRight else 2f * width - boundRight
+        val mirrorRight = if (side == CurlSide.Right) -boundLeft else 2f * width - boundLeft
+        flapLeft = min(boundLeft, mirrorLeft)
+        flapTop = boundTop
+        flapRight = max(boundRight, mirrorRight)
+        flapBottom = boundBottom
+    } else {
+        flapLeft = if (spreadFlap && side == CurlSide.Right) -width else 0f
+        flapTop = 0f
+        flapRight = if (spreadFlap && side == CurlSide.Left) 2f * width else width
+        flapBottom = height
+    }
     out.flapCount = clipRect(
         reflected,
         out.scratchA,
         out.scratchB,
         out.scratchA,
         flapLeft,
-        0f,
+        flapTop,
         flapRight,
-        height,
+        flapBottom,
         out.flap,
     )
 }
@@ -361,19 +409,19 @@ fun curlFrontVisibleFraction(
     return (polygonArea(shape.front, shape.frontCount) / (width * height)).coerceIn(0f, 1f)
 }
 
-private fun fillPageRect(width: Float, height: Float, out: FloatArray) {
-    out[0] = 0f
-    out[1] = 0f
-    out[2] = width
-    out[3] = 0f
-    out[4] = width
-    out[5] = height
-    out[6] = 0f
-    out[7] = height
+private fun fillPageRect(left: Float, top: Float, right: Float, bottom: Float, out: FloatArray) {
+    out[0] = left
+    out[1] = top
+    out[2] = right
+    out[3] = top
+    out[4] = right
+    out[5] = bottom
+    out[6] = left
+    out[7] = bottom
 }
 
 /**
- * Collects the two ends of the fold line inside the page rect (as x,y pairs).
+ * Collects the two ends of the fold line inside the bounds rect (as x,y pairs).
  * The fold always passes through an interior point, so there are two.
  */
 private fun collectFoldEnds(
@@ -381,8 +429,10 @@ private fun collectFoldEnds(
     midY: Float,
     nx: Float,
     ny: Float,
-    width: Float,
-    height: Float,
+    left: Float,
+    top: Float,
+    right: Float,
+    bottom: Float,
     out: FloatArray,
 ): Int {
     var count = 0
@@ -397,20 +447,20 @@ private fun collectFoldEnds(
         }
     }
     if (nx != 0f) {
-        val t = -midX / nx
+        val t = (left - midX) / nx
         val y = midY + t * ny
-        if (y >= -0.01f && y <= height + 0.01f) add(0f, y.coerceIn(0f, height))
-        val t2 = (width - midX) / nx
+        if (y >= top - 0.01f && y <= bottom + 0.01f) add(left, y.coerceIn(top, bottom))
+        val t2 = (right - midX) / nx
         val y2 = midY + t2 * ny
-        if (y2 >= -0.01f && y2 <= height + 0.01f) add(width, y2.coerceIn(0f, height))
+        if (y2 >= top - 0.01f && y2 <= bottom + 0.01f) add(right, y2.coerceIn(top, bottom))
     }
     if (ny != 0f) {
-        val t = -midY / ny
+        val t = (top - midY) / ny
         val x = midX + t * nx
-        if (x >= -0.01f && x <= width + 0.01f) add(x.coerceIn(0f, width), 0f)
-        val t2 = (height - midY) / ny
+        if (x >= left - 0.01f && x <= right + 0.01f) add(x.coerceIn(left, right), top)
+        val t2 = (bottom - midY) / ny
         val x2 = midX + t2 * nx
-        if (x2 >= -0.01f && x2 <= width + 0.01f) add(x2.coerceIn(0f, width), height)
+        if (x2 >= left - 0.01f && x2 <= right + 0.01f) add(x2.coerceIn(left, right), bottom)
     }
     return count
 }

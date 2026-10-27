@@ -54,6 +54,7 @@ class SettingsRepository(
         val TapZoneSidePercentKey = intPreferencesKey("tap_zone_side_percent")
         val ShowDotFilesKey = booleanPreferencesKey("show_dot_files")
         val KeepZoomOnTurnKey = booleanPreferencesKey("keep_zoom_on_turn")
+        val OneFingerZoomKey = booleanPreferencesKey("one_finger_zoom")
         val FollowSystemBrightnessKey = booleanPreferencesKey("follow_system_brightness")
         val ReaderBrightnessPercentKey = intPreferencesKey("reader_brightness_percent")
         val FullScreenReadingKey = booleanPreferencesKey("full_screen_reading")
@@ -94,6 +95,7 @@ internal fun Preferences.toAppSettings(): AppSettings {
         ),
         showDotFiles = this[SettingsRepository.ShowDotFilesKey] ?: defaults.showDotFiles,
         keepZoomOnTurn = this[SettingsRepository.KeepZoomOnTurnKey] ?: defaults.keepZoomOnTurn,
+        oneFingerZoom = this[SettingsRepository.OneFingerZoomKey] ?: defaults.oneFingerZoom,
         followSystemBrightness = if (brightnessValid) {
             this[SettingsRepository.FollowSystemBrightnessKey] ?: defaults.followSystemBrightness
         } else {
@@ -126,6 +128,7 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.TapZoneSidePercentKey] = normalizeTapZoneSidePercent(settings.tapZoneSidePercent)
     this[SettingsRepository.ShowDotFilesKey] = settings.showDotFiles
     this[SettingsRepository.KeepZoomOnTurnKey] = settings.keepZoomOnTurn
+    this[SettingsRepository.OneFingerZoomKey] = settings.oneFingerZoom
     this[SettingsRepository.FollowSystemBrightnessKey] = settings.followSystemBrightness
     this[SettingsRepository.ReaderBrightnessPercentKey] =
         normalizeReaderBrightnessPercent(settings.readerBrightnessPercent)

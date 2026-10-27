@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -67,6 +68,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -116,6 +118,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
@@ -141,6 +144,7 @@ fun ReaderScreen(
     showTapZoneGuide: Boolean = true,
     tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     onTapZoneSidePercentChange: (Int) -> Unit = {},
+    oneFingerZoom: Boolean = false,
     tapZoneWidthSheetVisible: Boolean = false,
     volumes: ReaderVolumes = ReaderVolumes(),
     bookListVisible: Boolean = false,
@@ -192,6 +196,7 @@ fun ReaderScreen(
             showTapZoneGuide = showTapZoneGuide,
             tapZoneSidePercent = tapZoneSidePercent,
             onTapZoneSidePercentChange = onTapZoneSidePercentChange,
+            oneFingerZoom = oneFingerZoom,
             initialTapZoneWidthSheetVisible = tapZoneWidthSheetVisible,
             volumes = volumes,
             initialBookListVisible = bookListVisible,
@@ -235,6 +240,7 @@ private fun ReaderScreenContent(
     showTapZoneGuide: Boolean,
     tapZoneSidePercent: Int,
     onTapZoneSidePercentChange: (Int) -> Unit,
+    oneFingerZoom: Boolean,
     initialTapZoneWidthSheetVisible: Boolean,
     volumes: ReaderVolumes,
     initialBookListVisible: Boolean,
@@ -275,6 +281,7 @@ private fun ReaderScreenContent(
     }
     val sideFraction = tapZoneSideFraction(sidePercent)
     var zoom by remember { mutableStateOf(ZoomState()) }
+    var oneFingerZoomBase by remember { mutableStateOf<ZoomState?>(null) }
     val zoomRef = rememberUpdatedState(zoom)
     val zoomed = !zoom.allowsPageTurn
     val keepZoomRef = rememberUpdatedState(keepZoom)
@@ -388,10 +395,6 @@ private fun ReaderScreenContent(
         is FoldPosture.Book -> "book:${posture.foldBounds}"
         is FoldPosture.Tabletop -> "tabletop:${posture.foldBounds}"
     }
-    LaunchedEffect(postureKey) {
-        zoom = ZoomState()
-    }
-
     // Remap shownAt so a posture/spread remount does not dismiss the pill (ZF-3 / SPEC-4).
     LaunchedEffect(spreads) {
         val jb = jumpBack ?: return@LaunchedEffect
@@ -463,6 +466,13 @@ private fun ReaderScreenContent(
         curlBack = null
         curlTwoPage = null
         curlProgress = 0f
+    }
+
+    LaunchedEffect(postureKey) {
+        zoom = ZoomState()
+        // A fold or unfold during a turn must not keep the old hinge layout up for the rest of
+        // the animation (an unpainted gap column and a short right edge).
+        clearCurlOverlay()
     }
 
     fun beginCurl(effect: CurlEffectState, front: Bitmap, back: Bitmap, twoPage: TwoPageCurl? = null) {
@@ -602,6 +612,9 @@ private fun ReaderScreenContent(
                 toSpreadPages = nextSpread.size,
             )
             if (mode != ResolvedPageTurn.Curl) {
+                // Field-report diagnostics: why the turn did not curl. Geometry and mode only,
+                // never page content, file names or numbers.
+                Log.d(TURN_LOG_TAG, "turn mode=${mode.name} twoPage=$twoPage")
                 when (mode) {
                     ResolvedPageTurn.Instant -> pagerState.scrollToPage(target)
                     ResolvedPageTurn.Slide -> {
@@ -616,7 +629,7 @@ private fun ReaderScreenContent(
                     viewport.width.roundToInt().coerceAtLeast(1),
                     viewport.height.roundToInt().coerceAtLeast(1),
                 )
-                val two = buildTwoPageCurl(
+                val built = buildTwoPageCurl(
                     renderer = renderer,
                     currentSpread = fromSpread,
                     targetSpread = nextSpread,
@@ -626,7 +639,9 @@ private fun ReaderScreenContent(
                     window = windowSize,
                     autoCrop = autoCrop,
                 )
+                val two = built.curl
                 if (two == null) {
+                    Log.i(TURN_LOG_TAG, "two-page curl fallback=${built.fallback}")
                     if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                     return@launch
                 }
@@ -636,6 +651,7 @@ private fun ReaderScreenContent(
             val front = cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
             val back = cachedSpreadBitmaps(renderer, nextSpread, slotW, slotH)
             if (front == null || back == null) {
+                Log.i(TURN_LOG_TAG, "single-sheet curl fallback=CacheMiss")
                 if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                 return@launch
             }
@@ -806,6 +822,7 @@ private fun ReaderScreenContent(
                                             allowPanAtBaseScale = fit,
                                         )
                                     },
+                                    isHolding = { oneFingerZoomBase != null },
                                 )
                             }
                             .pointerInput(lastActive, direction, curlGestures, instantSwipes, fitApplies) {
@@ -814,6 +831,7 @@ private fun ReaderScreenContent(
                                     direction = direction,
                                     isZoomed = { !zoomRef.value.allowsPageTurn },
                                     onSwipe = { if (pagerState.targetPage == pageIndex) nextAtEnd() },
+                                    isHolding = { oneFingerZoomBase != null },
                                 )
                             }
                             .pointerInput(activePage, instantSwipes, direction, pagerWidth, fitApplies) {
@@ -841,6 +859,7 @@ private fun ReaderScreenContent(
                                         }
                                     },
                                     onSwipePastEnd = { nextAtEnd() },
+                                    isHolding = { oneFingerZoomBase != null },
                                 )
                             }
                             .pointerInput(activePage, curlGestures, direction, pagerWidth, prerenderWidth, prerenderHeight) {
@@ -870,7 +889,7 @@ private fun ReaderScreenContent(
                                                 posture = posture,
                                                 window = windowSize,
                                                 autoCrop = autoCrop,
-                                            )
+                                            ).curl
                                         } else {
                                             null
                                         }
@@ -1026,7 +1045,48 @@ private fun ReaderScreenContent(
                                         .testTag("reader_zone_" + span.zone.name)
                                         .semantics { contentDescription = zoneLabel }
                                         .then(
-                                            if (zoomed || span.zone.acceptsDoubleTapAtBaseScale) {
+                                            if (oneFingerZoom &&
+                                                (zoomed || span.zone.acceptsDoubleTapAtBaseScale)
+                                            ) {
+                                                Modifier
+                                                    .semantics {
+                                                        role = Role.Button
+                                                        onClick {
+                                                            onTap()
+                                                            true
+                                                        }
+                                                    }
+                                                    .pointerInput(oneFingerZoom, span, pagerWidth, pagerHeight) {
+                                                        detectOneFingerZoomTapZone(
+                                                            onTap = onTap,
+                                                            onDoubleTap = { toggleZoom() },
+                                                            onHoldStart = { x, y ->
+                                                                oneFingerZoomBase = zoom
+                                                                zoom = oneFingerZoomHoldStart(
+                                                                    zoom,
+                                                                    span.start * pagerWidth + x,
+                                                                    y,
+                                                                    pagerWidth,
+                                                                    pagerHeight,
+                                                                )
+                                                            },
+                                                            onHoldPan = { dx, dy ->
+                                                                zoom = zoom.applyPan(
+                                                                    dx,
+                                                                    dy,
+                                                                    pagerWidth,
+                                                                    pagerHeight,
+                                                                )
+                                                            },
+                                                            onHoldEnd = {
+                                                                oneFingerZoomBase?.let { zoom = it }
+                                                                oneFingerZoomBase = null
+                                                            },
+                                                        )
+                                                    }
+                                            } else if (zoomed ||
+                                                span.zone.acceptsDoubleTapAtBaseScale
+                                            ) {
                                                 Modifier.combinedClickable(
                                                     interactionSource = interactionSource,
                                                     indication = null,
@@ -1351,8 +1411,19 @@ private fun ReaderScreenContent(
     }
 }
 
+/** Logcat tag for why a turn used Slide/Instant instead of the curl. */
+private const val TURN_LOG_TAG = "PdfBookTurn"
+
+/** Why [buildTwoPageCurl] refused the curl and the turn used Slide instead. */
+internal enum class TwoPageCurlFallback { SpreadPages, NoCanvas, CacheMiss, SpineGap }
+
+internal data class TwoPageCurlBuild(
+    val curl: TwoPageCurl?,
+    val fallback: TwoPageCurlFallback?,
+)
+
 /** Everything the two-page curl overlay needs beyond the shared front/back bitmaps. */
-private data class TwoPageCurl(
+internal data class TwoPageCurl(
     val front: Bitmap,
     val back: Bitmap,
     val flapBack: Bitmap,
@@ -1371,10 +1442,15 @@ private data class TwoPageCurl(
  * page of [targetSpread], and the flap's back face is the opposite-side page, drawn at 100%.
  * The current spread's other page is returned as [TwoPageCurl.still] so the overlay can keep
  * it on screen while the pager is already on the target spread.
- * Null (Slide fallback) when the bitmap cache missed or when the sheet and the pages it
- * lands on differ by more than 1px (오대리 rule), so the last frame cannot jump.
+ * Each page keeps its own measured rect, so spreads whose pages differ by a few points (a real
+ * PDF) curl without the last frame jumping.
+ * A Book posture with a hinge gap is computed on the virtual spread (halves butted together)
+ * and carries the [CurlHinge], so the overlay cuts the turn at the fold instead of sliding.
+ * Null (Slide fallback) when the bitmap cache missed, when the two slots do not meet at the
+ * spine, or when the sheet and the pages it lands on differ by more than 1px (오대리 rule),
+ * so the last frame cannot jump.
  */
-private fun buildTwoPageCurl(
+internal fun buildTwoPageCurl(
     renderer: PageBitmaps,
     currentSpread: List<Int>,
     targetSpread: List<Int>,
@@ -1383,24 +1459,30 @@ private fun buildTwoPageCurl(
     posture: FoldPosture,
     window: IntSize,
     autoCrop: Boolean,
-): TwoPageCurl? {
-    if (currentSpread.size != 2 || targetSpread.size != 2) return null
-    val canvas = curlCanvas(window, posture) ?: return null
+): TwoPageCurlBuild {
+    if (currentSpread.size != 2 || targetSpread.size != 2) {
+        return TwoPageCurlBuild(null, TwoPageCurlFallback.SpreadPages)
+    }
+    val canvas = curlCanvas(window, posture)
+        ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.NoCanvas)
     val visualCurrent = spreadLayout(currentSpread, direction)
     val visualTarget = spreadLayout(targetSpread, direction)
     val slots = listOf(canvas.left, canvas.right)
-    // spreadRequests() renders both pages at canvasWidth / 2, so look them up with that key:
-    // the curl slots can differ by one pixel on an odd width and would always miss the cache.
-    val requestWidth = (canvas.size.width / 2).coerceAtLeast(1)
+    // spreadRequests() renders both pages of a spread at slotWidth / 2 x slotHeight, with the
+    // slot from pageRenderSlot(): the window for Flat, the top half for Tabletop, and the
+    // virtual spread for a two-page Book with a hinge gap (so each half matches what
+    // BookHalfPage renders). Look them up with that key.
+    val slot = pageRenderSlot(window, posture, direction, twoPage = true)
+    val requestWidth = (slot.width / 2).coerceAtLeast(1)
     val bitmapsCurrent = visualCurrent.map { page ->
-        renderer.cached(page, requestWidth, canvas.size.height)
+        renderer.cached(page, requestWidth, slot.height)
             ?.takeUnless { it.isRecycled }
-            ?: return null
+            ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
     val bitmapsTarget = visualTarget.map { page ->
-        renderer.cached(page, requestWidth, canvas.size.height)
+        renderer.cached(page, requestWidth, slot.height)
             ?.takeUnless { it.isRecycled }
-            ?: return null
+            ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
     val cropsCurrent = spreadCrops(renderer, visualCurrent, autoCrop)
     val cropsTarget = spreadCrops(renderer, visualTarget, autoCrop)
@@ -1418,25 +1500,44 @@ private fun buildTwoPageCurl(
     val sheet = rectCurrent[turning]
     val landing = rectTarget[turning]
     val backFace = rectTarget[1 - turning]
-    // The current spread's other page must sit exactly where the back face lands, or its
-    // edges would show around the flap at progress 1.
+    // The current spread's other page stays on screen where it already was while the pager is
+    // on the target spread.
     val still = rectCurrent[1 - turning]
-    if (!sheetLandsOnSpread(sheet, landing, backFace, side, still)) return null
-    return TwoPageCurl(
-        front = bitmapsCurrent[turning],
-        back = bitmapsTarget[turning],
-        flapBack = bitmapsTarget[1 - turning],
-        still = bitmapsCurrent[1 - turning],
-        layout = CurlSheetLayout(
+    val spineX = if (side == CurlSide.Right) sheet.left else sheet.right
+    if (!twoPageCurlMeetsAtSpine(
             sheet = sheet,
-            spread = sheet.expandedTo(backFace),
+            landing = landing,
             backFace = backFace,
-            spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+            side = side,
+            still = still,
+            spineX = spineX,
+            canvasWidth = canvas.size.width.toFloat(),
+            canvasHeight = canvas.size.height.toFloat(),
+        )
+    ) {
+        return TwoPageCurlBuild(null, TwoPageCurlFallback.SpineGap)
+    }
+    return TwoPageCurlBuild(
+        TwoPageCurl(
+            front = bitmapsCurrent[turning],
+            back = bitmapsTarget[turning],
+            flapBack = bitmapsTarget[1 - turning],
+            still = bitmapsCurrent[1 - turning],
+            layout = CurlSheetLayout(
+                sheet = sheet,
+                spread = sheet.expandedTo(backFace),
+                backFace = backFace,
+                spineX = spineX,
+                landing = landing,
+                still = still,
+                hinge = canvas.hinge,
+            ),
+            frontCrop = cropsCurrent[turning].toContentRect(),
+            backCrop = cropsTarget[turning].toContentRect(),
+            flapCrop = cropsTarget[1 - turning].toContentRect(),
+            stillCrop = cropsCurrent[1 - turning].toContentRect(),
         ),
-        frontCrop = cropsCurrent[turning].toContentRect(),
-        backCrop = cropsTarget[turning].toContentRect(),
-        flapCrop = cropsTarget[1 - turning].toContentRect(),
-        stillCrop = cropsCurrent[1 - turning].toContentRect(),
+        null,
     )
 }
 
@@ -2075,6 +2176,7 @@ private suspend fun PointerInputScope.detectCurlSwipe(
     onSwipePastEnd: () -> Unit,
     onSlideFollow: ((from: Int, target: Int, progress: Float, forward: Boolean) -> Unit)? = null,
     fling: Boolean = false,
+    isHolding: () -> Boolean = { false },
 ) {
     val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
@@ -2112,6 +2214,8 @@ private suspend fun PointerInputScope.detectCurlSwipe(
                 return@awaitEachGesture
             }
             val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+            // A one-finger zoom hold owns the drag; release must not turn the page.
+            if (isHolding() && change.isConsumed && !drag) return@awaitEachGesture
             last = change.position
             // Only moving samples: a still release sample would bend the fit to zero.
             if (change.pressed) velocityTracker.addPosition(change.uptimeMillis, change.position)
@@ -2168,26 +2272,108 @@ private suspend fun PointerInputScope.detectSwipePastEnd(
     direction: ReadingDirection,
     isZoomed: () -> Boolean,
     onSwipe: () -> Unit,
+    isHolding: () -> Boolean = { false },
 ) {
     val threshold = END_SWIPE_THRESHOLD.toPx()
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         var multiTouch = false
+        var consumed = false
         var last = down.position
         do {
             val event = awaitPointerEvent()
             if (event.changes.count { it.pressed } > 1) multiTouch = true
-            event.changes.firstOrNull { it.id == down.id }?.let { last = it.position }
+            event.changes.firstOrNull { it.id == down.id }?.let {
+                if (isHolding() && it.isConsumed) consumed = true
+                last = it.position
+            }
         } while (event.changes.any { it.pressed })
-        if (multiTouch || isZoomed()) return@awaitEachGesture
+        if (multiTouch || consumed || isZoomed()) return@awaitEachGesture
         val delta = last - down.position
         if (isSwipeTowardNext(delta.x, delta.y, threshold, direction)) onSwipe()
+    }
+}
+
+/**
+ * Tap / double-tap / double-tap-and-hold for a zone when one-finger zoom is on.
+ * The hold consumes its moves and release so swipe, page turn and pinch pan stay out of it.
+ */
+private suspend fun PointerInputScope.detectOneFingerZoomTapZone(
+    onTap: () -> Unit,
+    onDoubleTap: () -> Unit,
+    onHoldStart: (x: Float, y: Float) -> Unit,
+    onHoldPan: (dx: Float, dy: Float) -> Unit,
+    onHoldEnd: () -> Unit,
+) {
+    awaitEachGesture {
+        val first = awaitFirstDown(requireUnconsumed = false)
+        var pointerId = first.id
+        val detector = OneFingerZoomDetector(
+            doubleTapMillis = viewConfiguration.doubleTapTimeoutMillis,
+            holdMillis = viewConfiguration.longPressTimeoutMillis,
+            touchSlop = viewConfiguration.touchSlop,
+        )
+
+        fun dispatch(commands: List<OneFingerZoomCommand>) {
+            commands.forEach { command ->
+                when (command) {
+                    OneFingerZoomCommand.Tap -> onTap()
+                    OneFingerZoomCommand.DoubleTap -> onDoubleTap()
+                    is OneFingerZoomCommand.HoldStart -> onHoldStart(command.x, command.y)
+                    is OneFingerZoomCommand.HoldPan -> onHoldPan(command.dx, command.dy)
+                    OneFingerZoomCommand.HoldEnd -> onHoldEnd()
+                }
+            }
+        }
+
+        dispatch(detector.down(first.position.x, first.position.y))
+        while (detector.phase != OneFingerZoomPhase.Idle) {
+            val timeout = detector.timeoutMillis()
+            var advanced = false
+            val expired = withTimeoutOrNull(timeout ?: Long.MAX_VALUE) {
+                while (!advanced) {
+                    val event = awaitPointerEvent()
+                    if (event.changes.count { it.pressed } > 1) {
+                        dispatch(detector.cancel())
+                        advanced = true
+                        continue
+                    }
+                    val current = event.changes.firstOrNull { it.id == pointerId }
+                    val secondDown = if (detector.phase == OneFingerZoomPhase.AwaitSecondDown) {
+                        event.changes.firstOrNull { it.pressed && !it.previousPressed }
+                    } else {
+                        null
+                    }
+                    when {
+                        secondDown != null -> {
+                            pointerId = secondDown.id
+                            dispatch(detector.down(secondDown.position.x, secondDown.position.y))
+                            advanced = true
+                        }
+                        current != null && current.pressed -> {
+                            val before = detector.phase
+                            dispatch(detector.move(current.position.x, current.position.y))
+                            if (detector.phase == OneFingerZoomPhase.Holding) current.consume()
+                            advanced = detector.phase != before
+                        }
+                        current != null -> {
+                            if (detector.phase == OneFingerZoomPhase.Holding) current.consume()
+                            dispatch(detector.up(current.position.x, current.position.y))
+                            advanced = true
+                        }
+                    }
+                }
+                false
+            } ?: true
+            if (expired) dispatch(detector.timeout())
+        }
     }
 }
 
 private suspend fun PointerInputScope.detectReaderZoomGestures(
     isZoomed: () -> Boolean,
     onGesture: (centroid: Offset, zoomChange: Float, pan: Offset) -> Unit,
+    isHolding: () -> Boolean = { false },
 ) {
     val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
@@ -2211,7 +2397,8 @@ private suspend fun PointerInputScope.detectReaderZoomGestures(
                         if (it.positionChanged()) it.consume()
                     }
                 }
-                pressed == 1 && isZoomed() -> {
+                pressed == 1 && isZoomed() &&
+                    (!isHolding() || event.changes.none { it.isConsumed }) -> {
                     val pan = event.calculatePan()
                     panDistance += pan.getDistance()
                     if (!panPastSlop && panDistance >= touchSlop) {

@@ -717,6 +717,7 @@ private fun App(
                 onBack = { openUri = null },
                 showTapZoneGuide = settings.showTapZoneGuide,
                 tapZoneSidePercent = settings.tapZoneSidePercent,
+                oneFingerZoom = settings.oneFingerZoom,
                 keepZoom = settings.keepZoomOnTurn,
                 twoPageMode = settings.twoPageMode,
                 followSystemBrightness = settings.followSystemBrightness,

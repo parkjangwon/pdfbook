@@ -91,6 +91,9 @@ private fun IntRect.clipTo(bounds: IntRect): IntRect =
 /**
  * Bitmap cache key size for the visible page slot.
  * Tabletop uses the page pane; book single-page uses the half that [BookHalfPage] draws into.
+ * A two-page Book with a hinge gap uses the virtual spread (halves butted together), so
+ * `spreadRequests` renders each half at half.width and the curl looks them up with the same
+ * key; Flat and a flush Book keep the window.
  */
 fun pageRenderSlot(
     window: IntSize,
@@ -104,9 +107,17 @@ fun pageRenderSlot(
             return IntSize(page.width.coerceAtLeast(1), page.height.coerceAtLeast(1))
         }
         is FoldPosture.Book -> {
+            val halves = bookHalves(window, posture.foldBounds)
             if (!twoPage) {
-                val half = bookSingleHalf(bookHalves(window, posture.foldBounds), direction)
+                val half = bookSingleHalf(halves, direction)
                 return IntSize(half.width.coerceAtLeast(1), half.height.coerceAtLeast(1))
+            }
+            val gap = (halves.second.left - halves.first.right).coerceAtLeast(0)
+            if (gap > 1) {
+                return IntSize(
+                    (halves.first.width + halves.second.width).coerceAtLeast(1),
+                    window.height.coerceAtLeast(1),
+                )
             }
         }
         FoldPosture.Flat -> Unit
@@ -129,13 +140,26 @@ fun isSpreadCached(
 }
 
 /** Visual left/right slots of a two-page spread inside the curl Canvas. */
-data class CurlCanvas(val size: IntSize, val left: IntRect, val right: IntRect)
+data class CurlCanvas(
+    val size: IntSize,
+    val left: IntRect,
+    val right: IntRect,
+    val hinge: CurlHinge? = null,
+)
+
+/**
+ * Foldable hinge that must stay visible while a two-page sheet turns: [gap] px of the window
+ * between the two halves. The curl geometry is computed on the virtual spread (the halves
+ * butted together) and the overlay shifts everything right of the spine by [gap], so the flap is
+ * cut at the hinge instead of painting over it (V071-TWOPAGE.md §4, option A).
+ */
+data class CurlHinge(val gap: Float)
 
 /**
  * Canvas size and the two page slots for a two-page curl. The Canvas is the page pane:
- * for Tabletop that is the top half (the overlay is placed there), for Flat and Book the
- * whole window. Book slots are the halves either side of the hinge, so a hinge gap shows
- * up as non-adjacent slots (and the turn falls back to Slide).
+ * for Tabletop that is the top half (the overlay is placed there), for Flat the whole window.
+ * A Book posture with a hinge gap returns the virtual spread — the two halves butted together —
+ * plus the [CurlHinge] the overlay cuts at; a flush hinge returns the window halves.
  */
 fun curlCanvas(window: IntSize, posture: FoldPosture): CurlCanvas? {
     if (window.width <= 0 || window.height <= 0) return null
@@ -159,7 +183,20 @@ fun curlCanvas(window: IntSize, posture: FoldPosture): CurlCanvas? {
         }
         is FoldPosture.Book -> {
             val halves = bookHalves(window, posture.foldBounds)
-            CurlCanvas(window, halves.first, halves.second)
+            val gap = (halves.second.left - halves.first.right).coerceAtLeast(0)
+            // A real hinge gap (> 1px) curls on the virtual spread; one pixel is left to the
+            // flush path, where the 1px landing rule already holds.
+            if (gap > 1 && halves.first.width > 0 && halves.second.width > 0) {
+                val size = IntSize(halves.first.width + halves.second.width, window.height)
+                CurlCanvas(
+                    size,
+                    IntRect(0, 0, halves.first.width, window.height),
+                    IntRect(halves.first.width, 0, size.width, window.height),
+                    CurlHinge(gap.toFloat()),
+                )
+            } else {
+                CurlCanvas(window, halves.first, halves.second)
+            }
         }
     }
 }
@@ -211,37 +248,73 @@ fun Rect.expandedTo(other: Rect): Rect = Rect(
     maxOf(bottom, other.bottom),
 )
 
-/** The same drawn rect within [tolerance] px on every edge. */
-fun rectsMatch(a: Rect, b: Rect, tolerance: Float = 1f): Boolean =
-    abs(a.left - b.left) <= tolerance &&
-        abs(a.top - b.top) <= tolerance &&
-        abs(a.right - b.right) <= tolerance &&
-        abs(a.bottom - b.bottom) <= tolerance
+/**
+ * Clip bounds for the two-page fold, in canvas coordinates: the turning sheet and the revealed
+ * page plus the opposite pages mirrored about the spine onto the turning half. At progress 1 the
+ * revealed polygon covers this union, so its reflection (the flap) covers the opposite pages at
+ * their own rects however much the four pages differ in size.
+ */
+internal fun curlFoldUnion(layout: CurlSheetLayout): Rect {
+    fun mirrored(rect: Rect): Rect = Rect(
+        2f * layout.spineX - rect.right,
+        rect.top,
+        2f * layout.spineX - rect.left,
+        rect.bottom,
+    )
+    return layout.sheet
+        .expandedTo(layout.landing)
+        .expandedTo(mirrored(layout.backFace))
+        .expandedTo(mirrored(layout.still))
+}
+
+/** True when all four page rects sit within [tolerance] px of the turning sheet. */
+internal fun CurlSheetLayout.rectsMatchSheet(tolerance: Float = 1f): Boolean {
+    fun Rect.matches(other: Rect): Boolean =
+        abs(left - other.left) <= tolerance &&
+            abs(top - other.top) <= tolerance &&
+            abs(right - other.right) <= tolerance &&
+            abs(bottom - other.bottom) <= tolerance
+    return landing.matches(sheet) && backFace.matches(sheet) && still.matches(sheet)
+}
 
 /**
- * 오대리 rule: the turning sheet must land exactly on the opposite page, so the sheet and
- * the pages it turns onto have to agree within 1px. Otherwise the end frame jumps and the
- * turn falls back to Slide. [still] is the current spread's other page: it is painted under
- * the turn, so it must occupy the same rect as [backFace].
+ * Two-page curl guard. The overlay draws the turning page, the revealed page, the still page
+ * and the flap's back face each at its own measured rect, so the first and last frames equal
+ * the two spreads pixel for pixel even when a book's pages differ by a few points (a real PDF
+ * rarely has identical page sizes). What must hold is that the two slots meet at the spine:
+ * each rect's spine-side edge lies on [spineX] and every rect stays inside the canvas. A hinge
+ * gap (Book posture) fails here, because its two spine edges are apart, and the turn slides.
  */
-fun sheetLandsOnSpread(
+fun twoPageCurlMeetsAtSpine(
     sheet: Rect,
-    targetSheet: Rect,
+    landing: Rect,
     backFace: Rect,
     side: CurlSide,
     still: Rect,
+    spineX: Float,
+    canvasWidth: Float,
+    canvasHeight: Float,
     tolerance: Float = 1f,
 ): Boolean {
-    if (!rectsMatch(sheet, targetSheet, tolerance)) return false
-    if (!rectsMatch(still, backFace, tolerance)) return false
-    if (abs(sheet.width - backFace.width) > tolerance) return false
-    if (abs(sheet.height - backFace.height) > tolerance) return false
-    if (abs(sheet.top - backFace.top) > tolerance) return false
-    val spine = if (side == CurlSide.Right) sheet.left else sheet.right
+    val rects = listOf(sheet, landing, backFace, still)
+    if (rects.any { it.width <= 0f || it.height <= 0f }) return false
+    if (rects.any {
+            it.left < -tolerance ||
+                it.top < -tolerance ||
+                it.right > canvasWidth + tolerance ||
+                it.bottom > canvasHeight + tolerance
+        }
+    ) {
+        return false
+    }
+    fun edgeAt(rect: Rect, leftEdge: Boolean): Boolean =
+        abs((if (leftEdge) rect.left else rect.right) - spineX) <= tolerance
     return if (side == CurlSide.Right) {
-        abs(backFace.right - spine) <= tolerance
+        edgeAt(sheet, leftEdge = true) && edgeAt(landing, leftEdge = true) &&
+            edgeAt(backFace, leftEdge = false) && edgeAt(still, leftEdge = false)
     } else {
-        abs(backFace.left - spine) <= tolerance
+        edgeAt(sheet, leftEdge = false) && edgeAt(landing, leftEdge = false) &&
+            edgeAt(backFace, leftEdge = true) && edgeAt(still, leftEdge = true)
     }
 }
 

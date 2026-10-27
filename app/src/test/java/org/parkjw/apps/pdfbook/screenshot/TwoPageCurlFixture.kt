@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
 import org.parkjw.apps.pdfbook.CropMargins
@@ -34,7 +36,11 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 /**
  * Two-page curl preview shared by the #167 captures. Pages are generated synthetic
  * colour pages; no real book, screenshot or private file is used. [mode] applies the same
- * page color filter and curl look the reader passes for that display mode.
+ * page color filter and curl look the reader passes for that display mode. With [showOverlay]
+ * false the pager alone is drawn: the settled target spread the last curl frame must match.
+ * [hingeGap] > 0 draws the turn on a folded Book posture with that hinge gap: the curl runs on
+ * the virtual spread and the overlay cuts it at the hinge, and the pager shows the gap between
+ * the two halves.
  */
 @Composable
 internal fun TwoPageCurlPreview(
@@ -45,12 +51,24 @@ internal fun TwoPageCurlPreview(
     targetLeft: Bitmap,
     targetRight: Bitmap,
     mode: DisplayMode = DisplayMode.Default,
+    showOverlay: Boolean = true,
+    hingeGap: Int = 0,
+    pagerPage: Int = 1,
 ) {
     val filter = mode.colorFilter()
     val look = mode.curlLook()
     BoxWithConstraints(Modifier.fillMaxSize().background(ReaderBackground)) {
         val window = IntSize(constraints.maxWidth, constraints.maxHeight)
-        val canvas = curlCanvas(window, FoldPosture.Flat) ?: return@BoxWithConstraints
+        val posture = if (hingeGap > 0) {
+            // Keep the gap exactly [hingeGap] wide, odd values included: ±gap/2 would make an
+            // odd gap one pixel narrower.
+            val gapLeft = window.width / 2 - hingeGap / 2
+            FoldPosture.Book(IntRect(gapLeft, 0, gapLeft + hingeGap, window.height))
+        } else {
+            FoldPosture.Flat
+        }
+        val canvas = curlCanvas(window, posture) ?: return@BoxWithConstraints
+        val shift = canvas.hinge?.gap ?: 0f
         val slots = listOf(canvas.left, canvas.right)
         val none = CropMargins()
         fun rects(left: Bitmap, right: Bitmap) = listOf(
@@ -63,7 +81,10 @@ internal fun TwoPageCurlPreview(
         // when the turn animates, so the pager below sits on the target spread. Page 0 is
         // the current spread; the capture would expose the swap if the still page were
         // taken from the pager.
-        val pagerState = rememberPagerState(initialPage = 1) { 2 }
+        val pagerState = rememberPagerState(initialPage = pagerPage) { 2 }
+        LaunchedEffect(pagerPage) {
+            if (pagerState.currentPage != pagerPage) pagerState.scrollToPage(pagerPage)
+        }
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
@@ -72,37 +93,42 @@ internal fun TwoPageCurlPreview(
             ComposeCanvas(Modifier.fillMaxSize()) {
                 if (index == 0) {
                     drawPage(currentLeft, currentRects[0], filter)
-                    drawPage(currentRight, currentRects[1], filter)
+                    drawPage(currentRight, currentRects[1].translate(shift, 0f), filter)
                 } else {
                     drawPage(targetLeft, targetRects[0], filter)
-                    drawPage(targetRight, targetRects[1], filter)
+                    drawPage(targetRight, targetRects[1].translate(shift, 0f), filter)
                 }
             }
         }
         val turning = if (side == CurlSide.Right) 1 else 0
         val sheet = currentRects[turning]
         val backFace = targetRects[1 - turning]
-        PageCurlOverlay(
-            front = if (turning == 1) currentRight else currentLeft,
-            back = if (turning == 1) targetRight else targetLeft,
-            still = if (turning == 1) currentLeft else currentRight,
-            progress = { progress },
-            side = side,
-            modifier = Modifier.fillMaxSize(),
-            colorFilter = filter,
-            flapBack = if (turning == 1) targetLeft else targetRight,
-            layout = CurlSheetLayout(
-                sheet = sheet,
-                spread = sheet.expandedTo(backFace),
-                backFace = backFace,
-                spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
-            ),
-            flapColor = look.flapColor,
-            shadowColor = look.shadowColor,
-            shadowAlpha = look.shadowAlpha,
-            shadowMidAlpha = look.shadowMidAlpha,
-            foldHighlightColor = look.foldHighlightColor,
-        )
+        if (showOverlay) {
+            PageCurlOverlay(
+                front = if (turning == 1) currentRight else currentLeft,
+                back = if (turning == 1) targetRight else targetLeft,
+                still = if (turning == 1) currentLeft else currentRight,
+                progress = { progress },
+                side = side,
+                modifier = Modifier.fillMaxSize(),
+                colorFilter = filter,
+                flapBack = if (turning == 1) targetLeft else targetRight,
+                layout = CurlSheetLayout(
+                    sheet = sheet,
+                    spread = sheet.expandedTo(backFace),
+                    backFace = backFace,
+                    spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+                    landing = targetRects[turning],
+                    still = currentRects[1 - turning],
+                    hinge = canvas.hinge,
+                ),
+                flapColor = look.flapColor,
+                shadowColor = look.shadowColor,
+                shadowAlpha = look.shadowAlpha,
+                shadowMidAlpha = look.shadowMidAlpha,
+                foldHighlightColor = look.foldHighlightColor,
+            )
+        }
     }
 }
 
@@ -123,23 +149,27 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPage(
  * Left/right asymmetric page: a band down the left edge and a block in the top-left
  * corner. A mirrored back face puts both on the right, so the capture can tell it apart.
  */
-internal fun syntheticTwoPageCurlPage(fill: Int, accent: Int): Bitmap {
-    val bitmap = Bitmap.createBitmap(TWO_PAGE_WIDTH, TWO_PAGE_HEIGHT, Bitmap.Config.ARGB_8888)
+internal fun syntheticTwoPageCurlPage(
+    fill: Int,
+    accent: Int,
+    height: Int = TWO_PAGE_HEIGHT,
+): Bitmap {
+    val bitmap = Bitmap.createBitmap(TWO_PAGE_WIDTH, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     canvas.drawColor(fill)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
-    canvas.drawRect(0f, 0f, TWO_PAGE_WIDTH * 0.12f, TWO_PAGE_HEIGHT.toFloat(), paint)
+    canvas.drawRect(0f, 0f, TWO_PAGE_WIDTH * 0.12f, height.toFloat(), paint)
     paint.color = TWO_PAGE_INK
     canvas.drawRect(
         TWO_PAGE_WIDTH * 0.22f,
-        TWO_PAGE_HEIGHT * 0.1f,
+        height * 0.1f,
         TWO_PAGE_WIDTH * 0.46f,
-        TWO_PAGE_HEIGHT * 0.22f,
+        height * 0.22f,
         paint,
     )
     paint.style = Paint.Style.STROKE
     paint.strokeWidth = 6f
-    canvas.drawCircle(TWO_PAGE_WIDTH * 0.34f, TWO_PAGE_HEIGHT * 0.62f, TWO_PAGE_WIDTH * 0.16f, paint)
+    canvas.drawCircle(TWO_PAGE_WIDTH * 0.34f, height * 0.62f, TWO_PAGE_WIDTH * 0.16f, paint)
     return bitmap
 }
 
