@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
@@ -198,6 +199,8 @@ private fun OutlineList(outline: List<OutlineEntry>, currentPage: Int, onPick: (
 @Composable
 private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, onPick: (Int) -> Unit) {
     val density = LocalDensity.current.density
+    val displayMode = LocalDisplayMode.current
+    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
     val state = rememberLazyGridState(initialFirstVisibleItemIndex = (currentPage - 1).coerceAtLeast(0))
     LazyVerticalGrid(
         state = state,
@@ -221,6 +224,11 @@ private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, o
                 val bitmap by produceState<ImageBitmap?>(null, page) {
                     value = renderer.thumbnail(thumbRequest(page, density))?.asImageBitmap()
                 }
+                // Same crop the reader applies to the page, so a thumbnail matches when auto-crop is on.
+                val crop by produceState<CropMargins?>(null, page) {
+                    value = renderer.cropMargins(page)
+                    renderer.cropUpdates.collect { value = renderer.cropMargins(page) }
+                }
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -235,8 +243,27 @@ private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, o
                         .clip(ThumbCorner)
                         .background(ReaderChip),
                 ) {
-                    bitmap?.let {
-                        Image(it, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                    bitmap?.let { image ->
+                        val pageCrop = crop
+                        if (pageCrop != null && !pageCrop.isNone) {
+                            CroppedPage(
+                                image = image,
+                                width = image.width,
+                                height = image.height,
+                                crop = pageCrop,
+                                alignment = Alignment.Center,
+                                colorFilter = colorFilter,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Image(
+                                image,
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize(),
+                                colorFilter = colorFilter,
+                            )
+                        }
                     }
                 }
                 Text(

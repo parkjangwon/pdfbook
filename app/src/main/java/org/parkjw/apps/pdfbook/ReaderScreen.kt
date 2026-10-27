@@ -1682,7 +1682,7 @@ internal fun spreadCropScale(
 }
 
 @Composable
-private fun CroppedPage(
+internal fun CroppedPage(
     image: ImageBitmap,
     width: Int,
     height: Int,

@@ -24,10 +24,12 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.parkjw.apps.pdfbook.LocalDisplayMode
 import org.parkjw.apps.pdfbook.OutlineEntry
 import org.parkjw.apps.pdfbook.PageNavSheet
 import org.parkjw.apps.pdfbook.ReaderScreen
 import org.parkjw.apps.pdfbook.ReadingDirection
+import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.spreads
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.robolectric.annotation.Config
@@ -83,6 +85,26 @@ class PageNavScreenshotsTest {
         captureSheet("reader-page-nav-thumbnails-light-folded-en.png", dark = false, pagesTab = true)
 
     @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun thumbnailsInvertedLightFolded() =
+        captureSheet(
+            "reader-page-nav-thumbnails-inverted-light-folded.png",
+            dark = false,
+            pagesTab = true,
+            displayMode = DisplayMode.Invert,
+        )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun thumbnailsSepiaLightFolded() =
+        captureSheet(
+            "reader-page-nav-thumbnails-sepia-light-folded.png",
+            dark = false,
+            pagesTab = true,
+            displayMode = DisplayMode.Sepia,
+        )
+
+    @Test
     @Config(qualifiers = UNFOLDED_QUALIFIERS)
     fun thumbnailsLightUnfolded() =
         captureSheet("reader-page-nav-thumbnails-light-unfolded.png", dark = false, pagesTab = true)
@@ -110,10 +132,18 @@ class PageNavScreenshotsTest {
     }
 
     @OptIn(ExperimentalRoborazziApi::class)
-    private fun captureSheet(file: String, dark: Boolean, pagesTab: Boolean) {
+    private fun captureSheet(
+        file: String,
+        dark: Boolean,
+        pagesTab: Boolean,
+        displayMode: DisplayMode = DisplayMode.Default,
+    ) {
         composeRule.setContent {
             ScreenshotTheme(dark, ReaderBackground) {
-                CompositionLocalProvider(LocalIndication provides NoRippleIndication) {
+                CompositionLocalProvider(
+                    LocalIndication provides NoRippleIndication,
+                    LocalDisplayMode provides displayMode,
+                ) {
                     Box(Modifier.fillMaxSize().background(ReaderBackground)) {
                         PageNavSheet(
                             renderer = samplePages(),
