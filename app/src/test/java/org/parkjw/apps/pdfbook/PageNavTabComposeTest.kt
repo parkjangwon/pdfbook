@@ -8,9 +8,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTouchHeightIsEqualTo
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -49,24 +49,27 @@ class PageNavTabComposeTest {
                 }
             }
         }
-        assertSizes(minChip = 40.dp)
-        // The 40dp chip is centred in the 48dp interactive area, so a tap 3dp above it still lands on the tab.
-        composeRule.onNodeWithTag("tab").performTouchInput { click(Offset(center.x, -3.dp.toPx())) }
+        val chipAt1x = assertSizes(minChip = 40.dp)
+        composeRule.onNodeWithTag("tab").performTouchInput { click() }
         composeRule.waitForIdle()
         assertEquals(1, clicks)
         fontScale = 2f
         composeRule.waitForIdle()
-        assertSizes(minChip = 48.dp)
+        val chipAt2x = assertSizes(minChip = 40.dp)
+        assertTrue("chip grows with font: $chipAt1x -> $chipAt2x", chipAt2x > chipAt1x)
         composeRule.onNodeWithTag("tab").performTouchInput { click() }
         composeRule.waitForIdle()
         assertEquals(2, clicks)
     }
 
-    private fun assertSizes(minChip: Dp) {
-        val tab = composeRule.onNodeWithTag("tab").assertIsDisplayed()
-        val bounds = tab.getBoundsInRoot()
-        val chip = bounds.bottom - bounds.top
-        assertTrue("chip $chip at $fontScale", chip >= minChip)
+    private fun assertSizes(minChip: Dp): Dp {
+        val chip = composeRule.onNodeWithTag("tab_chip", useUnmergedTree = true).getBoundsInRoot()
+        val chipHeight = chip.bottom - chip.top
+        assertTrue("chip $chipHeight at $fontScale", chipHeight >= minChip)
+        if (chipHeight < 48.dp) {
+            composeRule.onNodeWithTag("tab").assertIsDisplayed().assertTouchHeightIsEqualTo(48.dp)
+        }
         composeRule.onNodeWithText("목차", useUnmergedTree = true).assertIsDisplayed()
+        return chipHeight
     }
 }

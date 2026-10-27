@@ -1,11 +1,16 @@
 package org.parkjw.apps.pdfbook.screenshot
 
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
@@ -27,6 +32,12 @@ import org.parkjw.apps.pdfbook.spreads
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+
+private object NoRippleIndication : IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): DelegatableNode = object : Modifier.Node() {}
+    override fun equals(other: Any?) = this === other
+    override fun hashCode() = System.identityHashCode(this)
+}
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -100,28 +111,29 @@ class PageNavScreenshotsTest {
 
     @OptIn(ExperimentalRoborazziApi::class)
     private fun captureSheet(file: String, dark: Boolean, pagesTab: Boolean) {
-        composeRule.mainClock.autoAdvance = false
         composeRule.setContent {
             ScreenshotTheme(dark, ReaderBackground) {
-                Box(Modifier.fillMaxSize().background(ReaderBackground)) {
-                    PageNavSheet(
-                        renderer = samplePages(),
-                        outline = sampleOutline,
-                        pageCount = 120,
-                        currentPage = 37,
-                        onPick = {},
-                        onDismiss = {},
-                    )
+                CompositionLocalProvider(LocalIndication provides NoRippleIndication) {
+                    Box(Modifier.fillMaxSize().background(ReaderBackground)) {
+                        PageNavSheet(
+                            renderer = samplePages(),
+                            outline = sampleOutline,
+                            pageCount = 120,
+                            currentPage = 37,
+                            onPick = {},
+                            onDismiss = {},
+                        )
+                    }
                 }
             }
         }
-        composeRule.mainClock.advanceTimeBy(1000)
         composeRule.waitForIdle()
         if (pagesTab) {
+            // NoRippleIndication keeps the clicked chip at readerChip, not a frozen pressed state layer.
             composeRule.onNodeWithTag("page_nav_tab_pages").performClick()
-            composeRule.mainClock.advanceTimeBy(1000)
             composeRule.waitForIdle()
         }
+        composeRule.mainClock.autoAdvance = false
         captureScreenRoboImage(file)
     }
 
