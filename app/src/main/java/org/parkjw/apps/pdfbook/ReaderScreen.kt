@@ -1930,6 +1930,15 @@ internal fun PageBitmap(
                 )
             }
             val imageBitmap = remember(bmp) { bmp.asImageBitmap() }
+            // Fit screen keeps the old draw path: no extra layer at scale 1.
+            val fitScaleModifier = if (fitScale == 1f) {
+                Modifier
+            } else {
+                Modifier.graphicsLayer {
+                    scaleX = fitScale
+                    scaleY = fitScale
+                }
+            }
             if (pageCrop != null && !pageCrop.isNone) {
                 SideEffect {
                     onMetrics?.invoke(SpreadPageMetrics(bmp.width, bmp.height, pageCrop))
@@ -1944,10 +1953,7 @@ internal fun PageBitmap(
                     colorFilter = colorFilter,
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = fitScale
-                            scaleY = fitScale
-                        },
+                        .then(fitScaleModifier),
                 )
             } else {
                 Image(
@@ -1958,10 +1964,7 @@ internal fun PageBitmap(
                     colorFilter = colorFilter,
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = fitScale
-                            scaleY = fitScale
-                        },
+                        .then(fitScaleModifier),
                 )
             }
         }
