@@ -24,8 +24,19 @@ import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 
+data class PageSize(val width: Int, val height: Int) {
+    val isWide: Boolean get() = width > height
+}
+
 interface PageBitmaps {
     val pageCount: Int
+
+    /** Wide pages found so far while [widePages] scans; the pages around the anchor arrive first. */
+    val widePageUpdates: Flow<Set<Int>> get() = emptyFlow()
+
+    /** Pages whose width is greater than their height; empty until scanned. */
+    suspend fun widePages(anchor: Int = 1): Set<Int> = emptySet()
+
     suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap?
     fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? = null
     fun prerender(current: List<PageRequest>, targets: List<PageRequest>) {}
@@ -40,6 +51,7 @@ interface PageBitmaps {
 interface PageSource : Closeable {
     val pageCount: Int
     fun draw(page: Int, maxWidth: Int, maxHeight: Int): Bitmap
+    fun pageSize(page: Int): PageSize? = null
 
     // PdfRenderer has no outline API on minSdk 35, so PdfPageSource keeps this empty and the contents tab stays hidden.
     fun outline(): List<OutlineNode> = emptyList()
@@ -70,6 +82,9 @@ class PdfPageSource(
             return bitmap
         }
     }
+
+    override fun pageSize(page: Int): PageSize? =
+        runCatching { pdf.openPage(page - 1).use { PageSize(it.width, it.height) } }.getOrNull()
 
     override fun close() {
         pdf.close()
@@ -104,6 +119,53 @@ class PageRenderer(
     @Volatile private var autoCrop = false
 
     override val pageCount: Int = source.pageCount
+
+    @Volatile private var widePageCache: Set<Int>? = null
+    private val wideScanMutex = Mutex()
+    private val widePageUpdatesFlow = MutableStateFlow<Set<Int>>(emptySet())
+
+    override val widePageUpdates: Flow<Set<Int>> get() = widePageUpdatesFlow
+
+    override suspend fun widePages(anchor: Int): Set<Int> {
+        widePageCache?.let { return it }
+        return wideScanMutex.withLock {
+            widePageCache?.let { return@withLock it }
+            val found = HashSet<Int>()
+            val scanned = BooleanArray(pageCount + 1)
+            val start = anchor.coerceIn(1, pageCount.coerceAtLeast(1))
+
+            suspend fun read(page: Int) {
+                if (page !in 1..pageCount || scanned[page]) return
+                scanned[page] = true
+                // One page per lock: a render or a close never waits for the whole book.
+                val size = withContext(renderDispatcher) {
+                    mutex.withLock {
+                        if (closed) return@withLock null
+                        source.pageSize(page)
+                    }
+                }
+                if (size?.isWide == true) found += page
+            }
+
+            for (distance in 0 until pageCount) {
+                if (closed) break
+                if (distance == 0) {
+                    read(start)
+                } else {
+                    read(start + distance)
+                    read(start - distance)
+                }
+                if (distance == WINDOW_RADIUS && found != widePageUpdatesFlow.value) {
+                    widePageUpdatesFlow.value = found.toSet()
+                }
+            }
+            if (!closed) {
+                widePageCache = found
+                widePageUpdatesFlow.value = found
+            }
+            found.toSet()
+        }
+    }
 
     // Thumbnails queue behind the page mutex without cancelling prerender, so the reader's own page never waits on a strip.
     override suspend fun thumbnail(request: PageRequest): Bitmap? {
@@ -266,6 +328,9 @@ class PageRenderer(
     companion object {
         private const val TAG = "PageRenderer"
 
+        /** Pages either side of the anchor whose sizes are read before the first update is published. */
+        internal const val WINDOW_RADIUS = 3
+
         fun open(pfd: ParcelFileDescriptor): PageRenderer {
             val pdf = try {
                 PdfRenderer(pfd)
@@ -275,5 +340,23 @@ class PageRenderer(
             }
             return PageRenderer(PdfPageSource(pfd, pdf))
         }
+    }
+}
+
+/**
+ * Completed wide-page scans per book, so activity recreation (rotate or unfold) does not
+ * repeat the pass. Only complete scans are stored.
+ */
+object WidePageScanCache {
+    private val scans = ConcurrentHashMap<String, Set<Int>>()
+
+    fun get(bookKey: String): Set<Int>? = scans[bookKey]
+
+    fun put(bookKey: String, pages: Set<Int>) {
+        scans[bookKey] = pages
+    }
+
+    internal fun clear() {
+        scans.clear()
     }
 }

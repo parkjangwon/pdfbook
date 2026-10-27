@@ -171,6 +171,7 @@ fun ReaderScreen(
     keepScreenOn: Boolean = true,
     spreadShift: Boolean = false,
     onSpreadShiftChange: (Boolean) -> Unit = {},
+    widePages: Set<Int> = emptySet(),
     onRestorePage: (Int) -> Unit = {},
 ) {
     val view = LocalView.current
@@ -223,6 +224,7 @@ fun ReaderScreen(
             fullScreenReading = fullScreenReading,
             spreadShift = spreadShift,
             onSpreadShiftChange = onSpreadShiftChange,
+            widePages = widePages,
             onRestorePage = onRestorePage,
         )
     }
@@ -269,6 +271,7 @@ private fun ReaderScreenContent(
     fullScreenReading: Boolean,
     spreadShift: Boolean,
     onSpreadShiftChange: (Boolean) -> Unit,
+    widePages: Set<Int>,
     onRestorePage: (Int) -> Unit,
 ) {
     SideEffect { renderer.setAutoCrop(autoCrop) }
@@ -938,6 +941,7 @@ private fun ReaderScreenContent(
                                 window = IntSize(constraints.maxWidth, constraints.maxHeight),
                                 tagged = activePage,
                                 autoCrop = autoCrop,
+                                widePages = widePages,
                             )
                         }
                         Row(Modifier.fillMaxSize()) {
@@ -1517,6 +1521,7 @@ private fun SpreadPageLayout(
     window: IntSize,
     tagged: Boolean,
     autoCrop: Boolean,
+    widePages: Set<Int>,
 ) {
     val book = posture as? FoldPosture.Book
     if (book != null) {
@@ -1535,13 +1540,6 @@ private fun SpreadPageLayout(
             }
         }
         Box(Modifier.fillMaxSize().background(ReaderBackground)) {
-            Box(
-                Modifier
-                    .offset { IntOffset(book.foldBounds.left, book.foldBounds.top) }
-                    .width(with(LocalDensity.current) { book.foldBounds.width.toDp() })
-                    .height(with(LocalDensity.current) { book.foldBounds.height.toDp() })
-                    .then(if (tagged) Modifier.testTag("book_posture_fold_gap") else Modifier),
-            )
             if (layout.size >= 2) {
                 BookHalfPage(
                     renderer = renderer,
@@ -1568,16 +1566,37 @@ private fun SpreadPageLayout(
                     onMetrics = { if (metrics[layout[1]] != it) metrics[layout[1]] = it },
                 )
             } else {
-                val half = bookSingleHalf(halves, direction)
-                BookHalfPage(
-                    renderer = renderer,
-                    page = layout.first(),
-                    half = half,
-                    alignment = Alignment.Center,
-                    tagged = tagged,
-                    autoCrop = autoCrop,
-                )
+                val lone = layout.first()
+                if (lone in widePages) {
+                    BookAcrossPage(
+                        renderer = renderer,
+                        page = lone,
+                        halves = halves,
+                        window = window,
+                        tagged = tagged,
+                        autoCrop = autoCrop,
+                    )
+                } else {
+                    val half = bookSingleHalf(halves, direction)
+                    BookHalfPage(
+                        renderer = renderer,
+                        page = lone,
+                        half = half,
+                        alignment = Alignment.Center,
+                        tagged = tagged,
+                        autoCrop = autoCrop,
+                    )
+                }
             }
+            // Last, so a wide page drawn across both halves is cut at the hinge.
+            Box(
+                Modifier
+                    .offset { IntOffset(book.foldBounds.left, book.foldBounds.top) }
+                    .width(with(LocalDensity.current) { book.foldBounds.width.toDp() })
+                    .height(with(LocalDensity.current) { book.foldBounds.height.toDp() })
+                    .background(ReaderBackground)
+                    .then(if (tagged) Modifier.testTag("book_posture_fold_gap") else Modifier),
+            )
         }
         return
     }
@@ -1620,6 +1639,38 @@ private fun SpreadPageLayout(
                 onMetrics = { if (metrics[page] != it) metrics[page] = it },
             )
         }
+    }
+}
+
+/** A wide page shown alone in Book posture fills the virtual spread; the hinge gap is painted over it. */
+@Composable
+private fun BookAcrossPage(
+    renderer: PageBitmaps,
+    page: Int,
+    halves: FoldHalves,
+    window: IntSize,
+    tagged: Boolean,
+    autoCrop: Boolean,
+) {
+    val density = LocalDensity.current
+    val width = halves.first.width + halves.second.width
+    if (width <= 0 || window.height <= 0) return
+    Box(
+        Modifier
+            .offset { IntOffset(halves.first.left, 0) }
+            .width(with(density) { width.toDp() })
+            .height(with(density) { window.height.toDp() })
+            .then(if (tagged) Modifier.testTag("reader_page_$page") else Modifier),
+    ) {
+        PageBitmap(
+            renderer = renderer,
+            page = page,
+            maxWidth = width,
+            maxHeight = window.height,
+            modifier = Modifier.fillMaxSize(),
+            alignment = Alignment.Center,
+            autoCrop = autoCrop,
+        )
     }
 }
 
