@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.asAndroidColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
@@ -215,7 +216,24 @@ fun PageCurlOverlay(
             val stillCropPx = stillCrop
             val stillRect = stillPageDest
             if (stillBitmap != null && stillCropPx != null && stillRect != null) {
-                drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
+                // Uneven pages: the flap's opaque back face can be a few pixels shorter than the
+                // still page, so retire the still page's extra rows at its own outer edge as the
+                // turn advances. Exact at progress 0 (the whole still page) and 1 (only the rows
+                // under the back face), so the first and last frames equal the settled spreads.
+                if (uniformRects || flapBack == null) {
+                    drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
+                } else {
+                    val face = twoPage.backFace
+                    val clipTop = stillRect.top +
+                        (face.top.coerceAtLeast(stillRect.top) - stillRect.top) * p
+                    val clipBottom = stillRect.bottom +
+                        (face.bottom.coerceAtMost(stillRect.bottom) - stillRect.bottom) * p
+                    if (clipBottom > clipTop) {
+                        clipRect(top = clipTop, bottom = clipBottom) {
+                            drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
+                        }
+                    }
+                }
             }
         }
 
@@ -292,10 +310,13 @@ fun PageCurlOverlay(
         // Flap: back face, inner shade, fold highlight.
         if (shape.flapCount >= 3) {
             flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
-            // The back face covers the paper at full opacity. With uneven page rects the flap is
-            // clipped to their union, so clearing it to the background keeps the still page's
-            // extra rows from showing beside the paper and makes the last frame the target spread.
-            drawPath(flapPath, if (uniformRects || flapBack == null) flapColor else ReaderBackground)
+            // The back face covers the flap at full opacity. With uneven page rects it is shorter
+            // than the flap polygon (the union), so clearing the whole flap would leave a black
+            // hem over the paper; drawing nothing there lets the front or still page underneath
+            // show, and the still page's own rows are retired above. Equal rects keep the fill.
+            if (uniformRects || flapBack == null) {
+                drawPath(flapPath, flapColor)
+            }
             clipPath(flapPath) {
                 val backFace = flapBack
                 val backFaceCrop = flapBackCrop
@@ -340,12 +361,30 @@ fun PageCurlOverlay(
                     diagonal = diag,
                 )
             }
-            drawLine(
-                color = foldHighlightColor,
-                start = foldTop,
-                end = foldBottom,
-                strokeWidth = CURL_FOLD_HIGHLIGHT_DP.dp.toPx(),
-            )
+            // The crease reaches the union's rows, which can be a few pixels past the pages that
+            // are actually there at the end of the turn; clip it to the rows both the back face
+            // and the landing page cover so the 1dp stroke does not stick out over the background.
+            val creaseTop: Float
+            val creaseBottom: Float
+            if (!uniformRects && twoPage != null) {
+                val face = twoPage.backFace
+                val landingRect = twoPage.landing
+                creaseTop = foldTop.y.coerceAtLeast(maxOf(face.top, landingRect.top))
+                creaseBottom = foldBottom.y.coerceAtMost(minOf(face.bottom, landingRect.bottom))
+            } else {
+                creaseTop = foldTop.y
+                creaseBottom = foldBottom.y
+            }
+            if (creaseBottom > creaseTop) {
+                clipRect(top = creaseTop, bottom = creaseBottom) {
+                    drawLine(
+                        color = foldHighlightColor,
+                        start = foldTop,
+                        end = foldBottom,
+                        strokeWidth = CURL_FOLD_HIGHLIGHT_DP.dp.toPx(),
+                    )
+                }
+            }
         }
     }
 }

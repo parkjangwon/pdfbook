@@ -34,7 +34,8 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 /**
  * Two-page curl preview shared by the #167 captures. Pages are generated synthetic
  * colour pages; no real book, screenshot or private file is used. [mode] applies the same
- * page color filter and curl look the reader passes for that display mode.
+ * page color filter and curl look the reader passes for that display mode. With [showOverlay]
+ * false the pager alone is drawn: the settled target spread the last curl frame must match.
  */
 @Composable
 internal fun TwoPageCurlPreview(
@@ -45,6 +46,7 @@ internal fun TwoPageCurlPreview(
     targetLeft: Bitmap,
     targetRight: Bitmap,
     mode: DisplayMode = DisplayMode.Default,
+    showOverlay: Boolean = true,
 ) {
     val filter = mode.colorFilter()
     val look = mode.curlLook()
@@ -82,29 +84,31 @@ internal fun TwoPageCurlPreview(
         val turning = if (side == CurlSide.Right) 1 else 0
         val sheet = currentRects[turning]
         val backFace = targetRects[1 - turning]
-        PageCurlOverlay(
-            front = if (turning == 1) currentRight else currentLeft,
-            back = if (turning == 1) targetRight else targetLeft,
-            still = if (turning == 1) currentLeft else currentRight,
-            progress = { progress },
-            side = side,
-            modifier = Modifier.fillMaxSize(),
-            colorFilter = filter,
-            flapBack = if (turning == 1) targetLeft else targetRight,
-            layout = CurlSheetLayout(
-                sheet = sheet,
-                spread = sheet.expandedTo(backFace),
-                backFace = backFace,
-                spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
-                landing = targetRects[turning],
-                still = currentRects[1 - turning],
-            ),
-            flapColor = look.flapColor,
-            shadowColor = look.shadowColor,
-            shadowAlpha = look.shadowAlpha,
-            shadowMidAlpha = look.shadowMidAlpha,
-            foldHighlightColor = look.foldHighlightColor,
-        )
+        if (showOverlay) {
+            PageCurlOverlay(
+                front = if (turning == 1) currentRight else currentLeft,
+                back = if (turning == 1) targetRight else targetLeft,
+                still = if (turning == 1) currentLeft else currentRight,
+                progress = { progress },
+                side = side,
+                modifier = Modifier.fillMaxSize(),
+                colorFilter = filter,
+                flapBack = if (turning == 1) targetLeft else targetRight,
+                layout = CurlSheetLayout(
+                    sheet = sheet,
+                    spread = sheet.expandedTo(backFace),
+                    backFace = backFace,
+                    spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+                    landing = targetRects[turning],
+                    still = currentRects[1 - turning],
+                ),
+                flapColor = look.flapColor,
+                shadowColor = look.shadowColor,
+                shadowAlpha = look.shadowAlpha,
+                shadowMidAlpha = look.shadowMidAlpha,
+                foldHighlightColor = look.foldHighlightColor,
+            )
+        }
     }
 }
 

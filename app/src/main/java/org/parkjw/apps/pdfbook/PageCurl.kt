@@ -238,10 +238,21 @@ fun updateCurlShape(
     out.foldValid = false
     if (width <= 0f || height <= 0f) return
     val p = clampCurlProgress(progress)
-    val boundLeft = bounds?.get(0) ?: 0f
-    val boundTop = bounds?.get(1) ?: 0f
-    val boundRight = bounds?.get(2) ?: width
-    val boundBottom = bounds?.get(3) ?: height
+    val boundLeft: Float
+    val boundTop: Float
+    val boundRight: Float
+    val boundBottom: Float
+    if (bounds != null) {
+        boundLeft = bounds[0]
+        boundTop = bounds[1]
+        boundRight = bounds[2]
+        boundBottom = bounds[3]
+    } else {
+        boundLeft = 0f
+        boundTop = 0f
+        boundRight = width
+        boundBottom = height
+    }
 
     val originX = if (side == CurlSide.Left) 0f else width
     val originY = height
