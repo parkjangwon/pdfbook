@@ -472,26 +472,34 @@ case "$FEATURE" in
     open_book
     "$ADB" shell input keyevent KEYCODE_BACK
     open_library
+    image_adjust='Image adjustments|이미지 보정'
+    scroll_image_adjust_row() {
+      found=""
+      for _ in 1 2 3 4 5 6; do
+        if found="$(wait_node text "$image_adjust" 2)"; then return 0; fi
+        "$ADB" shell input swipe 540 1500 540 1150 300
+      done
+      return 1
+    }
     open_image_adjust() {
       tap_id library_settings
       expect_id settings_screen
       tap_id settings_reading_entry
       expect_id settings_reading_screen
-      for _ in 1 2 3; do
-        wait_node text "$image_adjust" 2 >/dev/null && break
-        "$ADB" shell input swipe 540 1600 540 900 300
-      done
-      tap_node text "$image_adjust"
+      scroll_image_adjust_row || die "image adjustment row not found"
+      set -- $found
+      "$ADB" shell input tap "$1" "$2"
       expect_id image_adjust_screen
       sleep 2
     }
-    image_adjust='Image adjustments|이미지 보정'
-    for _ in 1 2 3; do
-      wait_node text "$image_adjust" 2 >/dev/null && break
-      "$ADB" shell input swipe 540 1600 540 900 300
-    done
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    scroll_image_adjust_row || die "image adjustment row not found"
     shot image-adjust-off-row
-    tap_node text "$image_adjust"
+    set -- $found
+    "$ADB" shell input tap "$1" "$2"
     expect_id image_adjust_screen
     sleep 2
     shot image-adjust-off
