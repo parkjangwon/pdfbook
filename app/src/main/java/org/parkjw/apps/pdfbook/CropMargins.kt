@@ -48,9 +48,12 @@ fun detectCropMargins(
 }
 
 /**
- * Two-page rule: both pages share the vertical crop (the union of their content bounds) and only
- * the outer side margin is cropped. The inner (spine) margin stays so the pages keep their
- * alignment. Callers draw both halves with one shared scale so their heights stay equal.
+ * Two-page rule: both pages share the vertical crop (the union of their content bounds) and one
+ * outer side margin. The inner (spine) margin stays so the pages keep their alignment.
+ *
+ * The outer margin is the smaller of the two pages' outer margins, so neither page loses content,
+ * and sharing it makes both halves the same size. The two-page curl compares the turning page
+ * with the facing page of the next spread within 1px, so unequal halves made every turn Slide.
  */
 fun alignedTwoPageMargins(
     leftPage: CropMargins,
@@ -58,8 +61,9 @@ fun alignedTwoPageMargins(
 ): Pair<CropMargins, CropMargins> {
     val top = min(leftPage.top, rightPage.top)
     val bottom = min(leftPage.bottom, rightPage.bottom)
-    return CropMargins(left = leftPage.left, top = top, right = 0f, bottom = bottom) to
-        CropMargins(left = 0f, top = top, right = rightPage.right, bottom = bottom)
+    val outer = min(leftPage.left, rightPage.right)
+    return CropMargins(left = outer, top = top, right = 0f, bottom = bottom) to
+        CropMargins(left = 0f, top = top, right = outer, bottom = bottom)
 }
 
 private data class Background(val red: Int, val green: Int, val blue: Int) {
