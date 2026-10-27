@@ -115,8 +115,10 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.parkjw.apps.pdfbook.settings.DisplayMode
@@ -168,6 +170,9 @@ fun ReaderScreen(
     displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
     pageFit: PageFit = PageFit.Screen,
+    spreadShift: Boolean = false,
+    onSpreadShiftChange: (Boolean) -> Unit = {},
+    onRestorePage: (Int) -> Unit = {},
 ) {
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
@@ -218,6 +223,9 @@ fun ReaderScreen(
             pageTurnAnimation = pageTurnAnimation,
             fullScreenReading = fullScreenReading,
             pageFit = pageFit,
+            spreadShift = spreadShift,
+            onSpreadShiftChange = onSpreadShiftChange,
+            onRestorePage = onRestorePage,
         )
     }
 }
@@ -262,6 +270,9 @@ private fun ReaderScreenContent(
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
     pageFit: PageFit = PageFit.Screen,
+    spreadShift: Boolean,
+    onSpreadShiftChange: (Boolean) -> Unit,
+    onRestorePage: (Int) -> Unit,
 ) {
     SideEffect { renderer.setAutoCrop(autoCrop) }
     // Slider drags preview the window brightness without a DataStore write; only release persists.
@@ -281,6 +292,7 @@ private fun ReaderScreenContent(
     }
     val sideFraction = tapZoneSideFraction(sidePercent)
     var zoom by remember { mutableStateOf(ZoomState()) }
+    var spreadShiftJob by remember { mutableStateOf<Job?>(null) }
     var oneFingerZoomBase by remember { mutableStateOf<ZoomState?>(null) }
     val zoomRef = rememberUpdatedState(zoom)
     val zoomed = !zoom.allowsPageTurn
@@ -730,7 +742,10 @@ private fun ReaderScreenContent(
     fun seekFinished() {
         val origin = seekOrigin ?: return
         seekOrigin = null
-        jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)
+        jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)?.let { jump ->
+            val from = currentSpreads.getOrNull(origin)
+            if (from != null && currentPage in from) jump.copy(page = currentPage) else jump
+        }
     }
 
     fun jumpToPage(page: Int) {
@@ -751,6 +766,7 @@ private fun ReaderScreenContent(
         val current = jumpBack ?: return
         val step = jumpBackStep(currentSpreads, current, pagerState.targetPage)
         jumpBack = step.next
+        onRestorePage(current.page)
         scrollTo(step.targetIndex)
     }
 
@@ -1407,6 +1423,16 @@ private fun ReaderScreenContent(
                 onOpenPageNav = { pageNavVisible = true },
                 bookmarked = bookmarks?.let { spreadBookmarked(it.pages, currentSpread) },
                 onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
+                spreadShift = if (twoPage && tabletop == null) spreadShift else null,
+                onSpreadShiftChange = {
+                    if (spreadShiftJob?.isActive != true) {
+                        spreadShiftJob = scope.launch {
+                            snapshotFlow { pagerState.isScrollInProgress || curlActive }.first { !it }
+                            zoom = ZoomState()
+                            onSpreadShiftChange(!spreadShift)
+                        }
+                    }
+                },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .then(

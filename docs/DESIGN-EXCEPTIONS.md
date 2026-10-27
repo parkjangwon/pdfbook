@@ -51,6 +51,10 @@ The book page is the hero. The reader is always on black with neutral gray overl
 - Fixed left-to-right order: Brightness, AutoTurn, Bookmarks, AutoCrop. Only tools that are passed in are shown, always in that enum order. The row does **not** mirror with RTL reading direction (volume buttons and the page slider still do).
 - Each item: 24dp line icon over `labelSmall`, `readerOnOverlay` content, ~56dp tall equal-width slots (min 48×48 touch target). No `readerAccent`, no elevation, no new shapes.
 
+## Reader more menu and the Expanded ⋮ (#147, approved exception)
+- Compact (<400dp) and Medium (400–599dp) keep the existing more menu. While two-page view is active it gains a "두 쪽 짝 한 칸 밀기 / Shift page pairs by one" on/off row directly under the two-page status row. The row is not drawn in single-page view or tabletop posture.
+- Expanded (≥600dp) otherwise has no more menu. While two-page view is active only, one ⋮ button sits at the very end of the top bar (existing icon order and positions unchanged); its menu holds only that row, 232dp wide, placed inside the right half so it never covers the fold line or the book-posture hinge gap.
+
 ## Page curl (approved exception)
 - The optional page-curl turn (Settings > Reading > Page turn animation > Page curl; default stays Slide) is the one place that uses a shadow and a gradient. The shadow is a single linear gradient cast from the fold line onto the revealed page only, perpendicular to the fold, 20dp wide (shrinking to 0dp over the last 20% of the turn), with stops 0 / 0.35 / 1 at alpha 0.24 / 0.10 / 0 in black (sepia: #3B2A14 at 0.26 / 0.11 / 0; inverted: black at 0.50 / 0.20 / 0).
 - The back of the turned page is a flat paper-back color (`readerPageBack` #EFEEEA, sepia `readerPageBackSepia` #E6DBC2, inverted `readerListCurrent` #262626), the front page mirrored at 8% opacity, a 24dp inner shade (black 0.10 to 0) and a 1dp white highlight on the fold (50%, sepia 45%, inverted 12%). Page bitmaps in the curl use the same display-mode color filter as the page.
