@@ -33,6 +33,22 @@ class PageCurlTest {
     }
 
     @Test
+    fun twoPageDragUsesTheSpreadWidthNotThePane() {
+        // A 2400px pane with two 763px pages: the drawn spread is 1526px, not the pane.
+        val pane = 2400f
+        val spread = 1526f
+        val completes = { progress: Float ->
+            curlReleaseCompletes(progress, alongVelocityPx = 0f, flingVelocityPx = 1000f)
+        }
+        val quarter = curlProgressFromDrag(-spread * 0.25f, spread, CurlSide.Right)
+        assertEquals(0.25f, quarter, 0.001f)
+        assertTrue(completes(quarter))
+        assertFalse(completes(curlProgressFromDrag(-spread * 0.24f, spread, CurlSide.Right)))
+        // The same finger travel against the pane width is only a 16% turn: it springs back.
+        assertFalse(completes(curlProgressFromDrag(-spread * 0.25f, pane, CurlSide.Right)))
+    }
+
+    @Test
     fun geometryBuildsForMidProgress() {
         val geo = curlGeometry(400f, 600f, 0.4f, CurlSide.Right)
         assertNotNull(geo)
@@ -456,10 +472,20 @@ class PageCurlTest {
             cached: Boolean = true,
             animOff: Boolean = false,
             endNotice: Boolean = false,
-        ) = resolvePageTurn(preference, twoPage, zoomed, cached, animOff, endNotice)
+            fromPages: Int = 1,
+            toPages: Int = 1,
+        ) = resolvePageTurn(
+            preference,
+            twoPage,
+            zoomed,
+            cached,
+            animOff,
+            endNotice,
+            fromSpreadPages = fromPages,
+            toSpreadPages = toPages,
+        )
 
         assertEquals(ResolvedPageTurn.Curl, mode())
-        assertEquals(ResolvedPageTurn.Slide, mode(twoPage = true))
         assertEquals(ResolvedPageTurn.Slide, mode(zoomed = true))
         assertEquals(ResolvedPageTurn.Slide, mode(cached = false))
         assertEquals(ResolvedPageTurn.Instant, mode(animOff = true))
@@ -467,6 +493,47 @@ class PageCurlTest {
         assertEquals(ResolvedPageTurn.Instant, mode(preference = PageTurnAnimation.None))
         assertEquals(ResolvedPageTurn.Slide, mode(preference = PageTurnAnimation.Slide))
         assertEquals(ResolvedPageTurn.Instant, mode(preference = PageTurnAnimation.Slide, animOff = true))
+    }
+
+    @Test
+    fun twoPageTurnServesACachedSpreadAndFallsBackToSlideAtTheEnds() {
+        fun mode(
+            twoPage: Boolean = true,
+            zoomed: Boolean = false,
+            cached: Boolean = true,
+            animOff: Boolean = false,
+            fromPages: Int = 2,
+            toPages: Int = 2,
+        ) = resolvePageTurn(
+            PageTurnAnimation.Curl,
+            twoPage,
+            zoomed,
+            cached,
+            animOff,
+            endNoticeOnly = false,
+            fromSpreadPages = fromPages,
+            toSpreadPages = toPages,
+        )
+
+        // Two pages onto two pages (LTR and RTL) curls.
+        assertEquals(ResolvedPageTurn.Curl, mode())
+        // Cover alone forward (1 -> 2) curls with the single-page sheet.
+        assertEquals(ResolvedPageTurn.Curl, mode(fromPages = 1, toPages = 2))
+        // Last odd page reached backward (1 -> 2) curls too.
+        assertEquals(ResolvedPageTurn.Curl, mode(fromPages = 1, toPages = 2))
+        // Two pages onto a lone page (cover / last odd) has no facing page: Slide.
+        assertEquals(ResolvedPageTurn.Slide, mode(fromPages = 2, toPages = 1))
+        // A one-page spread onto a lone page still curls (the single sheet turns).
+        assertEquals(ResolvedPageTurn.Curl, mode(fromPages = 1, toPages = 1))
+        // Zoomed or an uncached target spread always slides.
+        assertEquals(ResolvedPageTurn.Slide, mode(zoomed = true))
+        assertEquals(ResolvedPageTurn.Slide, mode(cached = false))
+        assertEquals(ResolvedPageTurn.Instant, mode(animOff = true))
+        // Single-page view is unchanged: the sizes are always 1.
+        assertEquals(
+            ResolvedPageTurn.Curl,
+            mode(twoPage = false, fromPages = 1, toPages = 1),
+        )
     }
 
     @Test
@@ -532,5 +599,97 @@ class PageCurlTest {
         val flat = pageRenderSlot(window, FoldPosture.Flat, ReadingDirection.LTR, twoPage = false)
         assertEquals(800, flat.width)
         assertEquals(600, flat.height)
+    }
+
+    @Test
+    fun pageDrawRectFitsAndAlignsLikeCroppedPage() {
+        val slot = IntRect(0, 0, 400, 600)
+        val full = CropMargins()
+        // Same aspect as the slot: the page fills it.
+        val fill = pageDrawRect(200, 300, full, slot, SlotAlignment.Start, sharedScale = null)
+        assertEquals(0f, fill.left, 0.01f)
+        assertEquals(0f, fill.top, 0.01f)
+        assertEquals(400f, fill.width, 0.01f)
+        assertEquals(600f, fill.height, 0.01f)
+
+        // A narrow page keeps its aspect and hugs the requested edge.
+        val narrowStart = pageDrawRect(100, 300, full, slot, SlotAlignment.Start, null)
+        assertEquals(0f, narrowStart.left, 0.01f)
+        assertEquals(200f, narrowStart.width, 0.01f)
+        val narrowEnd = pageDrawRect(100, 300, full, slot, SlotAlignment.End, null)
+        assertEquals(200f, narrowEnd.left, 0.01f)
+        assertEquals(400f, narrowEnd.right, 0.01f)
+
+        // A shared scale shrinks both pages equally and centers vertically.
+        val scaled = pageDrawRect(200, 300, full, slot, SlotAlignment.Center, sharedScale = 1f)
+        assertEquals(100f, scaled.left, 0.01f)
+        assertEquals(150f, scaled.top, 0.01f)
+        assertEquals(200f, scaled.width, 0.01f)
+        assertEquals(300f, scaled.height, 0.01f)
+
+        // A crop moves the content rect, matching PageBitmap's source crop.
+        val cropped = pageDrawRect(
+            400, 600, CropMargins(left = 0.25f, top = 0f, right = 0f, bottom = 0f),
+            slot, SlotAlignment.Start, sharedScale = null,
+        )
+        assertEquals(0f, cropped.left, 0.01f)
+        assertEquals(300f, cropped.width, 1f)
+        assertEquals(600f, cropped.height, 1f)
+    }
+
+    @Test
+    fun curlCanvasUsesThePagePaneAndHingeHalves() {
+        val window = IntSize(800, 600)
+        val flat = curlCanvas(window, FoldPosture.Flat)!!
+        assertEquals(IntSize(800, 600), flat.size)
+        assertEquals(IntRect(0, 0, 400, 600), flat.left)
+        assertEquals(IntRect(400, 0, 800, 600), flat.right)
+
+        val tabletop = FoldPosture.Tabletop(IntRect(0, 280, 800, 320))
+        val table = curlCanvas(window, tabletop)!!
+        assertEquals(IntSize(800, 280), table.size)
+        assertEquals(IntRect(0, 0, 400, 280), table.left)
+
+        val book = FoldPosture.Book(IntRect(390, 0, 410, 600))
+        val bookCanvas = curlCanvas(window, book)!!
+        assertEquals(IntSize(800, 600), bookCanvas.size)
+        assertEquals(IntRect(0, 0, 390, 600), bookCanvas.left)
+        assertEquals(IntRect(410, 0, 800, 600), bookCanvas.right)
+        assertNull(curlCanvas(IntSize(0, 600), FoldPosture.Flat))
+    }
+
+    @Test
+    fun twoPageSheetMustLandOnTheOppositePageWithinOnePixel() {
+        val sheet = Rect(400f, 0f, 800f, 600f)
+        val backFace = Rect(0f, 0f, 400f, 600f)
+        val still = Rect(0f, 0f, 400f, 600f)
+        assertTrue(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right, still))
+        // One pixel of difference is tolerated; two is not.
+        assertTrue(sheetLandsOnSpread(sheet, sheet.translate(1f, 0f), backFace, CurlSide.Right, still))
+        assertFalse(sheetLandsOnSpread(sheet, sheet.translate(2f, 0f), backFace, CurlSide.Right, still))
+        // The back face must be the same size and sit on the other side of the spine.
+        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(0f, 0f, 390f, 600f), CurlSide.Right, still))
+        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(10f, 0f, 410f, 600f), CurlSide.Right, still))
+        // The current still page must land exactly where the back face does.
+        assertTrue(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right, still.translate(1f, 0f)))
+        assertFalse(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right, still.translate(2f, 0f)))
+        // Mirrored side: the left sheet lands on the right page.
+        val left = Rect(0f, 0f, 400f, 600f)
+        assertTrue(sheetLandsOnSpread(left, left, Rect(400f, 0f, 800f, 600f), CurlSide.Left, sheet))
+    }
+
+    @Test
+    fun settlingTurnKeepsItsProgressAcrossReleaseAndCancel() {
+        // Released past the settle threshold: the effect finishes forward from the live progress.
+        val released = CurlEffectState(0, 1, CurlSide.Right, 0.4f, dragging = true)
+        assertEquals(1, curlFinishIndex(released, liveProgress = 0.4f))
+        // Released short: it reverts from the same live progress, never snapping to 0 first.
+        val reverted = released.copy(progress = 0.2f)
+        assertEquals(0, curlFinishIndex(reverted, liveProgress = 0.2f))
+        // A settling turn keeps its target; an interrupting input resumes from that page.
+        val settling = CurlEffectState(0, 1, CurlSide.Left, 0.6f, dragging = false)
+        assertEquals(1, curlFinishIndex(settling))
+        val reverting = settling.copy(completing = false)
+        assertEquals(0, curlFinishIndex(reverting))
     }
 }
