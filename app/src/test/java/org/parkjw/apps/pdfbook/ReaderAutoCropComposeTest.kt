@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -26,7 +27,7 @@ class ReaderAutoCropComposeTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun autoCropStartsOffAndStaysOnAfterLeavingTheReader() {
+    fun toolRowOpensTheSheetAndTheToggleSticksAfterLeavingTheReader() {
         val autoCrop = mutableStateOf(false)
         val visible = mutableStateOf(true)
         val pageCount = 4
@@ -55,15 +56,29 @@ class ReaderAutoCropComposeTest {
             }
         }
 
-        composeRule.onNodeWithTag("reader_auto_crop").assertIsOff().performClick()
+        composeRule.onNodeWithTag("reader_crop_sheet").assertDoesNotExist()
+        composeRule.onNodeWithTag("reader_auto_crop").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_crop_sheet").assertExists()
+        composeRule.onNodeWithTag("reader_crop_preview", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithTag(READER_CROP_SWITCH_TAG).assertIsOff().performClick()
         composeRule.waitForIdle()
         assertTrue(autoCrop.value)
-        composeRule.onNodeWithTag("reader_auto_crop").assertIsOn()
+        composeRule.onNodeWithTag(READER_CROP_SWITCH_TAG).assertIsOn()
+        composeRule.onNodeWithTag(READER_CROP_DONE_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_crop_sheet").assertDoesNotExist()
 
         visible.value = false
         composeRule.waitForIdle()
         visible.value = true
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("reader_auto_crop").assertIsOn()
+        composeRule.onNodeWithTag("reader_auto_crop").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(READER_CROP_SWITCH_TAG).assertIsOn()
+        composeRule.onNodeWithTag(READER_CROP_RESET_TAG).performClick()
+        composeRule.waitForIdle()
+        assertFalse(autoCrop.value)
+        composeRule.onNodeWithTag(READER_CROP_SWITCH_TAG).assertIsOff()
     }
 }

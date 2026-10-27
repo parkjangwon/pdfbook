@@ -93,7 +93,9 @@ class PageRenderer(
         if (autoCrop == enabled) return
         autoCrop = enabled
         if (enabled) {
-            // Pages cached before the toggle have no crop rect yet; redraw to detect them.
+            // The crop is applied while drawing the same cached bitmap, so the cache key does
+            // not carry crop state. Pages cached before the toggle were never scanned; clear
+            // them so they are re-rendered and detected.
             cache.clear()
         }
         cropUpdatesFlow.update { it + 1 }
@@ -108,7 +110,10 @@ class PageRenderer(
 
     override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
         val key = PageRequest(page, maxWidth, maxHeight)
-        cache.get(key)?.let { return it }
+        cache.get(key)?.let {
+            ensureCropDetected(page, it)
+            return it
+        }
         val interrupted = synchronized(jobLock) {
             val active = prerenderJob?.isActive == true
             prerenderJob?.cancel()
@@ -158,19 +163,33 @@ class PageRenderer(
         if (closed || key.page < 1 || key.page > pageCount || key.maxWidth <= 0 || key.maxHeight <= 0) {
             return null
         }
-        cache.get(key)?.let { return it }
-        return withContext(renderDispatcher) {
+        cache.get(key)?.let {
+            ensureCropDetected(key.page, it)
+            return it
+        }
+        val bitmap = withContext(renderDispatcher) {
             mutex.withLock {
                 if (closed) return@withLock null
                 cache.get(key)?.let { return@withLock it }
-                val bitmap = source.draw(key.page, key.maxWidth, key.maxHeight)
-                if (autoCrop && synchronized(cropLock) { key.page !in crops }) {
-                    val margins = detectCropMargins(bitmap)
-                    synchronized(cropLock) { crops[key.page] = margins }
-                    cropUpdatesFlow.update { it + 1 }
-                }
-                bitmap.also { cache.put(key, it) }
+                val drawn = source.draw(key.page, key.maxWidth, key.maxHeight)
+                // Cache first: crop detection runs outside the render mutex so the next page
+                // is not blocked. A cache hit with no crop yet detects it lazily.
+                cache.put(key, drawn)
+                drawn
             }
+        }
+        if (bitmap != null) ensureCropDetected(key.page, bitmap)
+        return bitmap
+    }
+
+    private suspend fun ensureCropDetected(page: Int, bitmap: Bitmap) {
+        if (!autoCrop || bitmap.isRecycled) return
+        if (synchronized(cropLock) { crops.containsKey(page) }) return
+        withContext(renderDispatcher) {
+            if (synchronized(cropLock) { crops.containsKey(page) }) return@withContext
+            val margins = detectCropMargins(bitmap)
+            synchronized(cropLock) { crops[page] = margins }
+            cropUpdatesFlow.update { it + 1 }
         }
     }
 

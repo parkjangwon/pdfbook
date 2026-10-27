@@ -96,6 +96,46 @@ class CropMarginsTest {
     }
 
     @Test
+    fun creamPaperIsMeasuredAgainstItsOwnBackground() {
+        val margins = detectCropMargins(
+            page(background = 0xFFF7F2E8.toInt()),
+            paddingFraction = 0f,
+        )
+        assertClose(0.10f, margins.left)
+        assertClose(0.10f, margins.top)
+        assertClose(0.20f, margins.right)
+        assertClose(0.10f / 3f, margins.bottom)
+    }
+
+    @Test
+    fun oneStrayPixelDoesNotStretchTheBoundingBox() {
+        val bitmap = page(left = 20, top = 30, right = 40, bottom = 10)
+        bitmap.setPixel(2, 2, Color.BLACK)
+        val margins = detectCropMargins(bitmap, paddingFraction = 0f)
+        assertClose(0.10f, margins.left)
+        assertClose(0.10f, margins.top)
+    }
+
+    @Test
+    fun aThinFaintLinePartlyAcrossTheMarginIsKept() {
+        val bitmap = page(left = 20, top = 30, right = 40, bottom = 10)
+        for (x in 50 until 150) bitmap.setPixel(x, 5, 0xFF999999.toInt())
+        val margins = detectCropMargins(bitmap, paddingFraction = 0f)
+        assertTrue("line should be treated as content (top=${margins.top})", margins.top < 0.02f)
+        assertClose(0.10f, margins.left)
+    }
+
+    @Test
+    fun darkScansStayUncropped() {
+        val bitmap = Bitmap.createBitmap(200, 300, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(0xFF202020.toInt())
+        for (y in 30 until 270) {
+            for (x in 20 until 160) bitmap.setPixel(x, y, 0xFF606060.toInt())
+        }
+        assertEquals(CropMargins(), detectCropMargins(bitmap))
+    }
+
+    @Test
     fun rendererDetectsCropOffTheMainThreadAndCachesIt() {
         val source = MarginSource()
         val renderer = PageRenderer(source)
