@@ -248,6 +248,13 @@ fun Rect.expandedTo(other: Rect): Rect = Rect(
     maxOf(bottom, other.bottom),
 )
 
+/** True when [other] lies inside this rect within [tolerance] px on every edge. */
+fun Rect.containsWithin(other: Rect, tolerance: Float = 1f): Boolean =
+    other.left >= left - tolerance &&
+        other.top >= top - tolerance &&
+        other.right <= right + tolerance &&
+        other.bottom <= bottom + tolerance
+
 /**
  * Clip bounds for the two-page fold, in canvas coordinates: the turning sheet and the revealed
  * page plus the opposite pages mirrored about the spine onto the turning half. At progress 1 the

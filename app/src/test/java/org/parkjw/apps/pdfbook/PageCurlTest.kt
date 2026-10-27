@@ -537,6 +537,30 @@ class PageCurlTest {
     }
 
     @Test
+    fun loneSheetRulePeelsTheCoverOrLastPageOntoTheTargetSpread() {
+        // Cover alone forward and a lone last page backward, onto one or two pages.
+        assertTrue(curlsLoneSheet(twoPage = true, fromSpreadPages = 1, toSpreadPages = 2))
+        assertTrue(curlsLoneSheet(twoPage = true, fromSpreadPages = 1, toSpreadPages = 1))
+        // A one-page turn in single-page view is the plain single-page curl.
+        assertFalse(curlsLoneSheet(twoPage = false, fromSpreadPages = 1, toSpreadPages = 1))
+        // A two-page spread turning onto a lone page still slides, and so does an empty target.
+        assertFalse(curlsLoneSheet(twoPage = true, fromSpreadPages = 2, toSpreadPages = 1))
+        assertFalse(curlsLoneSheet(twoPage = true, fromSpreadPages = 1, toSpreadPages = 0))
+        // A two-page spread onto another two-page spread uses buildTwoPageCurl instead.
+        assertFalse(curlsLoneSheet(twoPage = true, fromSpreadPages = 2, toSpreadPages = 2))
+    }
+
+    @Test
+    fun aTwoPageDragWithoutABuiltSpreadSlidesInsteadOfCurlingTheWholeScreen() {
+        // Two-page view: the spread builder returned a curl -> the drag curls.
+        assertTrue(dragCurlAllowed(twoPage = true, built = true))
+        // Two-page build failed (cache miss, spine gap, 2 -> 1) -> the drag slides like a tap.
+        assertFalse(dragCurlAllowed(twoPage = true, built = false))
+        // Single-page view keeps the plain full-screen curl.
+        assertTrue(dragCurlAllowed(twoPage = false, built = false))
+    }
+
+    @Test
     fun interruptOnNewInputFinishesCurrentThenStartsNext() {
         val draggingPast = CurlEffectState(0, 1, CurlSide.Right, 0.5f, dragging = true)
         assertEquals(1, curlFinishIndex(draggingPast))

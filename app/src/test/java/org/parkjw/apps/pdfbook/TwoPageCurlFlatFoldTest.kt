@@ -176,7 +176,7 @@ class TwoPageCurlFlatFoldTest {
                         autoCrop = false,
                     )
                     val curl = built.curl ?: error("$from -> $to $direction must curl: ${built.fallback}")
-                    val layout = curl.layout
+                    val layout = curl.layout ?: error("a two-page curl must carry a layout")
                     if (layout.backFace.height != layout.sheet.height ||
                         layout.landing.height != layout.sheet.height
                     ) {
@@ -316,7 +316,7 @@ class TwoPageCurlFlatFoldTest {
             val built = build(case, posture = fold)
             val curl = built.curl
             assertTrue("${case.name} must curl, was ${built.fallback}", curl != null)
-            val layout = curl!!.layout
+            val layout = curl!!.layout ?: error("two-page curl must carry a layout")
             val hinge = layout.hinge!!
             assertEquals("${case.name} hinge gap", 16f, hinge.gap, 0.001f)
             // The virtual spread is the two halves butted: nothing reaches past its width.
@@ -373,7 +373,7 @@ class TwoPageCurlFlatFoldTest {
         )
         val curl = built.curl
         assertTrue("1px gap must still curl on the flush path, was ${built.fallback}", curl != null)
-        assertNull("1px gap must not be cut", curl!!.layout.hinge)
+        assertNull("1px gap must not be cut", curl!!.layout?.hinge)
     }
 
     private fun build(

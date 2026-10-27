@@ -601,6 +601,30 @@ private fun ReaderScreenContent(
                 runCurl(from, target, side, two.front, two.back, twoPage = two)
                 return@launch
             }
+            if (curlsLoneSheet(twoPage, fromSpread.size, nextSpread.size)) {
+                val windowSize = IntSize(
+                    viewport.width.roundToInt().coerceAtLeast(1),
+                    viewport.height.roundToInt().coerceAtLeast(1),
+                )
+                val singleBuild = buildSingleSpreadCurlBuild(
+                    renderer = renderer,
+                    currentPage = fromSpread.first(),
+                    targetSpread = nextSpread,
+                    direction = directionRef.value,
+                    side = side,
+                    posture = posture,
+                    window = windowSize,
+                    autoCrop = autoCrop,
+                )
+                val single = singleBuild.curl
+                if (single == null) {
+                    Log.i(TURN_LOG_TAG, "lone-page curl fallback=${singleBuild.fallback}")
+                    if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
+                    return@launch
+                }
+                runCurl(from, target, side, single.front, single.back, twoPage = single)
+                return@launch
+            }
             val front = cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
             val back = cachedSpreadBitmaps(renderer, nextSpread, slotW, slotH)
             if (front == null || back == null) {
@@ -808,23 +832,43 @@ private fun ReaderScreenContent(
                                             viewport.width.roundToInt().coerceAtLeast(1),
                                             viewport.height.roundToInt().coerceAtLeast(1),
                                         )
-                                        val two = if (twoPage && fromSpread.size == 2 && toSpread.size == 2) {
-                                            buildTwoPageCurl(
-                                                renderer = renderer,
-                                                currentSpread = fromSpread,
-                                                targetSpread = toSpread,
-                                                direction = direction,
-                                                side = dragSide,
-                                                posture = posture,
-                                                window = windowSize,
-                                                autoCrop = autoCrop,
-                                            ).curl
-                                        } else {
-                                            null
+                                        val two = when {
+                                            twoPage && fromSpread.size == 2 && toSpread.size == 2 ->
+                                                buildTwoPageCurl(
+                                                    renderer = renderer,
+                                                    currentSpread = fromSpread,
+                                                    targetSpread = toSpread,
+                                                    direction = direction,
+                                                    side = dragSide,
+                                                    posture = posture,
+                                                    window = windowSize,
+                                                    autoCrop = autoCrop,
+                                                ).curl
+                                            curlsLoneSheet(twoPage, fromSpread.size, toSpread.size) ->
+                                                buildSingleSpreadCurl(
+                                                    renderer = renderer,
+                                                    currentPage = fromSpread.first(),
+                                                    targetSpread = toSpread,
+                                                    direction = direction,
+                                                    side = dragSide,
+                                                    posture = posture,
+                                                    window = windowSize,
+                                                    autoCrop = autoCrop,
+                                                )
+                                            else -> null
                                         }
-                                        // Two-page: progress is drag / spread width (2w).
+                                        // A two-page spread whose curl did not build (cache miss,
+                                        // spine gap, 2 -> 1) slides like the tap path; the old
+                                        // full-screen curl would cover both pages instead.
+                                        if (!dragCurlAllowed(twoPage, two != null)) {
+                                            return@detectCurlSwipe false
+                                        }
+                                        // Two-page: progress is drag / spread width (2w); a lone
+                                        // page turns over its own drawn width.
                                         curlDragWidth.floatValue =
-                                            two?.layout?.spread?.width ?: pagerWidth
+                                            two?.layout?.spread?.width
+                                                ?: two?.frontRect?.width
+                                                ?: pagerWidth
                                         val slotW = renderSlot.width
                                         val slotH = renderSlot.height
                                         val fromBmp = two?.front
@@ -1085,6 +1129,8 @@ private fun ReaderScreenContent(
                         still = two?.still,
                         stillContentCrop = two?.stillCrop,
                         layout = two?.layout,
+                        frontRect = two?.frontRect,
+                        underlay = two?.underlay.orEmpty(),
                         colorFilter = curlFilter,
                         flapColor = curlLook.flapColor,
                         shadowColor = curlLook.shadowColor,
@@ -1347,8 +1393,15 @@ private fun ReaderScreenContent(
 /** Logcat tag for why a turn used Slide/Instant instead of the curl. */
 private const val TURN_LOG_TAG = "PdfBookTurn"
 
-/** Why [buildTwoPageCurl] refused the curl and the turn used Slide instead. */
-internal enum class TwoPageCurlFallback { SpreadPages, NoCanvas, CacheMiss, SpineGap }
+/** Why a curl build refused the turn and it used Slide instead. */
+internal enum class TwoPageCurlFallback {
+    SpreadPages,
+    NoCanvas,
+    CacheMiss,
+    SpineGap,
+    HingeGap,
+    TargetOutside,
+}
 
 internal data class TwoPageCurlBuild(
     val curl: TwoPageCurl?,
@@ -1359,13 +1412,17 @@ internal data class TwoPageCurlBuild(
 internal data class TwoPageCurl(
     val front: Bitmap,
     val back: Bitmap,
-    val flapBack: Bitmap,
-    val still: Bitmap,
-    val layout: CurlSheetLayout,
+    val flapBack: Bitmap? = null,
+    val still: Bitmap? = null,
+    val layout: CurlSheetLayout? = null,
     val frontCrop: Rect?,
     val backCrop: Rect?,
-    val flapCrop: Rect?,
-    val stillCrop: Rect?,
+    val flapCrop: Rect? = null,
+    val stillCrop: Rect? = null,
+    /** Set for a lone page turning over the whole pane; null for a two-page spread turn. */
+    val frontRect: Rect? = null,
+    /** The target spread pages for a lone-page turn, drawn only where the sheet peeled away. */
+    val underlay: List<CurlUnderlay> = emptyList(),
 )
 
 /**
@@ -1472,6 +1529,130 @@ internal fun buildTwoPageCurl(
         ),
         null,
     )
+}
+
+/**
+ * Builds the curl for a one-page spread (the cover alone or a lone last page) turning onto a
+ * one- or two-page spread. The lone page peels over its own drawn rect like the single-page
+ * curl, and the target spread is painted only where the sheet has peeled away, so the first
+ * frame equals the current spread and the last frame the target spread. Null (Slide fallback)
+ * when a needed bitmap is not cached, when a Book posture has a hinge gap (#172), or when the
+ * target spread does not fit inside the lone page within 1px (the last frame would jump).
+ */
+internal fun buildSingleSpreadCurl(
+    renderer: PageBitmaps,
+    currentPage: Int,
+    targetSpread: List<Int>,
+    direction: ReadingDirection,
+    side: CurlSide,
+    posture: FoldPosture,
+    window: IntSize,
+    autoCrop: Boolean,
+): TwoPageCurl? = buildSingleSpreadCurlBuild(
+    renderer = renderer,
+    currentPage = currentPage,
+    targetSpread = targetSpread,
+    direction = direction,
+    side = side,
+    posture = posture,
+    window = window,
+    autoCrop = autoCrop,
+).curl
+
+/** [buildSingleSpreadCurl] plus the reason it returned null, for the turn log. */
+internal fun buildSingleSpreadCurlBuild(
+    renderer: PageBitmaps,
+    currentPage: Int,
+    targetSpread: List<Int>,
+    direction: ReadingDirection,
+    side: CurlSide,
+    posture: FoldPosture,
+    window: IntSize,
+    autoCrop: Boolean,
+): TwoPageCurlBuild {
+    if (targetSpread.size !in 1..2) return TwoPageCurlBuild(null, TwoPageCurlFallback.SpreadPages)
+    // The flap must not cross the hinge gap in Book posture: that is #172, not this turn.
+    if (posture is FoldPosture.Book && posture.foldBounds.width > 0) {
+        return TwoPageCurlBuild(null, TwoPageCurlFallback.HingeGap)
+    }
+    val canvas = curlCanvas(window, posture) ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.NoCanvas)
+    val singleSlot = curlSpreadRects(window, posture, direction, side, 1)?.sheet
+        ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.NoCanvas)
+    // A one-page spread is prerendered at the pane width (spreadRequests() does not split it).
+    val front = renderer.cached(currentPage, canvas.size.width, canvas.size.height)
+        ?.takeUnless { it.isRecycled }
+        ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
+    val frontCrop = if (autoCrop) renderer.cropMargins(currentPage) ?: CropMargins() else CropMargins()
+    val frontRect = pageDrawRect(
+        front.width,
+        front.height,
+        frontCrop,
+        singleSlot,
+        SlotAlignment.Center,
+        sharedScale = null,
+    )
+    if (frontRect.width <= 0f || frontRect.height <= 0f) {
+        return TwoPageCurlBuild(null, TwoPageCurlFallback.NoCanvas)
+    }
+    val visualTarget = spreadLayout(targetSpread, direction)
+    val underlay = if (visualTarget.size == 2) {
+        val slots = listOf(canvas.left, canvas.right)
+        val requestWidth = (canvas.size.width / 2).coerceAtLeast(1)
+        val bitmaps = visualTarget.map { page ->
+            renderer.cached(page, requestWidth, canvas.size.height)
+                ?.takeUnless { it.isRecycled }
+                ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
+        }
+        val crops = spreadCrops(renderer, visualTarget, autoCrop)
+        val scale = sharedCropScale(bitmaps, crops, slots, canvas.size.height)
+        bitmaps.indices.map { index ->
+            CurlUnderlay(
+                bitmap = bitmaps[index],
+                crop = crops[index].toContentRect(),
+                dest = pageDrawRect(
+                    bitmaps[index].width,
+                    bitmaps[index].height,
+                    crops[index],
+                    slots[index],
+                    if (index == 0) SlotAlignment.End else SlotAlignment.Start,
+                    scale,
+                ),
+            )
+        }
+    } else {
+        val page = visualTarget.first()
+        val bitmap = renderer.cached(page, canvas.size.width, canvas.size.height)
+            ?.takeUnless { it.isRecycled }
+            ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
+        val crop = if (autoCrop) renderer.cropMargins(page) ?: CropMargins() else CropMargins()
+        listOf(
+            CurlUnderlay(
+                bitmap = bitmap,
+                crop = crop.toContentRect(),
+                dest = pageDrawRect(
+                    bitmap.width,
+                    bitmap.height,
+                    crop,
+                    singleSlot,
+                    SlotAlignment.Center,
+                    sharedScale = null,
+                ),
+            ),
+        )
+    }
+    // The sheet is the lone page, so at progress 1 it reveals only that rect. A target page
+    // that sticks out would jump when the overlay leaves, so fall back to Slide.
+    if (underlay.any { !frontRect.containsWithin(it.dest, tolerance = 1f) }) {
+        return TwoPageCurlBuild(null, TwoPageCurlFallback.TargetOutside)
+    }
+    return TwoPageCurlBuild(TwoPageCurl(
+        front = front,
+        back = underlay.first().bitmap,
+        frontCrop = frontCrop.toContentRect(),
+        backCrop = underlay.first().crop,
+        frontRect = frontRect,
+        underlay = underlay,
+    ), null)
 }
 
 /** Aligned margins for a visually ordered spread, as PageBitmap computes them. */
