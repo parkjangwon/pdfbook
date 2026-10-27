@@ -551,6 +551,16 @@ class PageCurlTest {
     }
 
     @Test
+    fun aTwoPageDragWithoutABuiltSpreadSlidesInsteadOfCurlingTheWholeScreen() {
+        // Two-page view: the spread builder returned a curl -> the drag curls.
+        assertTrue(dragCurlAllowed(twoPage = true, built = true))
+        // Two-page build failed (cache miss, spine gap, 2 -> 1) -> the drag slides like a tap.
+        assertFalse(dragCurlAllowed(twoPage = true, built = false))
+        // Single-page view keeps the plain full-screen curl.
+        assertTrue(dragCurlAllowed(twoPage = false, built = false))
+    }
+
+    @Test
     fun interruptOnNewInputFinishesCurrentThenStartsNext() {
         val draggingPast = CurlEffectState(0, 1, CurlSide.Right, 0.5f, dragging = true)
         assertEquals(1, curlFinishIndex(draggingPast))

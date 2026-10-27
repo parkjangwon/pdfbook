@@ -839,6 +839,12 @@ private fun ReaderScreenContent(
                                                 )
                                             else -> null
                                         }
+                                        // A two-page spread whose curl did not build (cache miss,
+                                        // spine gap, 2 -> 1) slides like the tap path; the old
+                                        // full-screen curl would cover both pages instead.
+                                        if (!dragCurlAllowed(twoPage, two != null)) {
+                                            return@detectCurlSwipe false
+                                        }
                                         // Two-page: progress is drag / spread width (2w); a lone
                                         // page turns over its own drawn width.
                                         curlDragWidth.floatValue =

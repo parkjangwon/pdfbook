@@ -134,6 +134,14 @@ fun resolvePageTurn(
 fun curlsLoneSheet(twoPage: Boolean, fromSpreadPages: Int, toSpreadPages: Int): Boolean =
     twoPage && fromSpreadPages == 1 && toSpreadPages in 1..2
 
+/**
+ * A two-page drag curls only through a spread the builders returned. When the build fails
+ * (cache miss, spine gap, a two-page spread onto a lone page) the drag slides like the tap
+ * path instead of falling back to the old full-screen single-page curl. Single-page view
+ * keeps its full-screen curl.
+ */
+fun dragCurlAllowed(twoPage: Boolean, built: Boolean): Boolean = built || !twoPage
+
 data class CurlEffectState(
     val fromIndex: Int,
     val toIndex: Int,
