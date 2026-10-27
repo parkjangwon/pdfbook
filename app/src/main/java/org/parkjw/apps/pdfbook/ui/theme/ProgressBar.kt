@@ -53,6 +53,7 @@ fun PdfBookReaderSlider(
     modifier: Modifier = Modifier,
     onValueChangeFinished: (() -> Unit)? = null,
     enabled: Boolean = true,
+    trackModifier: Modifier = Modifier,
 ) {
     Slider(
         value = value,
@@ -65,7 +66,9 @@ fun PdfBookReaderSlider(
         track = { sliderState ->
             SliderDefaults.Track(
                 sliderState = sliderState,
+                modifier = trackModifier,
                 colors = colors,
+                enabled = enabled,
                 drawStopIndicator = null,
                 drawTick = { _, _ -> },
             )

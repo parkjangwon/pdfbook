@@ -136,7 +136,6 @@
     <string name="image_adjust_preview_description">Adjust preview, page %1$d. Touch and hold for the original</string>
     <string name="image_adjust_order">Page color (%1$s) is applied after these adjustments.</string>
     <string name="image_adjust_reset_description">Reset adjustment</string>
-    <string name="image_adjust_saved">Saved</string>
     <string name="reader_tap_zone_adjust">Adjust width</string>
     <string name="reader_tap_width_title">Tap zone width</string>
     <string name="reader_tap_width_body">Width of the left and right zones. The middle opens the menu.</string>

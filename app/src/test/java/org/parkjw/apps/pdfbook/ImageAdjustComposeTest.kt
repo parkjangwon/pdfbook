@@ -3,9 +3,13 @@ package org.parkjw.apps.pdfbook
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -13,6 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
@@ -152,6 +157,83 @@ class ImageAdjustComposeTest {
         composeRule.onNodeWithTag(IMAGE_ADJUST_GAMMA_TAG).assertIsNotEnabled()
         composeRule.onNodeWithText("Android 16 이상에서 쓸 수 있어요").assertIsDisplayed()
         composeRule.onNodeWithTag(IMAGE_ADJUST_BRIGHTNESS_TAG).assertIsEnabled()
+    }
+
+    @Test
+    fun everySliderHasA48dpTouchTarget() {
+        composeRule.setContent {
+            PdfBookTheme {
+                ImageAdjustScreen(
+                    adjust = ImageAdjust.Default,
+                    bookTitle = "테스트 책",
+                    page = 41,
+                    renderer = null,
+                    displayMode = DisplayMode.Default,
+                    pageColorLabel = "기본",
+                    gammaSupported = true,
+                    onAdjustChange = {},
+                    onBack = {},
+                )
+            }
+        }
+        for (tag in listOf(
+            IMAGE_ADJUST_BRIGHTNESS_TAG,
+            IMAGE_ADJUST_CONTRAST_TAG,
+            IMAGE_ADJUST_GAMMA_TAG,
+            IMAGE_ADJUST_GRAYSCALE_TAG,
+        )) {
+            composeRule.onNodeWithTag(tag).performScrollTo().assertHeightIsAtLeast(48.dp)
+        }
+    }
+
+    @Test
+    fun disabledGammaSliderDrawsNoActiveTrackColour() {
+        composeRule.setContent {
+            PdfBookTheme {
+                ImageAdjustScreen(
+                    adjust = ImageAdjust.Default,
+                    bookTitle = "테스트 책",
+                    page = 41,
+                    renderer = null,
+                    displayMode = DisplayMode.Default,
+                    pageColorLabel = "기본",
+                    gammaSupported = false,
+                    onAdjustChange = {},
+                    onBack = {},
+                )
+            }
+        }
+        val px = composeRule.onNodeWithTag(IMAGE_ADJUST_GAMMA_TAG).performScrollTo().captureToImage().toPixelMap()
+        var live = 0
+        for (x in 0 until px.width) {
+            for (y in 0 until px.height) {
+                val c = px[x, y]
+                if (c.red * 255 > 200f && c.green * 255 < 120f && c.blue * 255 < 80f) live++
+            }
+        }
+        assertEquals("primary pixels on a disabled slider", 0, live)
+    }
+
+    @Test
+    fun resetHasItsTalkBackLabel() {
+        composeRule.setContent {
+            PdfBookTheme {
+                ImageAdjustScreen(
+                    adjust = ImageAdjust.Default,
+                    bookTitle = "테스트 책",
+                    page = 41,
+                    renderer = null,
+                    displayMode = DisplayMode.Default,
+                    pageColorLabel = "기본",
+                    gammaSupported = true,
+                    onAdjustChange = {},
+                    onBack = {},
+                )
+            }
+        }
+        composeRule.onNodeWithTag(IMAGE_ADJUST_RESET_TAG)
+            .performScrollTo()
+            .assertContentDescriptionEquals("보정 원래대로")
     }
 
     @Test

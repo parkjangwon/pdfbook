@@ -135,7 +135,6 @@
     <string name="image_adjust_preview_description">보정 미리보기, %1$d쪽. 길게 누르면 원본</string>
     <string name="image_adjust_order">보정한 다음 페이지 색(%1$s)을 씌워요.</string>
     <string name="image_adjust_reset_description">보정 원래대로</string>
-    <string name="image_adjust_saved">저장했어요</string>
     <string name="reader_tap_zone_adjust">폭 조절</string>
     <string name="reader_tap_width_title">탭 영역 폭</string>
     <string name="reader_tap_width_body">왼쪽·오른쪽 영역의 폭이에요. 가운데는 메뉴를 열어요.</string>

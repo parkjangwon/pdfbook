@@ -89,6 +89,7 @@ internal fun ImageAdjustScreen(
     onAdjustChange: (ImageAdjust) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onAdjustCommit: (ImageAdjust) -> Unit = onAdjustChange,
 ) {
     BackHandler(onBack = onBack)
     Scaffold(
@@ -152,6 +153,9 @@ internal fun ImageAdjustScreen(
                                 enabled = true,
                                 supporting = null,
                                 onValueChange = { onAdjustChange(adjust.copy(brightness = (it / 5f).roundToInt() * 5)) },
+                                onValueChangeFinished = { v ->
+                                    onAdjustCommit(adjust.copy(brightness = (v / 5f).roundToInt() * 5))
+                                },
                             )
                             AdjustSliderRow(
                                 title = stringResource(R.string.image_adjust_contrast),
@@ -162,6 +166,9 @@ internal fun ImageAdjustScreen(
                                 enabled = true,
                                 supporting = null,
                                 onValueChange = { onAdjustChange(adjust.copy(contrast = (it / 5f).roundToInt() * 5)) },
+                                onValueChangeFinished = { v ->
+                                    onAdjustCommit(adjust.copy(contrast = (v / 5f).roundToInt() * 5))
+                                },
                             )
                             AdjustSliderRow(
                                 title = stringResource(R.string.image_adjust_gamma),
@@ -176,6 +183,9 @@ internal fun ImageAdjustScreen(
                                     stringResource(R.string.image_adjust_gamma_unavailable)
                                 },
                                 onValueChange = { onAdjustChange(adjust.copy(gamma = (it * 20f).roundToInt() / 20f)) },
+                                onValueChangeFinished = { v ->
+                                    onAdjustCommit(adjust.copy(gamma = (v * 20f).roundToInt() / 20f))
+                                },
                             )
                             AdjustSliderRow(
                                 title = stringResource(R.string.image_adjust_grayscale),
@@ -186,10 +196,19 @@ internal fun ImageAdjustScreen(
                                 enabled = true,
                                 supporting = null,
                                 onValueChange = { onAdjustChange(adjust.copy(grayscale = (it / 10f).roundToInt() * 10)) },
+                                onValueChangeFinished = { v ->
+                                    onAdjustCommit(adjust.copy(grayscale = (v / 10f).roundToInt() * 10))
+                                },
                             )
                         }
                         OrderLine(pageColorLabel)
-                        ResetRow(enabled = !adjust.isDefault, onReset = { onAdjustChange(ImageAdjust.Default) })
+                        ResetRow(
+                            enabled = !adjust.isDefault,
+                            onReset = {
+                                onAdjustChange(ImageAdjust.Default)
+                                onAdjustCommit(ImageAdjust.Default)
+                            },
+                        )
                     }
                 }
                 if (unfolded) {
@@ -204,7 +223,8 @@ internal fun ImageAdjustScreen(
                         ) {
                             previewBlock()
                         }
-                        Box(Modifier.weight(1f)) { controlsBlock() }
+                        val outerEdge = PdfBookSpacing.screenHorizontalUnfolded - PdfBookSpacing.screenHorizontalFolded
+                        Box(Modifier.weight(1f).padding(end = outerEdge)) { controlsBlock() }
                     }
                 } else {
                     Column {
@@ -329,6 +349,7 @@ private fun AdjustSliderRow(
     enabled: Boolean,
     supporting: String?,
     onValueChange: (Float) -> Unit,
+    onValueChangeFinished: (Float) -> Unit = {},
 ) {
     val ink = MaterialTheme.colorScheme
     Column(modifier = Modifier.padding(horizontal = PdfBookSpacing.md, vertical = PdfBookSpacing.xs)) {
@@ -354,22 +375,30 @@ private fun AdjustSliderRow(
             Text(
                 text = supporting,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.extendedColors.muted,
+                color = ink.onSurfaceVariant,
             )
         }
+        var latest by remember { mutableStateOf(value) }
         PdfBookReaderSlider(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = {
+                latest = it
+                onValueChange(it)
+            },
+            onValueChangeFinished = { onValueChangeFinished(latest) },
             valueRange = valueRange,
             colors = SliderDefaults.colors(
                 thumbColor = ink.primary,
                 activeTrackColor = ink.primary,
                 inactiveTrackColor = ink.surfaceVariant,
+                disabledThumbColor = MaterialTheme.extendedColors.muted,
+                disabledActiveTrackColor = MaterialTheme.extendedColors.muted,
+                disabledInactiveTrackColor = ink.surfaceVariant,
             ),
             enabled = enabled,
+            trackModifier = Modifier.height(48.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
                 .testTag(testTag)
                 .semantics {
                     contentDescription = title
@@ -395,6 +424,7 @@ private fun OrderLine(pageColorLabel: String) {
 
 @Composable
 private fun ResetRow(enabled: Boolean, onReset: () -> Unit) {
+    val description = stringResource(R.string.image_adjust_reset_description)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -407,7 +437,8 @@ private fun ResetRow(enabled: Boolean, onReset: () -> Unit) {
             colors = pdfBookTextButtonColors(),
             modifier = Modifier
                 .heightIn(min = 48.dp)
-                .testTag(IMAGE_ADJUST_RESET_TAG),
+                .testTag(IMAGE_ADJUST_RESET_TAG)
+                .semantics { contentDescription = description },
         ) {
             Text(stringResource(R.string.reader_crop_reset))
         }

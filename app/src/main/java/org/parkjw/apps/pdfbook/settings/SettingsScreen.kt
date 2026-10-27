@@ -155,9 +155,12 @@ fun SettingsScreen(
         }
         SettingsSubScreen.ImageAdjust.name -> {
             val key = lastBook?.let { bookKey(it.uri, it.size) }
-            val adjust by remember(key, bookStore) {
+            val storedAdjust by remember(key, bookStore) {
                 bookStore?.adjustFlow(key.orEmpty()) ?: flowOf(ImageAdjust.Default)
             }.collectAsState(ImageAdjust.Default)
+            // Slider moves stay local and reach the store once the gesture ends.
+            var draft by remember(key) { mutableStateOf<ImageAdjust?>(null) }
+            val adjust = draft ?: storedAdjust
             val scope = rememberCoroutineScope()
             val renderer = rememberBookRenderer(lastBook)
             ImageAdjustScreen(
@@ -168,10 +171,12 @@ fun SettingsScreen(
                 displayMode = settings.displayMode,
                 pageColorLabel = displayModeLabel(settings.displayMode),
                 gammaSupported = gammaAvailable(),
-                onAdjustChange = { value ->
+                onAdjustChange = { draft = it },
+                onBack = { subScreen = SettingsSubScreen.Reading.name },
+                onAdjustCommit = { value ->
+                    draft = value
                     if (bookStore != null && key != null) scope.launch { bookStore.saveAdjust(key, value) }
                 },
-                onBack = { subScreen = SettingsSubScreen.Reading.name },
                 modifier = modifier,
             )
         }
@@ -809,7 +814,7 @@ internal fun SettingsValueRow(
                     style = MaterialTheme.typography.bodySmall.copy(
                         lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
                     ),
-                    color = if (enabled) ink.onSurfaceVariant else muted,
+                    color = ink.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
