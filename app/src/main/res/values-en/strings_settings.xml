@@ -39,6 +39,8 @@
     <string name="oss_window_url">https://www.apache.org/licenses/LICENSE-2.0</string>
     <string name="settings_keep_zoom">Keep zoom when turning pages</string>
     <string name="settings_keep_zoom_desc">Keeps your zoom and starts from the top corner of the next page</string>
+    <string name="settings_one_finger_zoom">One-finger zoom</string>
+    <string name="settings_one_finger_zoom_desc">Double-tap and hold to zoom in, then release to zoom back out</string>
     <string name="settings_full_screen_reading">Full screen reading</string>
     <string name="settings_full_screen_reading_desc">Hides the status and navigation bars while reading.</string>
 </resources>
