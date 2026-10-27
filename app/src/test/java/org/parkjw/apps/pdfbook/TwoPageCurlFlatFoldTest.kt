@@ -169,7 +169,7 @@ class TwoPageCurlFlatFoldTest {
             ),
         )
         assertNull(gap.curl)
-        assertEquals(TwoPageCurlFallback.SheetLands, gap.fallback)
+        assertEquals(TwoPageCurlFallback.SpineGap, gap.fallback)
     }
 
     private fun build(

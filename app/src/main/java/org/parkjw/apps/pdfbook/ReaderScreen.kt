@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -543,6 +544,9 @@ private fun ReaderScreenContent(
                 toSpreadPages = nextSpread.size,
             )
             if (mode != ResolvedPageTurn.Curl) {
+                // Field-report diagnostics: why the turn did not curl. Geometry and mode only,
+                // never page content, file names or numbers.
+                Log.i(TURN_LOG_TAG, "turn mode=${mode.name} twoPage=$twoPage")
                 when (mode) {
                     ResolvedPageTurn.Instant -> pagerState.scrollToPage(target)
                     ResolvedPageTurn.Slide -> {
@@ -557,7 +561,7 @@ private fun ReaderScreenContent(
                     viewport.width.roundToInt().coerceAtLeast(1),
                     viewport.height.roundToInt().coerceAtLeast(1),
                 )
-                val two = buildTwoPageCurl(
+                val built = buildTwoPageCurl(
                     renderer = renderer,
                     currentSpread = fromSpread,
                     targetSpread = nextSpread,
@@ -566,8 +570,10 @@ private fun ReaderScreenContent(
                     posture = posture,
                     window = windowSize,
                     autoCrop = autoCrop,
-                ).curl
+                )
+                val two = built.curl
                 if (two == null) {
+                    Log.i(TURN_LOG_TAG, "two-page curl fallback=${built.fallback}")
                     if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                     return@launch
                 }
@@ -577,6 +583,7 @@ private fun ReaderScreenContent(
             val front = cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
             val back = cachedSpreadBitmaps(renderer, nextSpread, slotW, slotH)
             if (front == null || back == null) {
+                Log.i(TURN_LOG_TAG, "single-sheet curl fallback=CacheMiss")
                 if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                 return@launch
             }
@@ -1258,8 +1265,11 @@ private fun ReaderScreenContent(
     }
 }
 
+/** Logcat tag for why a turn used Slide/Instant instead of the curl. */
+private const val TURN_LOG_TAG = "PdfBookTurn"
+
 /** Why [buildTwoPageCurl] refused the curl and the turn used Slide instead. */
-internal enum class TwoPageCurlFallback { SpreadPages, NoCanvas, CacheMiss, SheetLands }
+internal enum class TwoPageCurlFallback { SpreadPages, NoCanvas, CacheMiss, SpineGap }
 
 internal data class TwoPageCurlBuild(
     val curl: TwoPageCurl?,
@@ -1352,7 +1362,7 @@ internal fun buildTwoPageCurl(
             canvasHeight = canvas.size.height.toFloat(),
         )
     ) {
-        return TwoPageCurlBuild(null, TwoPageCurlFallback.SheetLands)
+        return TwoPageCurlBuild(null, TwoPageCurlFallback.SpineGap)
     }
     return TwoPageCurlBuild(
         TwoPageCurl(
