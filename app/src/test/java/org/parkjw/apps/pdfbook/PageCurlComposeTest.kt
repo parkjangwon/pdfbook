@@ -296,6 +296,29 @@ class PageCurlComposeTest {
     }
 
     @Test
+    @Config(qualifiers = "ko-w1600dp-h800dp-mdpi")
+    fun twoPageDragProgressUsesTheDrawnSpreadNotThePane() {
+        // A wide window: each drawn page is height-bound (600x849 fitted into 800x800), so
+        // the spread (2w) is narrower than the pager. Progress must be drag / spread, the
+        // same reference the unit test pins in twoPageDragUsesTheSpreadWidthNotThePane.
+        setReader(twoPage = true, initialPage = 1)
+        freezeClock()
+        val root = composeRule.onRoot().fetchSemanticsNode().size
+        val pageWidth = minOf(root.width / 2f, root.height * PAGE_WIDTH / PAGE_HEIGHT.toFloat())
+        val spread = pageWidth * 2f
+        // 20% of the spread: reverts here, completes if the sheet (w) were the reference.
+        dragBy(-spread * 0.20f)
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        assertEquals("reverted at 20% of the spread", 1, pagerState.currentPage)
+        // 26% of the spread, still under the pane's 25%: only the spread reference completes.
+        dragBy(-spread * 0.26f)
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        assertEquals("completed at 26% of the spread", 2, pagerState.currentPage)
+    }
+
+    @Test
     fun twoPageSpreadCurlsForwardInRtl() {
         setReader(twoPage = true, direction = ReadingDirection.RTL, initialPage = 1)
         freezeClock()
@@ -434,6 +457,18 @@ class PageCurlComposeTest {
         }
     }
 
+    private fun dragBy(dx: Float) {
+        composeRule.onRoot().performTouchInput {
+            val startX = width * 0.9f
+            down(Offset(startX, height / 2f))
+            // Slow drag: below the fling speed, so the distance rule decides.
+            advanceEventTime(500)
+            moveTo(Offset(startX + dx, height / 2f))
+            advanceEventTime(500)
+            up()
+        }
+    }
+
     private fun startDrag(direction: ReadingDirection, fromFraction: Float, toFraction: Float) {
         composeRule.onRoot().performTouchInput {
             down(Offset(width * fromFraction, height / 2f))
@@ -485,5 +520,8 @@ class PageCurlComposeTest {
 
     private companion object {
         const val PAGE_COUNT = 5
+        // CachedPages bitmaps: 2:3 pages, like a book page.
+        const val PAGE_WIDTH = 40
+        const val PAGE_HEIGHT = 60
     }
 }
