@@ -7,6 +7,8 @@ import androidx.compose.foundation.Canvas as ComposeCanvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -86,7 +88,7 @@ class PageCurlTwoPageScreenshotsTest {
         composeRule.waitForIdle()
 
         // LTR forward: the right sheet turns; the flap back face is the target's left page.
-        for (p in listOf(0.25f, 0.5f, 0.75f)) {
+        for (p in listOf(0.25f, 0.5f, 0.75f, 0.95f)) {
             composeRule.runOnIdle {
                 side = CurlSide.Right
                 progress = p
@@ -96,7 +98,7 @@ class PageCurlTwoPageScreenshotsTest {
         }
 
         // RTL forward: mirrored, the left sheet turns; the flap back face is the target's right page.
-        for (p in listOf(0.25f, 0.5f, 0.75f)) {
+        for (p in listOf(0.25f, 0.5f, 0.75f, 0.95f)) {
             composeRule.runOnIdle {
                 side = CurlSide.Left
                 progress = p
@@ -120,20 +122,39 @@ class PageCurlTwoPageScreenshotsTest {
             val canvas = curlCanvas(window, FoldPosture.Flat) ?: return@BoxWithConstraints
             val slots = listOf(canvas.left, canvas.right)
             val none = CropMargins()
-            val leftRect = pageDrawRect(currentLeft.width, currentLeft.height, none, slots[0], SlotAlignment.End, null)
-            val rightRect = pageDrawRect(currentRight.width, currentRight.height, none, slots[1], SlotAlignment.Start, null)
-            val rects = listOf(leftRect, rightRect)
-            val turning = if (side == CurlSide.Right) 1 else 0
-
-            ComposeCanvas(Modifier.matchParentSize()) {
-                drawPage(currentLeft, rects[0])
-                drawPage(currentRight, rects[1])
+            fun rects(left: Bitmap, right: Bitmap) = listOf(
+                pageDrawRect(left.width, left.height, none, slots[0], SlotAlignment.End, null),
+                pageDrawRect(right.width, right.height, none, slots[1], SlotAlignment.Start, null),
+            )
+            val currentRects = rects(currentLeft, currentRight)
+            val targetRects = rects(targetLeft, targetRight)
+            // The real stack: the reader has already scrolled its pager to the target spread
+            // when the turn animates, so the pager below sits on the target spread. Page 0 is
+            // the current spread; the capture would expose the swap if the still page were
+            // taken from the pager.
+            val pagerState = rememberPagerState(initialPage = 1) { 2 }
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = false,
+            ) { index ->
+                ComposeCanvas(Modifier.fillMaxSize()) {
+                    if (index == 0) {
+                        drawPage(currentLeft, currentRects[0])
+                        drawPage(currentRight, currentRects[1])
+                    } else {
+                        drawPage(targetLeft, targetRects[0])
+                        drawPage(targetRight, targetRects[1])
+                    }
+                }
             }
-            val sheet = rects[turning]
-            val backFace = rects[1 - turning]
+            val turning = if (side == CurlSide.Right) 1 else 0
+            val sheet = currentRects[turning]
+            val backFace = targetRects[1 - turning]
             PageCurlOverlay(
                 front = if (turning == 1) currentRight else currentLeft,
                 back = if (turning == 1) targetRight else targetLeft,
+                still = if (turning == 1) currentLeft else currentRight,
                 progress = { progress },
                 side = side,
                 modifier = Modifier.fillMaxSize(),
@@ -158,26 +179,33 @@ class PageCurlTwoPageScreenshotsTest {
 
     private fun percent(p: Float): Int = (p * 100).roundToInt()
 
+    /**
+     * Left/right asymmetric page: a band down the left edge and a block in the top-left
+     * corner. A mirrored back face puts both on the right, so the capture can tell it apart.
+     */
     private fun syntheticPage(fill: Int, accent: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(PAGE_WIDTH, PAGE_HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(fill)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
+        canvas.drawRect(0f, 0f, PAGE_WIDTH * 0.12f, PAGE_HEIGHT.toFloat(), paint)
+        paint.color = INK
         canvas.drawRect(
-            PAGE_WIDTH * 0.1f,
-            PAGE_HEIGHT * 0.08f,
-            PAGE_WIDTH * 0.9f,
-            PAGE_HEIGHT * 0.32f,
+            PAGE_WIDTH * 0.22f,
+            PAGE_HEIGHT * 0.1f,
+            PAGE_WIDTH * 0.46f,
+            PAGE_HEIGHT * 0.22f,
             paint,
         )
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 6f
-        canvas.drawCircle(PAGE_WIDTH / 2f, PAGE_HEIGHT * 0.66f, PAGE_WIDTH * 0.22f, paint)
+        canvas.drawCircle(PAGE_WIDTH * 0.34f, PAGE_HEIGHT * 0.62f, PAGE_WIDTH * 0.16f, paint)
         return bitmap
     }
 
     private companion object {
         const val PAGE_WIDTH = 600
         const val PAGE_HEIGHT = 849
+        const val INK = 0xFF1B1B1B.toInt()
     }
 }
