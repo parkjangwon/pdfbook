@@ -92,9 +92,9 @@ class ReaderToolsScreenshotsTest {
                             ),
                             ReaderToolItem.Action(
                                 tool = ReaderTool.Bookmarks,
-                                iconRes = R.drawable.ic_brightness,
+                                iconRes = R.drawable.ic_bookmark_list,
                                 label = "책갈피",
-                                testTag = "reader_bookmarks",
+                                testTag = "reader_bookmark_list_button",
                                 onClick = {},
                             ),
                             ReaderToolItem.Toggle(
