@@ -83,6 +83,13 @@ cleanup() {
     timeout 20 "$ADB" exec-out screencap -p >"$OUT/failure.png" 2>/dev/null || true
     [ -f "$OUT/ui.xml" ] && mv "$OUT/ui.xml" "$OUT/failure.xml"
     timeout 20 "$ADB" logcat -d -v threadtime >"$OUT/logcat.txt" 2>/dev/null || true
+    # A failed feature must not leave the device rotated, at 320dp/font 2 or in dark
+    # mode: verify.sh all runs the next feature right after this one.
+    "$ADB" shell settings put system accelerometer_rotation 1 >/dev/null 2>&1 || true
+    "$ADB" shell settings put system user_rotation 0 >/dev/null 2>&1 || true
+    "$ADB" shell wm density reset >/dev/null 2>&1 || true
+    "$ADB" shell settings put system font_scale 1.0 >/dev/null 2>&1 || true
+    "$ADB" shell cmd uimode night no >/dev/null 2>&1 || true
   fi
   if [ "$STARTED_EMULATOR" = 1 ]; then
     timeout 20 "$ADB" emu kill >/dev/null 2>&1 || true
@@ -321,6 +328,29 @@ show_overlay() {
   expect_id reader_overlay_bottom
 }
 
+# Scrolls up within the current screen, using the dumped window bounds so it also
+# works in landscape where the fixed portrait coordinates are off-screen.
+swipe_up() {
+  local coords
+  coords="$(python3 - "$OUT/ui.xml" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except (ET.ParseError, FileNotFoundError):
+    sys.exit(1)
+x1, y1, x2, y2 = map(int, re.findall(r"\d+", root.get("bounds", "")))
+cx = (x1 + x2) // 2
+height = y2 - y1
+print(cx, y2 - height // 5, y1 + height // 5)
+PY
+)" || return 1
+  set -- $coords
+  "$ADB" shell input swipe "$1" "$2" "$1" "$3" 300
+}
+
 # Scrolls the current screen until a node with this text is visible, then stops.
 scroll_to_text() {
   local pattern="$1" tries="${2:-6}"
@@ -329,7 +359,7 @@ scroll_to_text() {
     if find_node text "$pattern" >/dev/null; then
       return 0
     fi
-    "$ADB" shell input swipe 540 1600 540 900 300
+    swipe_up
     sleep 1
   done
   return 1
@@ -343,13 +373,25 @@ reading_settings() {
   open_library
   tap_id library_settings
   expect_id settings_screen
+  # The reading row is below the fold in landscape and at 320dp / font scale 2.
+  for _ in $(seq 1 6); do
+    dump_ui
+    if find_node resource-id settings_reading_entry >/dev/null; then
+      break
+    fi
+    swipe_up
+    sleep 1
+  done
   tap_id settings_reading_entry
   expect_id settings_reading_screen
 }
 
 leave_settings() {
-  "$ADB" shell input keyevent KEYCODE_BACK
-  "$ADB" shell input keyevent KEYCODE_BACK
+  # Restart instead of guessing how many Backs the current screen needs; the library is
+  # where every caller expects to be next.
+  "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
+  "$ADB" shell am start -W -n "$ACTIVITY" >/dev/null 2>&1
+  sleep 2
 }
 
 # reader_progress lives in the main window. While the more-menu popup is open,
@@ -601,13 +643,19 @@ case "$FEATURE" in
     shot page-fit-crop-width-start
 
     # 6. Two-page view in landscape falls back to Fit screen.
+    "$ADB" shell settings put system user_rotation 0
+    sleep 3
     reading_settings
     tap_node text "$two_page"
     tap_node text '항상 두쪽|Always double'
     leave_settings
+    "$ADB" shell settings put system user_rotation 1
+    sleep 3
     open_book
     sleep 1
     shot page-fit-two-page-fallback
+    "$ADB" shell settings put system user_rotation 0
+    sleep 3
 
     # 7. Height fit portrait RTL starts at the right edge.
     reading_settings
