@@ -70,6 +70,7 @@ data class AppSettings(
     val tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     val showDotFiles: Boolean = false,
     val keepZoomOnTurn: Boolean = false,
+    val oneFingerZoom: Boolean = false,
     val followSystemBrightness: Boolean = true,
     val readerBrightnessPercent: Int = DEFAULT_READER_BRIGHTNESS_PERCENT,
     val fullScreenReading: Boolean = true,

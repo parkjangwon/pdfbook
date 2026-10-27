@@ -91,6 +91,9 @@ private fun IntRect.clipTo(bounds: IntRect): IntRect =
 /**
  * Bitmap cache key size for the visible page slot.
  * Tabletop uses the page pane; book single-page uses the half that [BookHalfPage] draws into.
+ * A two-page Book with a hinge gap uses the virtual spread (halves butted together), so
+ * `spreadRequests` renders each half at half.width and the curl looks them up with the same
+ * key; Flat and a flush Book keep the window.
  */
 fun pageRenderSlot(
     window: IntSize,
@@ -104,9 +107,17 @@ fun pageRenderSlot(
             return IntSize(page.width.coerceAtLeast(1), page.height.coerceAtLeast(1))
         }
         is FoldPosture.Book -> {
+            val halves = bookHalves(window, posture.foldBounds)
             if (!twoPage) {
-                val half = bookSingleHalf(bookHalves(window, posture.foldBounds), direction)
+                val half = bookSingleHalf(halves, direction)
                 return IntSize(half.width.coerceAtLeast(1), half.height.coerceAtLeast(1))
+            }
+            val gap = (halves.second.left - halves.first.right).coerceAtLeast(0)
+            if (gap > 1) {
+                return IntSize(
+                    (halves.first.width + halves.second.width).coerceAtLeast(1),
+                    window.height.coerceAtLeast(1),
+                )
             }
         }
         FoldPosture.Flat -> Unit
@@ -129,13 +140,26 @@ fun isSpreadCached(
 }
 
 /** Visual left/right slots of a two-page spread inside the curl Canvas. */
-data class CurlCanvas(val size: IntSize, val left: IntRect, val right: IntRect)
+data class CurlCanvas(
+    val size: IntSize,
+    val left: IntRect,
+    val right: IntRect,
+    val hinge: CurlHinge? = null,
+)
+
+/**
+ * Foldable hinge that must stay visible while a two-page sheet turns: [gap] px of the window
+ * between the two halves. The curl geometry is computed on the virtual spread (the halves
+ * butted together) and the overlay shifts everything right of the spine by [gap], so the flap is
+ * cut at the hinge instead of painting over it (V071-TWOPAGE.md §4, option A).
+ */
+data class CurlHinge(val gap: Float)
 
 /**
  * Canvas size and the two page slots for a two-page curl. The Canvas is the page pane:
- * for Tabletop that is the top half (the overlay is placed there), for Flat and Book the
- * whole window. Book slots are the halves either side of the hinge, so a hinge gap shows
- * up as non-adjacent slots (and the turn falls back to Slide).
+ * for Tabletop that is the top half (the overlay is placed there), for Flat the whole window.
+ * A Book posture with a hinge gap returns the virtual spread — the two halves butted together —
+ * plus the [CurlHinge] the overlay cuts at; a flush hinge returns the window halves.
  */
 fun curlCanvas(window: IntSize, posture: FoldPosture): CurlCanvas? {
     if (window.width <= 0 || window.height <= 0) return null
@@ -159,7 +183,20 @@ fun curlCanvas(window: IntSize, posture: FoldPosture): CurlCanvas? {
         }
         is FoldPosture.Book -> {
             val halves = bookHalves(window, posture.foldBounds)
-            CurlCanvas(window, halves.first, halves.second)
+            val gap = (halves.second.left - halves.first.right).coerceAtLeast(0)
+            // A real hinge gap (> 1px) curls on the virtual spread; one pixel is left to the
+            // flush path, where the 1px landing rule already holds.
+            if (gap > 1 && halves.first.width > 0 && halves.second.width > 0) {
+                val size = IntSize(halves.first.width + halves.second.width, window.height)
+                CurlCanvas(
+                    size,
+                    IntRect(0, 0, halves.first.width, window.height),
+                    IntRect(halves.first.width, 0, size.width, window.height),
+                    CurlHinge(gap.toFloat()),
+                )
+            } else {
+                CurlCanvas(window, halves.first, halves.second)
+            }
         }
     }
 }
