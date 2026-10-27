@@ -1142,7 +1142,7 @@ private fun SpreadPageLayout(
                     spreadIndex = 0,
                     autoCrop = autoCrop,
                     sharedScale = sharedScale,
-                    onMetrics = { metrics[layout[0]] = it },
+                    onMetrics = { if (metrics[layout[0]] != it) metrics[layout[0]] = it },
                 )
                 BookHalfPage(
                     renderer = renderer,
@@ -1154,7 +1154,7 @@ private fun SpreadPageLayout(
                     spreadIndex = 1,
                     autoCrop = autoCrop,
                     sharedScale = sharedScale,
-                    onMetrics = { metrics[layout[1]] = it },
+                    onMetrics = { if (metrics[layout[1]] != it) metrics[layout[1]] = it },
                 )
             } else {
                 val half = bookSingleHalf(halves, direction)
@@ -1206,7 +1206,7 @@ private fun SpreadPageLayout(
                 spreadIndex = index,
                 autoCrop = autoCrop,
                 sharedScale = sharedScale,
-                onMetrics = { metrics[page] = it },
+                onMetrics = { if (metrics[page] != it) metrics[page] = it },
             )
         }
     }
