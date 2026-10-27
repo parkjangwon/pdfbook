@@ -202,7 +202,7 @@ fun PageCurlOverlay(
     }
     val scratch = remember { RectF() }
     // A two-page turn whose four pages differ in size by a few pixels runs the fold over their
-    // union and clears the flap to the background; equal rects keep the v0.7.0 fast path.
+    // union and clears the flap to the background; equal rects keep the v0.7.1 fast path.
     val uniformRects = remember(layout) { layout == null || layout.rectsMatchSheet() }
     val foldUnion = remember(layout) { layout?.let { curlFoldUnion(it) } }
     val foldBounds = remember { FloatArray(4) }
