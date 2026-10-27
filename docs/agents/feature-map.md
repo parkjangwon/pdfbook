@@ -67,9 +67,9 @@ Source paths are relative to `app/src/main/java/org/parkjw/apps/pdfbook/`; tests
 | Volume key paging | Reader → volume up / down | – | `MainActivity.kt`, `VolumeNav.kt` | `VolumeNavTest` |
 | Full screen reading (#115) | Reader with full screen reading on (default) | – | `ReaderSystemBars.kt`, `ReaderScreen.kt` | `ReaderSystemBarsTest`, `ReaderImmersiveComposeTest` |
 | Prerender and memory trim (SPEC-5) | Reader → turn pages | – | `PageCache.kt`, `MemoryTrim.kt`, `PageRenderer.kt` | `PageCacheTest`, `PrerenderTargetsTest`, `LargeBookPrerenderTest` |
-| Two-page page curl (#145) | Reading settings → "넘김 애니메이션" → "책장 넘김"; two-page spread, tap / swipe / volume at scale 1 | `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `PageCurlTurn.kt`, `ReaderScreen.kt` | `PageCurlTest`, `PageCurlTwoPageScreenshotsTest` |
+| Two-page page curl (#145) | Reading settings → "넘김 애니메이션" → "책장 넘김"; two-page spread, tap / swipe / volume at scale 1 | `reader_page_curl` | `PageCurl.kt`, `PageCurlOverlay.kt`, `PageCurlTurn.kt`, `ReaderScreen.kt`, `CropMargins.kt` | `PageCurlTest`, `PageCurlTwoPageScreenshotsTest`, `TwoPageCurlFlatFoldTest`, `TwoPageCurlFlatReaderTest` |
 
-A Book posture with a hinge gap and the cover-to-spread turn still use Slide (#172, #173).
+Two-page view shares one outer crop margin per spread, so both halves of a spread draw at the same size and a 2->2 turn curls with auto-crop on. Still Slide, by design: pages whose rendered sizes differ by more than 1px, turns that touch a single-page spread (the cover, a lone last page), and a Book posture with a hinge gap (#172, #173).
 
 ## Settings
 
