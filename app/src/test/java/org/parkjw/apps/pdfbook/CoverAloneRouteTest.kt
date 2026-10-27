@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -35,7 +36,7 @@ class CoverAloneRouteTest {
 
     @Test
     fun coverAloneOffPairsCoverWithPageTwo() {
-        setReader(coverAlone = { false })
+        setReader(coverAlone = { false }, initialPage = 1)
 
         composeRule.onNodeWithTag("reader_page_1").assertIsDisplayed()
         composeRule.onNodeWithTag("reader_page_2").assertIsDisplayed()
@@ -43,7 +44,7 @@ class CoverAloneRouteTest {
 
     @Test
     fun coverAloneOnShowsCoverByItself() {
-        setReader(coverAlone = { true })
+        setReader(coverAlone = { true }, initialPage = 1)
 
         composeRule.onNodeWithTag("reader_page_1").assertIsDisplayed()
         composeRule.onNodeWithTag("reader_page_2").assertDoesNotExist()
@@ -53,20 +54,20 @@ class CoverAloneRouteTest {
     fun togglingWhileOpenKeepsAnchorPage() {
         val store = storeAtPage(3)
         var coverAlone by mutableStateOf(true)
-        setReader(coverAlone = { coverAlone }, store = store)
+        setReader(coverAlone = { coverAlone }, initialPage = 3, store = store)
 
         composeRule.onNodeWithTag("reader_page_3").assertIsDisplayed()
         composeRule.onNodeWithTag("reader_page_4").assertDoesNotExist()
 
         coverAlone = false
-        composeRule.waitForIdle()
+        awaitPage(4)
 
         composeRule.onNodeWithTag("reader_page_3").assertIsDisplayed()
         composeRule.onNodeWithTag("reader_page_4").assertIsDisplayed()
         composeRule.onNodeWithTag("reader_page_1").assertDoesNotExist()
     }
 
-    private fun setReader(coverAlone: () -> Boolean, store: BookStore = newStore()) {
+    private fun setReader(coverAlone: () -> Boolean, initialPage: Int, store: BookStore = newStore()) {
         composeRule.setContent {
             PdfBookTheme(themeMode = ThemeMode.Light) {
                 ReaderRoute(
@@ -81,7 +82,15 @@ class CoverAloneRouteTest {
                 )
             }
         }
-        composeRule.waitForIdle()
+        awaitPage(initialPage)
+    }
+
+    // ReaderRoute hides its content until store.state() finishes reading the DataStore on
+    // its own dispatcher, which the Compose idle check does not track; wait for the real page.
+    private fun awaitPage(page: Int) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("reader_page_$page").fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     private fun storeAtPage(page: Int): BookStore {
