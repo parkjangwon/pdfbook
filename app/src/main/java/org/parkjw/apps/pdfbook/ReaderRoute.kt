@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
 import org.parkjw.apps.pdfbook.settings.ScreenOrientation
 import org.parkjw.apps.pdfbook.settings.TwoPageMode
@@ -70,6 +71,7 @@ fun ReaderRoute(
     pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
     screenOrientation: ScreenOrientation = ScreenOrientation.Auto,
     fullScreenReading: Boolean = true,
+    displayMode: DisplayMode = DisplayMode.Default,
     coverAlone: Boolean = true,
     rendererOverride: PageBitmaps? = null,
     keepScreenOn: Boolean = true,
@@ -193,6 +195,7 @@ fun ReaderRoute(
                     bookmarks = readerBookmarks,
                     pageTurnAnimation = pageTurnAnimation,
                     fullScreenReading = fullScreenReading,
+                    displayMode = displayMode,
                     keepScreenOn = keepScreenOn,
                 )
             }
