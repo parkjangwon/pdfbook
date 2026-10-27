@@ -7,14 +7,22 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import org.parkjw.apps.pdfbook.CropMargins
+import org.parkjw.apps.pdfbook.OutlineEntry
 import org.parkjw.apps.pdfbook.PageBitmaps
+import org.parkjw.apps.pdfbook.PageRequest
 import org.parkjw.apps.pdfbook.detectCropMargins
 
 class SolidPageBitmaps(
     override val pageCount: Int,
     private val pageColor: Int,
     private val accentColor: Int,
+    private val outlineEntries: List<OutlineEntry> = emptyList(),
 ) : PageBitmaps {
+    override suspend fun outline(): List<OutlineEntry> = outlineEntries
+
+    override suspend fun thumbnail(request: PageRequest): Bitmap? =
+        render(request.page, request.maxWidth, request.maxHeight)
+
     private val crops = HashMap<Int, CropMargins>()
     private val cropUpdatesFlow = MutableStateFlow(0)
     @Volatile private var autoCrop = false

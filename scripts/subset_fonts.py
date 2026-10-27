@@ -36,11 +36,12 @@ def ksx1001_hangul() -> str:
     return "".join(chars)
 
 
-def ensure_src() -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
+def ensure_src() -> tuple[pathlib.Path, pathlib.Path, pathlib.Path, pathlib.Path]:
     SRC_CACHE.mkdir(parents=True, exist_ok=True)
     regular = SRC_CACHE / "Pretendard-Regular.ttf"
     semibold = SRC_CACHE / "Pretendard-SemiBold.ttf"
     mono = SRC_CACHE / "JetBrainsMono-Regular.ttf"
+    mono_semibold = SRC_CACHE / "JetBrainsMono-SemiBold.ttf"
     if not regular.is_file() or not semibold.is_file():
         zpath = SRC_CACHE / "Pretendard-1.3.9.zip"
         if not zpath.is_file():
@@ -50,14 +51,15 @@ def ensure_src() -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
                 dst.write(src.read())
             with zf.open("public/static/alternative/Pretendard-SemiBold.ttf") as src, semibold.open("wb") as dst:
                 dst.write(src.read())
-    if not mono.is_file():
+    if not mono.is_file() or not mono_semibold.is_file():
         zpath = SRC_CACHE / "JetBrainsMono-2.304.zip"
         if not zpath.is_file():
             urllib.request.urlretrieve(JETBRAINS_URL, zpath)
         with zipfile.ZipFile(zpath) as zf:
-            with zf.open("fonts/ttf/JetBrainsMono-Regular.ttf") as src, mono.open("wb") as dst:
-                dst.write(src.read())
-    return regular, semibold, mono
+            for weight, dst in (("Regular", mono), ("SemiBold", mono_semibold)):
+                with zf.open(f"fonts/ttf/JetBrainsMono-{weight}.ttf") as src, dst.open("wb") as out:
+                    out.write(src.read())
+    return regular, semibold, mono, mono_semibold
 
 
 def write_charset(text: str) -> None:
@@ -109,19 +111,22 @@ def subset_ttf(src: pathlib.Path, dst: pathlib.Path, text: str, family: str | No
 
 
 def main() -> int:
-    regular, semibold, mono = ensure_src()
+    regular, semibold, mono, mono_semibold = ensure_src()
     pretendard_chars = LATIN + PUNCT + ksx1001_hangul()
     write_charset(pretendard_chars)
     out_regular = FONT_DIR / "pdfbook_sans_regular.ttf"
     out_semibold = FONT_DIR / "pdfbook_sans_semibold.ttf"
     out_mono = FONT_DIR / "jetbrains_mono_regular.ttf"
+    out_mono_semibold = FONT_DIR / "jetbrains_mono_semibold.ttf"
     subset_ttf(regular, out_regular, pretendard_chars, "PDFBook Sans")
     subset_ttf(semibold, out_semibold, pretendard_chars, "PDFBook Sans")
     subset_ttf(mono, out_mono, MONO_CHARS, None)
+    subset_ttf(mono_semibold, out_mono_semibold, MONO_CHARS, None)
     lines = [
         f"Pretendard {PRETENDARD_VERSION} Regular {regular.stat().st_size} -> {out_regular.stat().st_size}",
         f"Pretendard {PRETENDARD_VERSION} SemiBold {semibold.stat().st_size} -> {out_semibold.stat().st_size}",
         f"JetBrainsMono {JETBRAINS_VERSION} Regular {mono.stat().st_size} -> {out_mono.stat().st_size}",
+        f"JetBrainsMono {JETBRAINS_VERSION} SemiBold {mono_semibold.stat().st_size} -> {out_mono_semibold.stat().st_size}",
         "RFN: Pretendard declared -> renamed file/name table to PDFBook Sans; JetBrains Mono no RFN declared -> kept name",
     ]
     SIZE_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -52,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -306,8 +307,10 @@ private fun ReaderScreenContent(
     var jumpBack by remember(renderer) { mutableStateOf(initialJumpBack) }
     var seekOrigin by remember(renderer) { mutableStateOf<Int?>(null) }
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
+    var pageNavVisible by rememberSaveable { mutableStateOf(false) }
+    val outline by produceState(emptyList<OutlineEntry>(), renderer) { value = renderer.outline() }
     var goToPageVisible by remember { mutableStateOf(false) }
-    val sheetOpen = widthSheetVisible || goToPageVisible || brightnessSheetVisible ||
+    val sheetOpen = widthSheetVisible || pageNavVisible || goToPageVisible || brightnessSheetVisible ||
         cropSheetVisible ||
         (bookListVisible && volumes.bookList != null) ||
         (bookmarkSheetVisible && bookmarks != null)
@@ -552,6 +555,13 @@ private fun ReaderScreenContent(
         val origin = seekOrigin ?: return
         seekOrigin = null
         jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)
+    }
+
+    fun jumpToPage(page: Int) {
+        pageNavVisible = false
+        val jump = pageJump(currentSpreads, pagerState.targetPage, page)
+        jumpBack = jump.jumpBack
+        scrollTo(jump.targetIndex)
     }
 
     fun goToPage(page: Int) {
@@ -982,6 +992,16 @@ private fun ReaderScreenContent(
                 onDone = { widthSheetVisible = false },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        } else if (pageNavVisible) {
+            BackHandler { pageNavVisible = false }
+            PageNavSheet(
+                renderer = renderer,
+                outline = outline,
+                pageCount = pageCount,
+                currentPage = currentPage,
+                onPick = ::jumpToPage,
+                onDismiss = { pageNavVisible = false },
+            )
         } else if (brightnessSheetVisible) {
             BackHandler { brightnessSheetVisible = false }
             Box(
@@ -1053,6 +1073,7 @@ private fun ReaderScreenContent(
                 onDirectionChange = onDirectionChange,
                 showPageMode = tabletop == null,
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
+                onOpenPageNav = { pageNavVisible = true },
                 bookmarked = bookmarks?.let { spreadBookmarked(it.pages, currentSpread) },
                 onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
                 modifier = Modifier
@@ -1392,6 +1413,7 @@ private fun ReaderOverlayTop(
     showPageMode: Boolean = true,
     modifier: Modifier = Modifier,
     onOpenBookList: (() -> Unit)? = null,
+    onOpenPageNav: () -> Unit = {},
     bookmarked: Boolean? = null,
     onToggleBookmark: () -> Unit = {},
 ) {
@@ -1443,6 +1465,17 @@ private fun ReaderOverlayTop(
                     tint = ReaderOnOverlay,
                 )
             }
+        }
+        IconButton(
+            onClick = onOpenPageNav,
+            colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+            modifier = Modifier.testTag("reader_page_nav_button"),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_page_nav),
+                contentDescription = stringResource(R.string.reader_page_nav),
+                tint = ReaderOnOverlay,
+            )
         }
         if (onOpenBookList != null) {
             IconButton(
@@ -1774,7 +1807,7 @@ internal fun spreadCropScale(
 }
 
 @Composable
-private fun CroppedPage(
+internal fun CroppedPage(
     image: ImageBitmap,
     width: Int,
     height: Int,
