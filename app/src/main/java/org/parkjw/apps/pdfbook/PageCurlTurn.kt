@@ -219,6 +219,35 @@ fun Rect.containsWithin(other: Rect, tolerance: Float = 1f): Boolean =
         other.bottom <= bottom + tolerance
 
 /**
+ * Clip bounds for the two-page fold, in canvas coordinates: the turning sheet and the revealed
+ * page plus the opposite pages mirrored about the spine onto the turning half. At progress 1 the
+ * revealed polygon covers this union, so its reflection (the flap) covers the opposite pages at
+ * their own rects however much the four pages differ in size.
+ */
+internal fun curlFoldUnion(layout: CurlSheetLayout): Rect {
+    fun mirrored(rect: Rect): Rect = Rect(
+        2f * layout.spineX - rect.right,
+        rect.top,
+        2f * layout.spineX - rect.left,
+        rect.bottom,
+    )
+    return layout.sheet
+        .expandedTo(layout.landing)
+        .expandedTo(mirrored(layout.backFace))
+        .expandedTo(mirrored(layout.still))
+}
+
+/** True when all four page rects sit within [tolerance] px of the turning sheet. */
+internal fun CurlSheetLayout.rectsMatchSheet(tolerance: Float = 1f): Boolean {
+    fun Rect.matches(other: Rect): Boolean =
+        abs(left - other.left) <= tolerance &&
+            abs(top - other.top) <= tolerance &&
+            abs(right - other.right) <= tolerance &&
+            abs(bottom - other.bottom) <= tolerance
+    return landing.matches(sheet) && backFace.matches(sheet) && still.matches(sheet)
+}
+
+/**
  * Two-page curl guard. The overlay draws the turning page, the revealed page, the still page
  * and the flap's back face each at its own measured rect, so the first and last frames equal
  * the two spreads pixel for pixel even when a book's pages differ by a few points (a real PDF
