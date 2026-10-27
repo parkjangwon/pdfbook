@@ -142,7 +142,6 @@ fun ReaderScreen(
     fullScreenReading: Boolean = true,
     keepScreenOn: Boolean = true,
 ) {
-    ReaderBrightnessEffect(followSystemBrightness, brightnessPercent)
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
         val previous = view.keepScreenOn
@@ -222,6 +221,9 @@ private fun ReaderScreenContent(
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
 ) {
+    // Slider drags preview the window brightness without a DataStore write; only release persists.
+    var brightnessPreview by remember(brightnessPercent) { mutableIntStateOf(brightnessPercent) }
+    ReaderBrightnessEffect(followSystemBrightness, brightnessPreview)
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
