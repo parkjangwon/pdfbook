@@ -35,7 +35,7 @@ import org.robolectric.annotation.Config
  *
  * Drives the real [ReaderScreen] + real [PageRenderer] cache (keys are exact
  * `(page, maxWidth, maxHeight)`) at the device window size, so a prerender/curl key mismatch
- * or a rejected `sheetLandsOnSpread` shows up here, unlike the 40x60 fakes.
+ * or a rejected [twoPageCurlMeetsAtSpine] shows up here, unlike the 40x60 fakes.
  * Synthetic pages only.
  */
 @RunWith(AndroidJUnit4::class)
@@ -70,8 +70,9 @@ class TwoPageCurlFlatReaderTest {
 
     @Test
     fun portraitFlatFoldableTwoPageSpreadCurlsWithAutoCrop() {
-        // The two pages of a spread get one shared outer crop margin, so their drawn widths
-        // match and the 1px landing rule keeps the curl (it used to reject every turn).
+        // Each page keeps its own outer crop margin (the v0.7.1 rule), so the drawn widths can
+        // differ; the spine edges still meet and every page is drawn at its own rect, so the
+        // turn curls instead of sliding.
         assertCurls(ReadingDirection.LTR, autoCrop = true)
     }
 
@@ -81,10 +82,17 @@ class TwoPageCurlFlatReaderTest {
     }
 
     @Test
-    fun portraitFlatFoldableMixedPageSizesFallBackToSlide() {
-        // Documented fallback (V071-TWOPAGE.md §4): pages whose rendered sizes differ by more
-        // than 1px cannot both match the settled spread, so the turn slides instead of jumping.
-        assertSlides(ReadingDirection.LTR, source = MixedSizeSource(PAGE_COUNT))
+    fun portraitFlatFoldableMixedPageSizesCurl() {
+        // A real PDF's pages are a few points apart. Each page is drawn at its own rect, so
+        // the turn still curls and neither the first nor the last frame jumps.
+        assertCurls(ReadingDirection.LTR, source = MixedSizeSource(PAGE_COUNT))
+    }
+
+    @Test
+    fun portraitFlatFoldableBookPageWidthsCurl() {
+        // Page widths from a real 19-page book (743..747pt, all 1080pt tall): every facing
+        // pair renders at a different height, which used to force every turn to Slide.
+        assertCurls(ReadingDirection.LTR, source = BookWidthSource(BOOK_PAGE_WIDTHS))
     }
 
     private fun assertCurls(
@@ -104,29 +112,6 @@ class TwoPageCurlFlatReaderTest {
             composeRule.mainClock.autoAdvance = true
             composeRule.waitForIdle()
             composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
-            assertEquals(2, pagerState.currentPage)
-        } finally {
-            renderer.close()
-            runBlocking { renderer.awaitClosed() }
-        }
-    }
-
-    private fun assertSlides(
-        direction: ReadingDirection,
-        source: PageSource,
-    ) {
-        val renderer = PageRenderer(source, limitBytes = 64L * 1024 * 1024)
-        try {
-            setReader(renderer, direction, autoCrop = false)
-            awaitReady(renderer, autoCrop = false)
-            composeRule.mainClock.autoAdvance = false
-            tapNext(direction)
-            repeat(20) {
-                composeRule.mainClock.advanceTimeByFrame()
-                composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
-            }
-            composeRule.mainClock.autoAdvance = true
-            composeRule.waitForIdle()
             assertEquals(2, pagerState.currentPage)
         } finally {
             renderer.close()
@@ -215,10 +200,30 @@ class TwoPageCurlFlatReaderTest {
         }
     }
 
+    /** Pages with the exact point widths of 장원's book; all 1080pt tall. */
+    private class BookWidthSource(private val widths: IntArray) : PageSource {
+        override val pageCount = widths.size
+
+        override fun draw(page: Int, maxWidth: Int, maxHeight: Int): Bitmap {
+            val pageWidth = widths[page - 1]
+            val scale = minOf(maxWidth.toFloat() / pageWidth, maxHeight.toFloat() / BOOK_PAGE_HEIGHT)
+            return syntheticPage(
+                (pageWidth * scale).toInt().coerceAtLeast(1),
+                (BOOK_PAGE_HEIGHT * scale).toInt().coerceAtLeast(1),
+            )
+        }
+
+        override fun close() {}
+    }
+
     private companion object {
         const val PAGE_COUNT = 8
         const val PAGE_WIDTH = 595
         const val PAGE_HEIGHT = 842
+        const val BOOK_PAGE_HEIGHT = 1080
+
+        /** Pages 1..8 of the book in 장원's v0.7.2 report, in points. */
+        val BOOK_PAGE_WIDTHS = intArrayOf(745, 743, 746, 745, 747, 744, 746, 746)
     }
 }
 

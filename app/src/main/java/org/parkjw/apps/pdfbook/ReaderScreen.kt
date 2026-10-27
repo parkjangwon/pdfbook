@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -543,6 +544,9 @@ private fun ReaderScreenContent(
                 toSpreadPages = nextSpread.size,
             )
             if (mode != ResolvedPageTurn.Curl) {
+                // Field-report diagnostics: why the turn did not curl. Geometry and mode only,
+                // never page content, file names or numbers.
+                Log.d(TURN_LOG_TAG, "turn mode=${mode.name} twoPage=$twoPage")
                 when (mode) {
                     ResolvedPageTurn.Instant -> pagerState.scrollToPage(target)
                     ResolvedPageTurn.Slide -> {
@@ -557,7 +561,7 @@ private fun ReaderScreenContent(
                     viewport.width.roundToInt().coerceAtLeast(1),
                     viewport.height.roundToInt().coerceAtLeast(1),
                 )
-                val two = buildTwoPageCurl(
+                val built = buildTwoPageCurl(
                     renderer = renderer,
                     currentSpread = fromSpread,
                     targetSpread = nextSpread,
@@ -566,8 +570,10 @@ private fun ReaderScreenContent(
                     posture = posture,
                     window = windowSize,
                     autoCrop = autoCrop,
-                ).curl
+                )
+                val two = built.curl
                 if (two == null) {
+                    Log.i(TURN_LOG_TAG, "two-page curl fallback=${built.fallback}")
                     if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                     return@launch
                 }
@@ -577,6 +583,7 @@ private fun ReaderScreenContent(
             val front = cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
             val back = cachedSpreadBitmaps(renderer, nextSpread, slotW, slotH)
             if (front == null || back == null) {
+                Log.i(TURN_LOG_TAG, "single-sheet curl fallback=CacheMiss")
                 if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                 return@launch
             }
@@ -1258,8 +1265,11 @@ private fun ReaderScreenContent(
     }
 }
 
+/** Logcat tag for why a turn used Slide/Instant instead of the curl. */
+private const val TURN_LOG_TAG = "PdfBookTurn"
+
 /** Why [buildTwoPageCurl] refused the curl and the turn used Slide instead. */
-internal enum class TwoPageCurlFallback { SpreadPages, NoCanvas, CacheMiss, SheetLands }
+internal enum class TwoPageCurlFallback { SpreadPages, NoCanvas, CacheMiss, SpineGap }
 
 internal data class TwoPageCurlBuild(
     val curl: TwoPageCurl?,
@@ -1286,10 +1296,13 @@ internal data class TwoPageCurl(
  * page of [targetSpread], and the flap's back face is the opposite-side page, drawn at 100%.
  * The current spread's other page is returned as [TwoPageCurl.still] so the overlay can keep
  * it on screen while the pager is already on the target spread.
+ * Each page keeps its own measured rect, so spreads whose pages differ by a few points (a real
+ * PDF) curl without the last frame jumping.
  * A Book posture with a hinge gap is computed on the virtual spread (halves butted together)
  * and carries the [CurlHinge], so the overlay cuts the turn at the fold instead of sliding.
- * Null (Slide fallback) when the bitmap cache missed or when the sheet and the pages it
- * lands on differ by more than 1px (오대리 rule), so the last frame cannot jump.
+ * Null (Slide fallback) when the bitmap cache missed, when the two slots do not meet at the
+ * spine, or when the sheet and the pages it lands on differ by more than 1px (오대리 rule),
+ * so the last frame cannot jump.
  */
 internal fun buildTwoPageCurl(
     renderer: PageBitmaps,
@@ -1310,8 +1323,9 @@ internal fun buildTwoPageCurl(
     val visualTarget = spreadLayout(targetSpread, direction)
     val slots = listOf(canvas.left, canvas.right)
     // spreadRequests() renders both pages of a spread at slotWidth / 2 x slotHeight, with the
-    // slot from pageRenderSlot(): the window for Flat and for two-page Book (a hinge gap only
-    // shortens the virtual canvas), the top half for Tabletop. Look them up with that key.
+    // slot from pageRenderSlot(): the window for Flat, the top half for Tabletop, and the
+    // virtual spread for a two-page Book with a hinge gap (so each half matches what
+    // BookHalfPage renders). Look them up with that key.
     val slot = pageRenderSlot(window, posture, direction, twoPage = true)
     val requestWidth = (slot.width / 2).coerceAtLeast(1)
     val bitmapsCurrent = visualCurrent.map { page ->
@@ -1340,11 +1354,22 @@ internal fun buildTwoPageCurl(
     val sheet = rectCurrent[turning]
     val landing = rectTarget[turning]
     val backFace = rectTarget[1 - turning]
-    // The current spread's other page must sit exactly where the back face lands, or its
-    // edges would show around the flap at progress 1.
+    // The current spread's other page stays on screen where it already was while the pager is
+    // on the target spread.
     val still = rectCurrent[1 - turning]
-    if (!sheetLandsOnSpread(sheet, landing, backFace, side, still)) {
-        return TwoPageCurlBuild(null, TwoPageCurlFallback.SheetLands)
+    val spineX = if (side == CurlSide.Right) sheet.left else sheet.right
+    if (!twoPageCurlMeetsAtSpine(
+            sheet = sheet,
+            landing = landing,
+            backFace = backFace,
+            side = side,
+            still = still,
+            spineX = spineX,
+            canvasWidth = canvas.size.width.toFloat(),
+            canvasHeight = canvas.size.height.toFloat(),
+        )
+    ) {
+        return TwoPageCurlBuild(null, TwoPageCurlFallback.SpineGap)
     }
     return TwoPageCurlBuild(
         TwoPageCurl(
@@ -1356,7 +1381,9 @@ internal fun buildTwoPageCurl(
                 sheet = sheet,
                 spread = sheet.expandedTo(backFace),
                 backFace = backFace,
-                spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+                spineX = spineX,
+                landing = landing,
+                still = still,
                 hinge = canvas.hinge,
             ),
             frontCrop = cropsCurrent[turning].toContentRect(),
