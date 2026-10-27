@@ -97,11 +97,13 @@ class PageCurlComposeTest {
         freezeClock()
         composeRule.onRoot().performTouchInput {
             down(Offset(width * 0.9f, height / 2f))
+            // 24% of the width in two quick steps: under the 25% distance rule,
+            // completed by the release speed alone.
             advanceEventTime(16)
-            // 20% of the width: under the 25% distance rule, completed by speed.
-            moveTo(Offset(width * 0.8f, height / 2f))
+            moveTo(Offset(width * 0.78f, height / 2f))
             advanceEventTime(16)
-            moveTo(Offset(width * 0.7f, height / 2f))
+            moveTo(Offset(width * 0.66f, height / 2f))
+            advanceEventTime(16)
             up()
         }
         composeRule.mainClock.advanceTimeBy(2_000)
@@ -394,7 +396,8 @@ class PageCurlComposeTest {
     private fun startDrag(direction: ReadingDirection, fromFraction: Float, toFraction: Float) {
         composeRule.onRoot().performTouchInput {
             down(Offset(width * fromFraction, height / 2f))
-            advanceEventTime(16)
+            // Slow drag: below the fling speed, so the distance rule decides.
+            advanceEventTime(300)
             moveTo(Offset(width * toFraction, height / 2f))
         }
     }

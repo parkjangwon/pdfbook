@@ -32,8 +32,9 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
 import org.parkjw.apps.pdfbook.ui.theme.ReaderPageBack
-import org.parkjw.apps.pdfbook.ui.theme.ReaderPageCurlHighlight
-import org.parkjw.apps.pdfbook.ui.theme.ReaderPageCurlShadow
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageFoldHighlight
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShade
+import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
 
 /**
  * Draws a mid-curl (or any progress) using cached current/next page bitmaps.
@@ -59,10 +60,10 @@ fun PageCurlOverlay(
     colorFilter: ColorFilter? = null,
     contentCrop: Rect? = null,
     flapColor: Color = ReaderPageBack,
-    shadowColor: Color = ReaderPageCurlShadow,
+    shadowColor: Color = ReaderPageShadow,
     shadowAlpha: Float = CURL_SHADOW_ALPHA,
     shadowMidAlpha: Float = CURL_SHADOW_MID_ALPHA,
-    foldHighlightColor: Color = ReaderPageCurlHighlight.copy(alpha = CURL_FOLD_HIGHLIGHT_ALPHA),
+    foldHighlightColor: Color = ReaderPageFoldHighlight.copy(alpha = CURL_FOLD_HIGHLIGHT_ALPHA),
 ) {
     val frontImage = remember(front) { front.asImageBitmap() }
     val backImage = remember(back) { back.asImageBitmap() }
@@ -78,6 +79,7 @@ fun PageCurlOverlay(
     val revealedPath = remember { Path() }
     val flapPath = remember { Path() }
     val mirror = remember { Matrix() }
+    val mirrorValues = remember { FloatArray(9) }
     val mirrorPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
     }
@@ -94,7 +96,7 @@ fun PageCurlOverlay(
     }
     val shadeBrush = remember {
         Brush.linearGradient(
-            0f to ReaderPageCurlShadow.copy(alpha = CURL_SHADE_ALPHA),
+            0f to ReaderPageShade.copy(alpha = CURL_SHADE_ALPHA),
             1f to Color.Transparent,
             start = Offset.Zero,
             end = Offset(1f, 0f),
@@ -165,6 +167,7 @@ fun PageCurlOverlay(
                     height = h,
                     shape = shape,
                     mirror = mirror,
+                    mirrorValues = mirrorValues,
                     paint = mirrorPaint,
                     androidFilter = androidFilter,
                     srcRect = srcRect,
@@ -229,6 +232,7 @@ private fun DrawScope.drawMirroredFront(
     height: Float,
     shape: CurlShape,
     mirror: Matrix,
+    mirrorValues: FloatArray,
     paint: Paint,
     androidFilter: android.graphics.ColorFilter?,
     srcRect: android.graphics.Rect,
@@ -241,19 +245,17 @@ private fun DrawScope.drawMirroredFront(
     val d = 1f - 2f * ny * ny
     val midX = left + shape.midX
     val midY = top + shape.midY
-    mirror.setValues(
-        floatArrayOf(
-            a,
-            b,
-            midX - (a * midX + b * midY),
-            b,
-            d,
-            midY - (b * midX + d * midY),
-            0f,
-            0f,
-            1f,
-        ),
-    )
+    // Filled in place: the draw phase must not allocate.
+    mirrorValues[0] = a
+    mirrorValues[1] = b
+    mirrorValues[2] = midX - (a * midX + b * midY)
+    mirrorValues[3] = b
+    mirrorValues[4] = d
+    mirrorValues[5] = midY - (b * midX + d * midY)
+    mirrorValues[6] = 0f
+    mirrorValues[7] = 0f
+    mirrorValues[8] = 1f
+    mirror.setValues(mirrorValues)
     paint.alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt()
     paint.colorFilter = androidFilter
     srcRect.set(crop.left, crop.top, crop.left + crop.width, crop.top + crop.height)
