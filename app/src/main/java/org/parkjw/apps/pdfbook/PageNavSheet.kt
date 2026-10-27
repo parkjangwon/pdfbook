@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -73,7 +74,6 @@ private val ThumbCorner = RoundedCornerShape(6.dp)
 private val CurrentThumbRing = RoundedCornerShape(10.dp)
 private val ThumbInset = 4.dp
 private val ThumbRingWidth = 2.dp
-private val ThumbRingGap = 2.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,22 +134,28 @@ fun PageNavSheet(
 internal fun NavTab(labelRes: Int, selected: Boolean, tag: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .testTag(tag)
             .minimumInteractiveComponentSize()
-            .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) ReaderChip else ReaderOverlay)
+            .testTag(tag)
             .semantics { this.selected = selected }
-            .clickable(role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .clickable(role = Role.Tab, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = stringResource(labelRes),
-            color = if (selected) ReaderOnOverlay else ReaderOnOverlayVariant,
-            fontSize = 14.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-        )
+        Box(
+            modifier = Modifier
+                .testTag("${tag}_chip")
+                .heightIn(min = 40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (selected) ReaderChip else ReaderOverlay)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(labelRes),
+                color = if (selected) ReaderOnOverlay else ReaderOnOverlayVariant,
+                fontSize = 14.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            )
+        }
     }
 }
 
@@ -217,17 +223,15 @@ private fun ThumbGrid(renderer: PageBitmaps, pageCount: Int, currentPage: Int, o
                 }
                 Box(
                     Modifier
-                        .padding(ThumbInset)
                         .fillMaxWidth()
                         .aspectRatio(THUMB_WIDTH_DP.toFloat() / THUMB_HEIGHT_DP)
-                        .then(
-                            if (current) {
-                                Modifier.border(ThumbRingWidth, ReaderOnOverlay, CurrentThumbRing)
-                            } else {
-                                Modifier
-                            },
+                        .border(
+                            ThumbRingWidth,
+                            if (current) ReaderOnOverlay else Color.Transparent,
+                            CurrentThumbRing,
                         )
-                        .padding(ThumbRingGap)
+                        // 2dp ring + 2dp readerOverlay gap; the same box in every cell keeps page sizes equal.
+                        .padding(ThumbInset)
                         .clip(ThumbCorner)
                         .background(ReaderChip),
                 ) {
