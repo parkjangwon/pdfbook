@@ -153,4 +153,20 @@ class OneFingerZoomTest {
         val base = ZoomState(scale = 3f, offsetX = 12f, offsetY = -8f)
         assertEquals(base, oneFingerZoomHoldStart(base, 10f, 20f, 200f, 400f))
     }
+
+    @Test
+    fun holdZoomOnFitPageUsesTheContentRange() {
+        val base = ZoomState(offsetY = 300f)
+        val zoomed = oneFingerZoomHoldStart(
+            base,
+            100f,
+            200f,
+            200f,
+            400f,
+            contentWidth = 200f,
+            contentHeight = 1000f,
+        )
+        assertEquals(DoubleTapZoomScale, zoomed.scale, 0f)
+        assertEquals(600f, zoomed.offsetY, 0.5f)
+    }
 }

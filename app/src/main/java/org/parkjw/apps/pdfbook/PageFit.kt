@@ -1,6 +1,7 @@
 package org.parkjw.apps.pdfbook
 
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /** How one page is scaled into the reading area. Two-page view always uses [Screen]. */
@@ -44,8 +45,9 @@ fun pageFitRenderSize(fit: PageFit, slotWidth: Int, slotHeight: Int): Pair<Int, 
 }
 
 /**
- * Scale that turns the ContentScale.Fit drawing of a fit-rendered bitmap back into its native
- * pixels. 1 for a page that already fits the screen.
+ * Extra layer scale that turns the ContentScale.Fit drawing of the page into native pixels.
+ * Content is the *cropped* size: a crop changes the aspect the page must fill, so a width fit
+ * has to zoom to the cropped width instead of leaving side bands or cutting text off.
  */
 fun pageFitBaseScale(
     fit: PageFit,
@@ -55,7 +57,37 @@ fun pageFitBaseScale(
     contentHeight: Float,
 ): Float {
     if (fit == PageFit.Screen || viewportWidth <= 0f || viewportHeight <= 0f) return 1f
-    return max(contentWidth / viewportWidth, contentHeight / viewportHeight).coerceAtLeast(1f)
+    if (contentWidth <= 0f || contentHeight <= 0f) return 1f
+    val inner = min(viewportWidth / contentWidth, viewportHeight / contentHeight)
+    val target = when (fit) {
+        PageFit.Width -> viewportWidth / contentWidth
+        PageFit.Height -> viewportHeight / contentHeight
+        PageFit.Screen -> inner
+    }
+    return (target / inner).coerceAtLeast(1f)
+}
+
+/**
+ * Drawn size in screen px at scale 1: width fit fills the width, height fit fills the height,
+ * so the scroll range and the start corner follow the cropped content.
+ */
+fun pageFitDrawnSize(
+    fit: PageFit,
+    viewportWidth: Float,
+    viewportHeight: Float,
+    contentWidth: Float,
+    contentHeight: Float,
+): Pair<Float, Float> {
+    if (fit == PageFit.Screen || viewportWidth <= 0f || viewportHeight <= 0f) {
+        return contentWidth to contentHeight
+    }
+    if (contentWidth <= 0f || contentHeight <= 0f) return contentWidth to contentHeight
+    val scale = when (fit) {
+        PageFit.Width -> viewportWidth / contentWidth
+        PageFit.Height -> viewportHeight / contentHeight
+        PageFit.Screen -> 1f
+    }
+    return contentWidth * scale to contentHeight * scale
 }
 
 fun pageFitMaxOffset(
@@ -70,6 +102,30 @@ fun pageFitMaxOffset(
     PageFit.Height -> (max(0f, (contentWidth - viewportWidth) / 2f)) to 0f
 }
 
+/** Start or end corner of the drawn page at an arbitrary zoom scale. */
+fun pageFitAnchorState(
+    fit: PageFit,
+    direction: ReadingDirection,
+    atEnd: Boolean,
+    scale: Float,
+    viewportWidth: Float,
+    viewportHeight: Float,
+    contentWidth: Float,
+    contentHeight: Float,
+): ZoomState {
+    if (fit == PageFit.Screen) return ZoomState()
+    val (x, y) = readingAnchorOffset(
+        direction = direction,
+        atEnd = atEnd,
+        scale = scale,
+        viewportWidth = viewportWidth,
+        viewportHeight = viewportHeight,
+        contentWidth = contentWidth,
+        contentHeight = contentHeight,
+    )
+    return ZoomState(scale, x, y)
+}
+
 /** Opening position: reading-direction top corner (RTL right, LTR left). */
 fun pageFitStartState(
     fit: PageFit,
@@ -79,13 +135,17 @@ fun pageFitStartState(
     contentWidth: Float,
     contentHeight: Float,
 ): ZoomState {
-    val (maxX, maxY) = pageFitMaxOffset(fit, viewportWidth, viewportHeight, contentWidth, contentHeight)
-    val x = if (fit == PageFit.Height) {
-        if (direction == ReadingDirection.RTL) -maxX else maxX
-    } else {
-        0f
-    }
-    return ZoomState(offsetX = x, offsetY = maxY)
+    if (fit == PageFit.Screen) return ZoomState()
+    return pageFitAnchorState(
+        fit = fit,
+        direction = direction,
+        atEnd = false,
+        scale = MinZoomScale,
+        viewportWidth = viewportWidth,
+        viewportHeight = viewportHeight,
+        contentWidth = contentWidth,
+        contentHeight = contentHeight,
+    )
 }
 
 /** Last position on the page: where a page opened backwards (previous page) starts. */
@@ -97,13 +157,17 @@ fun pageFitEndState(
     contentWidth: Float,
     contentHeight: Float,
 ): ZoomState {
-    val (maxX, maxY) = pageFitMaxOffset(fit, viewportWidth, viewportHeight, contentWidth, contentHeight)
-    val x = if (fit == PageFit.Height) {
-        if (direction == ReadingDirection.RTL) maxX else -maxX
-    } else {
-        0f
-    }
-    return ZoomState(offsetX = x, offsetY = -maxY)
+    if (fit == PageFit.Screen) return ZoomState()
+    return pageFitAnchorState(
+        fit = fit,
+        direction = direction,
+        atEnd = true,
+        scale = MinZoomScale,
+        viewportWidth = viewportWidth,
+        viewportHeight = viewportHeight,
+        contentWidth = contentWidth,
+        contentHeight = contentHeight,
+    )
 }
 
 /**

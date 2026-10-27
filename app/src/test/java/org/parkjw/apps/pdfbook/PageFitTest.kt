@@ -50,6 +50,44 @@ class PageFitTest {
     }
 
     @Test
+    fun croppedWidthFitFillsTheScreenWidth() {
+        val viewportW = 1000f
+        val viewportH = 800f
+        val croppedW = 900f
+        val croppedH = 2000f
+        val (drawnW, drawnH) = pageFitDrawnSize(PageFit.Width, viewportW, viewportH, croppedW, croppedH)
+        assertEquals(viewportW, drawnW, 0.5f)
+        assertTrue(drawnH > viewportH)
+        val (maxX, maxY) = pageFitMaxOffset(PageFit.Width, viewportW, viewportH, drawnW, drawnH)
+        assertEquals(0f, maxX)
+        assertEquals((drawnH - viewportH) / 2f, maxY, 0.5f)
+        // The layer times ContentScale.Fit reaches one drawn pixel per cropped bitmap pixel.
+        val layer = pageFitBaseScale(PageFit.Width, viewportW, viewportH, croppedW, croppedH)
+        val inner = minOf(viewportW / croppedW, viewportH / croppedH)
+        assertEquals(drawnW / croppedW, inner * layer, 0.001f)
+    }
+
+    @Test
+    fun croppedHeightFitFillsTheScreenHeight() {
+        val viewportW = 1080f
+        val viewportH = 2400f
+        val croppedW = 1500f
+        val croppedH = 2200f
+        val (drawnW, drawnH) = pageFitDrawnSize(PageFit.Height, viewportW, viewportH, croppedW, croppedH)
+        assertEquals(viewportH, drawnH, 0.5f)
+        assertTrue(drawnW > viewportW)
+        val (maxX, maxY) = pageFitMaxOffset(PageFit.Height, viewportW, viewportH, drawnW, drawnH)
+        assertEquals((drawnW - viewportW) / 2f, maxX, 0.5f)
+        assertEquals(0f, maxY)
+    }
+
+    @Test
+    fun uncroppedDrawnSizeIsTheBitmapFromTheSlot() {
+        assertEquals(2400f to 3600f, pageFitDrawnSize(PageFit.Width, screenW, screenH, 2400f, 3600f))
+        assertEquals(1600f to 2400f, pageFitDrawnSize(PageFit.Height, portraitW, portraitH, 1600f, 2400f))
+    }
+
+    @Test
     fun widthFitStartsAndEndsAtTheTopAndBottom() {
         val start = pageFitStartState(PageFit.Width, ReadingDirection.RTL, screenW, screenH, widthFitContentW, widthFitContentH)
         assertEquals(0f, start.offsetX)

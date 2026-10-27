@@ -12,6 +12,38 @@ class ZoomPanTest {
     }
 
     @Test
+    fun fitPagePansAtBaseScaleByTheDragDelta() {
+        // A width-fit page is already taller than the viewport at scale 1.
+        assertEquals(300f, clampZoomOffset(0f, 300f, 1f, 200f, 400f, 200f, 1000f).second, 0.001f)
+        val moved = ZoomState(offsetY = 300f)
+            .applyPan(0f, -40f, 200f, 400f, 200f, 1000f, allowPanAtBaseScale = true)
+        assertEquals(260f, moved.offsetY, 0.001f)
+        val pastEnd = ZoomState(offsetY = 300f)
+            .applyPan(0f, -900f, 200f, 400f, 200f, 1000f, allowPanAtBaseScale = true)
+        assertEquals(-300f, pastEnd.offsetY, 0.001f)
+    }
+
+    @Test
+    fun doubleTapOnFitPageKeepsTheReadingPosition() {
+        val content = ZoomState(offsetY = 300f)
+            .toggleDoubleTap(viewportWidth = 200f, viewportHeight = 400f, contentWidth = 200f, contentHeight = 1000f)
+        assertEquals(2f, content.scale, 0f)
+        assertEquals(600f, content.offsetY, 0.5f)
+        val out = content
+            .toggleDoubleTap(viewportWidth = 200f, viewportHeight = 400f, contentWidth = 200f, contentHeight = 1000f)
+        assertEquals(1f, out.scale, 0f)
+        assertEquals(300f, out.offsetY, 0.5f)
+    }
+
+    @Test
+    fun afterPageTurnKeepsZoomAtTheFitStartCorner() {
+        val turned = ZoomState(2f, 0f, 600f)
+            .afterPageTurn(true, ReadingDirection.RTL, 200f, 400f, 200f, 1000f)
+        assertEquals(-100f, turned.offsetX, 0.5f)
+        assertEquals(800f, turned.offsetY, 0.5f)
+    }
+
+    @Test
     fun clampsToScaledBounds() {
         assertEquals(50f to 100f, clampZoomOffset(50f, 100f, scale = 2f, 200f, 400f))
         assertEquals(100f to -200f, clampZoomOffset(999f, -999f, scale = 2f, 200f, 400f))
