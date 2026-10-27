@@ -2,6 +2,7 @@ package org.parkjw.apps.pdfbook
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.provider.Settings
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -18,8 +19,13 @@ import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -82,11 +88,52 @@ class PageCurlResumeTest {
         assertEquals(1, pagerState.currentPage)
     }
 
-    private fun setReader(renderer: PageBitmaps) {
+    @Test
+    fun openingInAnAlreadyStartedLifecycleKeepsAutoCropMargins() {
+        // An already-started owner replays ON_START on first composition, before the layout
+        // has measured the render slot. That replay must not request pages at the placeholder size.
+        val started = TestLifecycleOwner().apply { foreground() }
+        val source = MarginSource(PAGE_COUNT)
+        val renderer = PageRenderer(source)
+        try {
+            setReader(renderer, lifecycleOwner = started, autoCrop = true)
+            awaitCrop(renderer, 1)
+            awaitCrop(renderer, 2)
+            val slot = composeRule.onRoot().fetchSemanticsNode().size
+            val drew = source.draws.toList()
+            assertTrue("no page was drawn", drew.isNotEmpty())
+            assertTrue(
+                "a page was requested before the slot was measured: $drew",
+                drew.all { it.width == slot.width && it.height == slot.height },
+            )
+            val expected = detectCropMargins(marginPage(slot.width, slot.height))
+            assertFalse("the synthetic page has no margins to detect", expected.isNone)
+            assertEquals(expected, renderer.cropMargins(1))
+            assertEquals(expected, renderer.cropMargins(2))
+        } finally {
+            renderer.close()
+            runBlocking { renderer.awaitClosed() }
+        }
+    }
+
+    private fun awaitCrop(renderer: PageRenderer, page: Int) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (renderer.cropMargins(page) == null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10)
+        }
+        composeRule.waitForIdle()
+        assertNotNull("crop for page $page was never detected", renderer.cropMargins(page))
+    }
+
+    private fun setReader(
+        renderer: PageBitmaps,
+        lifecycleOwner: TestLifecycleOwner = owner,
+        autoCrop: Boolean = false,
+    ) {
         val pageSpreads = spreads(PAGE_COUNT, twoPage = false, coverAlone = true)
         composeRule.setContent {
             pagerState = rememberPagerState(initialPage = 0, pageCount = { pageSpreads.size })
-            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PdfBookTheme(themeMode = ThemeMode.Light) {
                     ReaderScreen(
                         renderer = renderer,
@@ -101,13 +148,14 @@ class PageCurlResumeTest {
                         direction = ReadingDirection.LTR,
                         volumeDelta = emptyFlow(),
                         showTapZoneGuide = false,
+                        autoCrop = autoCrop,
                         pageTurnAnimation = PageTurnAnimation.Curl,
                     )
                 }
             }
         }
         composeRule.waitForIdle()
-        owner.foreground()
+        lifecycleOwner.foreground()
         composeRule.waitForIdle()
     }
 
@@ -167,7 +215,33 @@ class PageCurlResumeTest {
         override fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? = null
     }
 
+    /** A synthetic scan: white paper with a 20% margin around the text block. */
+    private class MarginSource(override val pageCount: Int) : PageSource {
+        val draws = CopyOnWriteArrayList<Draw>()
+
+        override fun draw(page: Int, maxWidth: Int, maxHeight: Int): Bitmap {
+            draws += Draw(page, maxWidth, maxHeight)
+            return marginPage(maxWidth, maxHeight)
+        }
+
+        override fun close() {}
+    }
+
+    private data class Draw(val page: Int, val width: Int, val height: Int)
+
     private companion object {
         const val PAGE_COUNT = 5
     }
+}
+
+/** A synthetic scan: white paper with a 20% margin around the text block. */
+private fun marginPage(width: Int, height: Int): Bitmap {
+    val bitmap = Bitmap.createBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+    bitmap.eraseColor(Color.WHITE)
+    val insetX = (bitmap.width * 0.2f).toInt()
+    val insetY = (bitmap.height * 0.2f).toInt()
+    for (y in insetY until bitmap.height - insetY) {
+        for (x in insetX until bitmap.width - insetX) bitmap.setPixel(x, y, Color.BLACK)
+    }
+    return bitmap
 }

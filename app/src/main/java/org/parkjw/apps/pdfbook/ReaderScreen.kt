@@ -337,14 +337,22 @@ private fun ReaderScreenContent(
     // Backgrounding trims the cache to the current page and cancels the prerender job.
     // Re-request the neighbours as soon as the reader is visible again, otherwise the
     // first turn after resume finds the next page uncached and falls back to the slide.
+    // Only a return from a stop counts: ON_START also replays on first composition, before
+    // BoxWithConstraints has measured, and a 1x1 prerender would freeze zero crop margins.
+    var wasStopped by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { wasStopped = true }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        if (!wasStopped) return@LifecycleEventEffect
+        val slot = renderSlot
+        if (slot.width <= 1 || slot.height <= 1) return@LifecycleEventEffect
+        wasStopped = false
         renderer.prerender(
             spreadRequests(
                 currentSpreads.getOrNull(pagerState.settledPage).orEmpty(),
-                renderSlot.width,
-                renderSlot.height,
+                slot.width,
+                slot.height,
             ),
-            prerenderTargets(currentSpreads, pagerState.settledPage, renderSlot.width, renderSlot.height),
+            prerenderTargets(currentSpreads, pagerState.settledPage, slot.width, slot.height),
         )
     }
 
