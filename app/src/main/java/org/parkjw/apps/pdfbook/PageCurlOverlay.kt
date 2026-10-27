@@ -37,12 +37,28 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShade
 import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
 
 /**
- * Draws a mid-curl (or any progress) using cached current/next page bitmaps.
+ * Canvas geometry of a two-page curl. All rects are canvas pixels.
+ *
+ * [sheet] is the drawn rect of the turning page, [spread] is the two facing pages, and
+ * [backFace] is where the flap's back-face page is drawn before the turn transform (the
+ * opposite page's drawn rect). [spineX] is the canvas x where the flap crosses the hinge.
+ *
+ * A single-page curl passes null and keeps the v0.7.0 geometry (the whole canvas is the sheet).
+ */
+data class CurlSheetLayout(
+    val sheet: Rect,
+    val spread: Rect,
+    val backFace: Rect,
+    val spineX: Float,
+)
+
+/**
+ * Draws a mid-curl (or any progress) using cached page bitmaps.
  * [progress] is read in the draw phase, and every path, matrix and brush is
  * created once, so a turn does not recompose or allocate per frame.
  *
- * [colorFilter] is applied to every page bitmap (front, back and the mirrored
- * front on the flap), never to the paper-back color, fold or shadow.
+ * [colorFilter] is applied to every page bitmap (front, back and the flap's back face),
+ * never to the paper-back color, fold or shadow.
  * [contentCrop] crops the front page bitmap by a source rect fraction (0..1); null
  * draws the whole bitmap. [backContentCrop] crops the revealed page the same way
  * and defaults to [contentCrop]; adjacent pages can have different margins, so a
@@ -52,11 +68,15 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
  * [foldHighlightColor] carry the per-mode values (normal mode by default; the
  * sepia and night variants are supplied by the display-mode work).
  *
- * [flapBack] is an optional back-face bitmap for the peeled flap: when non-null it is
- * drawn mirrored across the fold at full opacity, cropped by [flapContentCrop] and tinted
- * by [colorFilter]; when null the flap keeps the v0.7.0 look (paper-back color plus the
- * front page mirrored at 8%). [spreadFlap] lets the flap extend over the opposite page
- * across the spine; the default keeps the single-sheet output unchanged.
+ * [flapBack] is the back-face bitmap for the peeled flap: when non-null it is drawn at
+ * full opacity, cropped by [flapContentCrop] and tinted by [colorFilter]; when null the
+ * flap keeps the v0.7.0 look (paper-back color plus the front page mirrored at 8%).
+ * [spreadFlap] lets the flap extend over the opposite page across the spine.
+ *
+ * [layout] switches to the two-page curl: the front page is drawn into [CurlSheetLayout.sheet],
+ * the revealed page under it, and the flap's back face into [CurlSheetLayout.backFace]. The back
+ * face transform is R∘Mspine (a rotation) instead of the fold mirror alone, so at progress 1 it
+ * lands on the opposite page right-side up. Null keeps the single-sheet output byte-identical.
  */
 @Composable
 fun PageCurlOverlay(
@@ -71,6 +91,7 @@ fun PageCurlOverlay(
     flapBack: Bitmap? = null,
     flapContentCrop: Rect? = backContentCrop,
     spreadFlap: Boolean = false,
+    layout: CurlSheetLayout? = null,
     flapColor: Color = ReaderPageBack,
     shadowColor: Color = ReaderPageShadow,
     shadowAlpha: Float = CURL_SHADOW_ALPHA,
@@ -121,22 +142,24 @@ fun PageCurlOverlay(
         val crop = frontCrop
         if (crop.width <= 0 || crop.height <= 0) return@Canvas
         val p = clampCurlProgress(progress())
+        val sheet = layout?.sheet ?: Rect(0f, 0f, size.width, size.height)
+        if (sheet.width <= 0f || sheet.height <= 0f) return@Canvas
         // ContentScale.Fit in primitives: the draw phase must not allocate.
-        val scale = min(size.width / crop.width, size.height / crop.height)
-        val w = crop.width * scale
-        val h = crop.height * scale
-        val left = (size.width - w) / 2f
-        val top = (size.height - h) / 2f
+        val frontFit = fitContent(crop, sheet)
+        val left = frontFit.left
+        val top = frontFit.top
+        val w = frontFit.width
+        val h = frontFit.height
 
-        drawImageFit(backImage, backCrop, colorFilter)
+        drawImageInto(backImage, backCrop, sheet, colorFilter)
         if (p <= 0.001f) {
-            drawImageFit(frontImage, crop, colorFilter)
+            drawImageInto(frontImage, crop, sheet, colorFilter)
             return@Canvas
         }
 
-        updateCurlShape(w, h, p, side, shape, spreadFlap)
+        updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null)
         if (!shape.foldValid) {
-            drawImageFit(frontImage, crop, colorFilter)
+            drawImageInto(frontImage, crop, sheet, colorFilter)
             return@Canvas
         }
 
@@ -164,7 +187,7 @@ fun PageCurlOverlay(
         if (shape.frontCount >= 3) {
             frontPath.setPolygon(shape.front, shape.frontCount, left, top)
             clipPath(frontPath) {
-                drawImageFit(frontImage, crop, colorFilter)
+                drawImageInto(frontImage, crop, sheet, colorFilter)
             }
         }
 
@@ -176,13 +199,12 @@ fun PageCurlOverlay(
                 val backFace = flapBack
                 val backFaceCrop = flapBackCrop
                 if (backFace != null && backFaceCrop != null) {
-                    drawMirroredFront(
+                    drawMirroredPage(
                         bitmap = backFace,
                         crop = backFaceCrop,
-                        left = left,
-                        top = top,
-                        width = w,
-                        height = h,
+                        dest = layout?.backFace ?: frontFit,
+                        foldLeft = left,
+                        foldTop = top,
                         shape = shape,
                         mirror = mirror,
                         mirrorValues = mirrorValues,
@@ -191,15 +213,16 @@ fun PageCurlOverlay(
                         srcRect = srcRect,
                         dstRect = dstRect,
                         alpha = 255,
+                        // Two-page: R∘Mspine so the flap ends as a rotation, not a mirror.
+                        spineX = layout?.spineX,
                     )
                 } else {
-                    drawMirroredFront(
+                    drawMirroredPage(
                         bitmap = front,
                         crop = crop,
-                        left = left,
-                        top = top,
-                        width = w,
-                        height = h,
+                        dest = frontFit,
+                        foldLeft = left,
+                        foldTop = top,
                         shape = shape,
                         mirror = mirror,
                         mirrorValues = mirrorValues,
@@ -208,6 +231,7 @@ fun PageCurlOverlay(
                         srcRect = srcRect,
                         dstRect = dstRect,
                         alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt(),
+                        spineX = null,
                     )
                 }
                 drawFoldGradient(
@@ -260,13 +284,19 @@ private fun DrawScope.drawFoldGradient(
     }
 }
 
-private fun DrawScope.drawMirroredFront(
+/**
+ * Draws [bitmap] fit inside [dest], then folds it into the turning flap.
+ *
+ * With [spineX] null the transform is the fold reflection alone (the v0.7.0 mirror).
+ * With [spineX] set it is R∘Mspine (fold reflection composed with the spine reflection):
+ * a rotation, so the two-page back face ends right-side up on the opposite page.
+ */
+private fun DrawScope.drawMirroredPage(
     bitmap: Bitmap,
     crop: PixelCrop,
-    left: Float,
-    top: Float,
-    width: Float,
-    height: Float,
+    dest: Rect,
+    foldLeft: Float,
+    foldTop: Float,
     shape: CurlShape,
     mirror: Matrix,
     mirrorValues: FloatArray,
@@ -275,21 +305,35 @@ private fun DrawScope.drawMirroredFront(
     srcRect: android.graphics.Rect,
     dstRect: RectF,
     alpha: Int,
+    spineX: Float?,
 ) {
+    if (crop.width <= 0 || crop.height <= 0 || dest.width <= 0f || dest.height <= 0f) return
     val nx = shape.normalX
     val ny = shape.normalY
     val a = 1f - 2f * nx * nx
     val b = -2f * nx * ny
     val d = 1f - 2f * ny * ny
-    val midX = left + shape.midX
-    val midY = top + shape.midY
+    val midX = foldLeft + shape.midX
+    val midY = foldTop + shape.midY
+    val tx = midX - (a * midX + b * midY)
+    val ty = midY - (b * midX + d * midY)
     // Filled in place: the draw phase must not allocate.
-    mirrorValues[0] = a
-    mirrorValues[1] = b
-    mirrorValues[2] = midX - (a * midX + b * midY)
-    mirrorValues[3] = b
-    mirrorValues[4] = d
-    mirrorValues[5] = midY - (b * midX + d * midY)
+    if (spineX == null) {
+        mirrorValues[0] = a
+        mirrorValues[1] = b
+        mirrorValues[2] = tx
+        mirrorValues[3] = b
+        mirrorValues[4] = d
+        mirrorValues[5] = ty
+    } else {
+        // R∘Mspine: Mspine(x) = 2*spineX - x, then R. Column/translation form below.
+        mirrorValues[0] = -a
+        mirrorValues[1] = b
+        mirrorValues[2] = 2f * a * spineX + tx
+        mirrorValues[3] = -b
+        mirrorValues[4] = d
+        mirrorValues[5] = 2f * b * spineX + ty
+    }
     mirrorValues[6] = 0f
     mirrorValues[7] = 0f
     mirrorValues[8] = 1f
@@ -297,7 +341,7 @@ private fun DrawScope.drawMirroredFront(
     paint.alpha = alpha
     paint.colorFilter = androidFilter
     srcRect.set(crop.left, crop.top, crop.left + crop.width, crop.top + crop.height)
-    dstRect.set(left, top, left + width, top + height)
+    dstRect.set(dest.left, dest.top, dest.right, dest.bottom)
     drawIntoCanvas { canvas ->
         val native = canvas.nativeCanvas
         val save = native.save()
@@ -307,17 +351,18 @@ private fun DrawScope.drawMirroredFront(
     }
 }
 
-private fun DrawScope.drawImageFit(
+/** Draws the cropped source of [image] fit and centered inside [dest]. */
+private fun DrawScope.drawImageInto(
     image: ImageBitmap,
     crop: PixelCrop,
+    dest: Rect,
     colorFilter: ColorFilter?,
 ) {
-    if (crop.width <= 0 || crop.height <= 0) return
-    val scale = min(size.width / crop.width, size.height / crop.height)
-    val left = (size.width - crop.width * scale) / 2f
-    val top = (size.height - crop.height * scale) / 2f
+    if (crop.width <= 0 || crop.height <= 0 || dest.width <= 0f || dest.height <= 0f) return
+    val fit = fitContent(crop, dest)
+    val scale = fit.width / crop.width
     withTransform({
-        translate(left, top)
+        translate(fit.left, fit.top)
         scale(scale, scale, pivot = Offset.Zero)
     }) {
         drawImage(
@@ -327,4 +372,14 @@ private fun DrawScope.drawImageFit(
             colorFilter = colorFilter,
         )
     }
+}
+
+/** Largest centered ContentScale.Fit rect for [crop] inside [dest]. */
+private fun fitContent(crop: PixelCrop, dest: Rect): Rect {
+    val scale = min(dest.width / crop.width, dest.height / crop.height)
+    val width = crop.width * scale
+    val height = crop.height * scale
+    val left = dest.left + (dest.width - width) / 2f
+    val top = dest.top + (dest.height - height) / 2f
+    return Rect(left, top, left + width, top + height)
 }

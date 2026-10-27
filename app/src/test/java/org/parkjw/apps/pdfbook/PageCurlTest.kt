@@ -557,4 +557,92 @@ class PageCurlTest {
         assertEquals(800, flat.width)
         assertEquals(600, flat.height)
     }
+
+    @Test
+    fun pageDrawRectFitsAndAlignsLikeCroppedPage() {
+        val slot = IntRect(0, 0, 400, 600)
+        val full = CropMargins()
+        // Same aspect as the slot: the page fills it.
+        val fill = pageDrawRect(200, 300, full, slot, SlotAlignment.Start, sharedScale = null)
+        assertEquals(0f, fill.left, 0.01f)
+        assertEquals(0f, fill.top, 0.01f)
+        assertEquals(400f, fill.width, 0.01f)
+        assertEquals(600f, fill.height, 0.01f)
+
+        // A narrow page keeps its aspect and hugs the requested edge.
+        val narrowStart = pageDrawRect(100, 300, full, slot, SlotAlignment.Start, null)
+        assertEquals(0f, narrowStart.left, 0.01f)
+        assertEquals(200f, narrowStart.width, 0.01f)
+        val narrowEnd = pageDrawRect(100, 300, full, slot, SlotAlignment.End, null)
+        assertEquals(200f, narrowEnd.left, 0.01f)
+        assertEquals(400f, narrowEnd.right, 0.01f)
+
+        // A shared scale shrinks both pages equally and centers vertically.
+        val scaled = pageDrawRect(200, 300, full, slot, SlotAlignment.Center, sharedScale = 1f)
+        assertEquals(100f, scaled.left, 0.01f)
+        assertEquals(150f, scaled.top, 0.01f)
+        assertEquals(200f, scaled.width, 0.01f)
+        assertEquals(300f, scaled.height, 0.01f)
+
+        // A crop moves the content rect, matching PageBitmap's source crop.
+        val cropped = pageDrawRect(
+            400, 600, CropMargins(left = 0.25f, top = 0f, right = 0f, bottom = 0f),
+            slot, SlotAlignment.Start, sharedScale = null,
+        )
+        assertEquals(0f, cropped.left, 0.01f)
+        assertEquals(300f, cropped.width, 1f)
+        assertEquals(600f, cropped.height, 1f)
+    }
+
+    @Test
+    fun curlCanvasUsesThePagePaneAndHingeHalves() {
+        val window = IntSize(800, 600)
+        val flat = curlCanvas(window, FoldPosture.Flat)!!
+        assertEquals(IntSize(800, 600), flat.size)
+        assertEquals(IntRect(0, 0, 400, 600), flat.left)
+        assertEquals(IntRect(400, 0, 800, 600), flat.right)
+
+        val tabletop = FoldPosture.Tabletop(IntRect(0, 280, 800, 320))
+        val table = curlCanvas(window, tabletop)!!
+        assertEquals(IntSize(800, 280), table.size)
+        assertEquals(IntRect(0, 0, 400, 280), table.left)
+
+        val book = FoldPosture.Book(IntRect(390, 0, 410, 600))
+        val bookCanvas = curlCanvas(window, book)!!
+        assertEquals(IntSize(800, 600), bookCanvas.size)
+        assertEquals(IntRect(0, 0, 390, 600), bookCanvas.left)
+        assertEquals(IntRect(410, 0, 800, 600), bookCanvas.right)
+        assertNull(curlCanvas(IntSize(0, 600), FoldPosture.Flat))
+    }
+
+    @Test
+    fun twoPageSheetMustLandOnTheOppositePageWithinOnePixel() {
+        val sheet = Rect(400f, 0f, 800f, 600f)
+        val backFace = Rect(0f, 0f, 400f, 600f)
+        assertTrue(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right))
+        // One pixel of difference is tolerated; two is not.
+        assertTrue(sheetLandsOnSpread(sheet, sheet.translate(1f, 0f), backFace, CurlSide.Right))
+        assertFalse(sheetLandsOnSpread(sheet, sheet.translate(2f, 0f), backFace, CurlSide.Right))
+        // The back face must be the same size and sit on the other side of the spine.
+        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(0f, 0f, 390f, 600f), CurlSide.Right))
+        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(10f, 0f, 410f, 600f), CurlSide.Right))
+        // Mirrored side: the left sheet lands on the right page.
+        val left = Rect(0f, 0f, 400f, 600f)
+        assertTrue(sheetLandsOnSpread(left, left, Rect(400f, 0f, 800f, 600f), CurlSide.Left))
+    }
+
+    @Test
+    fun settlingTurnKeepsItsProgressAcrossReleaseAndCancel() {
+        // Released past the settle threshold: the effect finishes forward from the live progress.
+        val released = CurlEffectState(0, 1, CurlSide.Right, 0.4f, dragging = true)
+        assertEquals(1, curlFinishIndex(released, liveProgress = 0.4f))
+        // Released short: it reverts from the same live progress, never snapping to 0 first.
+        val reverted = released.copy(progress = 0.2f)
+        assertEquals(0, curlFinishIndex(reverted, liveProgress = 0.2f))
+        // A settling turn keeps its target; an interrupting input resumes from that page.
+        val settling = CurlEffectState(0, 1, CurlSide.Left, 0.6f, dragging = false)
+        assertEquals(1, curlFinishIndex(settling))
+        val reverting = settling.copy(completing = false)
+        assertEquals(0, curlFinishIndex(reverting))
+    }
 }

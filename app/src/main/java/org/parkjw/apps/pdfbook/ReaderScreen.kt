@@ -298,7 +298,7 @@ private fun ReaderScreenContent(
     val animOff = animationsOff(animatorScale)
     val instantSwipes = animOff || pageTurnAnimation == PageTurnAnimation.None
     val curlGestures =
-        pageTurnAnimation == PageTurnAnimation.Curl && !twoPage && !zoomed && !animOff
+        pageTurnAnimation == PageTurnAnimation.Curl && !zoomed && !animOff
 
     var endNotice by remember { mutableStateOf(initialEndNotice) }
     var endNoticeToken by remember { mutableIntStateOf(0) }
@@ -318,6 +318,7 @@ private fun ReaderScreenContent(
 
     var curlFront by remember { mutableStateOf<Bitmap?>(null) }
     var curlBack by remember { mutableStateOf<Bitmap?>(null) }
+    var curlTwoPage by remember { mutableStateOf<TwoPageCurl?>(null) }
     var curlSideState by remember { mutableStateOf(CurlSide.Right) }
     var curlProgress by remember { mutableFloatStateOf(0f) }
     var curlActive by remember { mutableStateOf(false) }
@@ -370,6 +371,7 @@ private fun ReaderScreenContent(
         curlEffect = null
         curlFront = null
         curlBack = null
+        curlTwoPage = null
         when (val step = endStep(endNotice, currentVolumes.nextBook)) {
             is EndStep.Show -> {
                 endNotice = step.notice
@@ -392,13 +394,15 @@ private fun ReaderScreenContent(
         curlEffect = null
         curlFront = null
         curlBack = null
+        curlTwoPage = null
         curlProgress = 0f
     }
 
-    fun beginCurl(effect: CurlEffectState, front: Bitmap, back: Bitmap) {
+    fun beginCurl(effect: CurlEffectState, front: Bitmap, back: Bitmap, twoPage: TwoPageCurl? = null) {
         curlSideState = effect.side
         curlFront = front
         curlBack = back
+        curlTwoPage = twoPage
         curlActive = true
         curlProgress = effect.progress
         curlEffect = effect
@@ -425,6 +429,7 @@ private fun ReaderScreenContent(
         back: Bitmap,
         fromProgress: Float = 0f,
         animateForward: Boolean = true,
+        twoPage: TwoPageCurl? = null,
     ) {
         beginCurl(
             CurlEffectState(
@@ -437,6 +442,7 @@ private fun ReaderScreenContent(
             ),
             front,
             back,
+            twoPage,
         )
         // Scroll first so TalkBack page announcements are not delayed by the effect.
         if (animateForward) pagerState.scrollToPage(toIndex)
@@ -466,10 +472,11 @@ private fun ReaderScreenContent(
         back: Bitmap,
         fromProgress: Float = 0f,
         animateForward: Boolean = true,
+        twoPage: TwoPageCurl? = null,
     ) {
         curlJob?.cancel()
         curlJob = scope.launch {
-            runCurl(fromIndex, toIndex, side, front, back, fromProgress, animateForward)
+            runCurl(fromIndex, toIndex, side, front, back, fromProgress, animateForward, twoPage)
         }
     }
 
@@ -517,6 +524,28 @@ private fun ReaderScreenContent(
                     }
                     ResolvedPageTurn.Curl -> pagerState.scrollToPage(target)
                 }
+                return@launch
+            }
+            if (twoPage) {
+                val windowSize = IntSize(
+                    viewport.width.roundToInt().coerceAtLeast(1),
+                    viewport.height.roundToInt().coerceAtLeast(1),
+                )
+                val two = buildTwoPageCurl(
+                    renderer = renderer,
+                    currentSpread = fromSpread,
+                    targetSpread = nextSpread,
+                    direction = directionRef.value,
+                    side = side,
+                    posture = posture,
+                    window = windowSize,
+                    autoCrop = autoCrop,
+                )
+                if (two == null) {
+                    if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
+                    return@launch
+                }
+                runCurl(from, target, side, two.front, two.back, twoPage = two)
                 return@launch
             }
             val front = cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
@@ -710,21 +739,34 @@ private fun ReaderScreenContent(
                                     pageCount = { pagerState.pageCount },
                                     onDragStart = { targetIndex, forward ->
                                         if (!forward) endNotice = null
+                                        val from = pagerState.targetPage
+                                        val fromSpread = currentSpreads.getOrNull(from).orEmpty()
+                                        val toSpread = currentSpreads.getOrNull(targetIndex).orEmpty()
+                                        val dragSide = curlSide(direction, forward)
+                                        val windowSize = IntSize(
+                                            viewport.width.roundToInt().coerceAtLeast(1),
+                                            viewport.height.roundToInt().coerceAtLeast(1),
+                                        )
+                                        val two = if (twoPage) {
+                                            buildTwoPageCurl(
+                                                renderer = renderer,
+                                                currentSpread = fromSpread,
+                                                targetSpread = toSpread,
+                                                direction = direction,
+                                                side = dragSide,
+                                                posture = posture,
+                                                window = windowSize,
+                                                autoCrop = autoCrop,
+                                            )
+                                        } else {
+                                            null
+                                        }
                                         val slotW = renderSlot.width
                                         val slotH = renderSlot.height
-                                        val from = pagerState.targetPage
-                                        val fromBmp = cachedSpreadBitmaps(
-                                            renderer,
-                                            currentSpreads.getOrNull(from).orEmpty(),
-                                            slotW,
-                                            slotH,
-                                        )
-                                        val toBmp = cachedSpreadBitmaps(
-                                            renderer,
-                                            currentSpreads.getOrNull(targetIndex).orEmpty(),
-                                            slotW,
-                                            slotH,
-                                        )
+                                        val fromBmp = two?.front
+                                            ?: cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
+                                        val toBmp = two?.back
+                                            ?: cachedSpreadBitmaps(renderer, toSpread, slotW, slotH)
                                         if (fromBmp == null || toBmp == null) {
                                             false
                                         } else {
@@ -733,13 +775,14 @@ private fun ReaderScreenContent(
                                                 CurlEffectState(
                                                     fromIndex = from,
                                                     toIndex = targetIndex,
-                                                    side = curlSide(direction, forward),
+                                                    side = dragSide,
                                                     progress = 0f,
                                                     dragging = true,
                                                     completing = true,
                                                 ),
                                                 fromBmp,
                                                 toBmp,
+                                                two,
                                             )
                                             jumpBack = null
                                             true
@@ -796,6 +839,7 @@ private fun ReaderScreenContent(
                                             back = back,
                                             fromProgress = progress,
                                             animateForward = completes,
+                                            twoPage = curlTwoPage,
                                         )
                                     },
                                     onSwipePastEnd = { nextAtEnd() },
@@ -918,18 +962,22 @@ private fun ReaderScreenContent(
                     val displayMode = LocalDisplayMode.current
                     val curlFilter = remember(displayMode) { displayMode.colorFilter() }
                     val curlLook = remember(displayMode) { displayMode.curlLook() }
+                    val two = curlTwoPage
                     PageCurlOverlay(
                         front = frontBmp,
                         back = backBmp,
                         progress = { curlProgress },
                         side = curlSideState,
                         modifier = overlayModifier.testTag("reader_page_curl"),
-                        contentCrop = frontCrop?.takeIf { !it.isNone }?.let {
+                        contentCrop = two?.frontCrop ?: frontCrop?.takeIf { !it.isNone }?.let {
                             Rect(it.left, it.top, 1f - it.right, 1f - it.bottom)
                         },
-                        backContentCrop = backCrop?.takeIf { !it.isNone }?.let {
+                        backContentCrop = two?.backCrop ?: backCrop?.takeIf { !it.isNone }?.let {
                             Rect(it.left, it.top, 1f - it.right, 1f - it.bottom)
                         },
+                        flapBack = two?.flapBack,
+                        flapContentCrop = two?.flapCrop,
+                        layout = two?.layout,
                         colorFilter = curlFilter,
                         flapColor = curlLook.flapColor,
                         shadowColor = curlLook.shadowColor,
@@ -1178,6 +1226,117 @@ private fun ReaderScreenContent(
         }
     }
 }
+
+/** Everything the two-page curl overlay needs beyond the shared front/back bitmaps. */
+private data class TwoPageCurl(
+    val front: Bitmap,
+    val back: Bitmap,
+    val flapBack: Bitmap,
+    val layout: CurlSheetLayout,
+    val frontCrop: Rect?,
+    val backCrop: Rect?,
+    val flapCrop: Rect?,
+)
+
+/**
+ * Builds the two-page curl for a two-page spread turning onto another two-page spread.
+ *
+ * Design A: the page on [side] turns about the spine. Its revealed page is the same-side
+ * page of [targetSpread], and the flap's back face is the opposite-side page, drawn at 100%.
+ * Null (Slide fallback) when the bitmap cache missed or when the sheet and the pages it
+ * lands on differ by more than 1px (오대리 rule), so the last frame cannot jump.
+ */
+private fun buildTwoPageCurl(
+    renderer: PageBitmaps,
+    currentSpread: List<Int>,
+    targetSpread: List<Int>,
+    direction: ReadingDirection,
+    side: CurlSide,
+    posture: FoldPosture,
+    window: IntSize,
+    autoCrop: Boolean,
+): TwoPageCurl? {
+    if (currentSpread.size != 2 || targetSpread.size != 2) return null
+    val canvas = curlCanvas(window, posture) ?: return null
+    val visualCurrent = spreadLayout(currentSpread, direction)
+    val visualTarget = spreadLayout(targetSpread, direction)
+    val slots = listOf(canvas.left, canvas.right)
+    val bitmapsCurrent = slots.mapIndexed { index, slot ->
+        renderer.cached(visualCurrent[index], slot.width, slot.height)
+            ?.takeUnless { it.isRecycled }
+            ?: return null
+    }
+    val bitmapsTarget = slots.mapIndexed { index, slot ->
+        renderer.cached(visualTarget[index], slot.width, slot.height)
+            ?.takeUnless { it.isRecycled }
+            ?: return null
+    }
+    val cropsCurrent = spreadCrops(renderer, visualCurrent, autoCrop)
+    val cropsTarget = spreadCrops(renderer, visualTarget, autoCrop)
+    val scaleCurrent = sharedCropScale(bitmapsCurrent, cropsCurrent, slots, canvas.size.height)
+    val scaleTarget = sharedCropScale(bitmapsTarget, cropsTarget, slots, canvas.size.height)
+    val rectCurrent = listOf(
+        pageDrawRect(bitmapsCurrent[0].width, bitmapsCurrent[0].height, cropsCurrent[0], slots[0], SlotAlignment.End, scaleCurrent),
+        pageDrawRect(bitmapsCurrent[1].width, bitmapsCurrent[1].height, cropsCurrent[1], slots[1], SlotAlignment.Start, scaleCurrent),
+    )
+    val rectTarget = listOf(
+        pageDrawRect(bitmapsTarget[0].width, bitmapsTarget[0].height, cropsTarget[0], slots[0], SlotAlignment.End, scaleTarget),
+        pageDrawRect(bitmapsTarget[1].width, bitmapsTarget[1].height, cropsTarget[1], slots[1], SlotAlignment.Start, scaleTarget),
+    )
+    val turning = if (side == CurlSide.Right) 1 else 0
+    val sheet = rectCurrent[turning]
+    val landing = rectTarget[turning]
+    val backFace = rectTarget[1 - turning]
+    if (!sheetLandsOnSpread(sheet, landing, backFace, side)) return null
+    return TwoPageCurl(
+        front = bitmapsCurrent[turning],
+        back = bitmapsTarget[turning],
+        flapBack = bitmapsTarget[1 - turning],
+        layout = CurlSheetLayout(
+            sheet = sheet,
+            spread = sheet.expandedTo(backFace),
+            backFace = backFace,
+            spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+        ),
+        frontCrop = cropsCurrent[turning].toContentRect(),
+        backCrop = cropsTarget[turning].toContentRect(),
+        flapCrop = cropsTarget[1 - turning].toContentRect(),
+    )
+}
+
+/** Aligned margins for a visually ordered spread, as PageBitmap computes them. */
+private fun spreadCrops(
+    renderer: PageBitmaps,
+    visualPages: List<Int>,
+    autoCrop: Boolean,
+): List<CropMargins> {
+    if (!autoCrop) return List(visualPages.size) { CropMargins() }
+    if (visualPages.size < 2) return visualPages.map { renderer.cropMargins(it) ?: CropMargins() }
+    val left = renderer.cropMargins(visualPages[0]) ?: return List(visualPages.size) { CropMargins() }
+    val right = renderer.cropMargins(visualPages[1]) ?: return List(visualPages.size) { CropMargins() }
+    val aligned = alignedTwoPageMargins(left, right)
+    return listOf(aligned.first, aligned.second)
+}
+
+/**
+ * Shared spread scale, or null when a page has no crop: PageBitmap then fits each page on
+ * its own (ContentScale.Fit), which [pageDrawRect] reproduces with a null scale.
+ */
+private fun sharedCropScale(
+    bitmaps: List<Bitmap>,
+    crops: List<CropMargins>,
+    slots: List<IntRect>,
+    slotHeight: Int,
+): Float? {
+    if (crops.any { it.isNone }) return null
+    return spreadCropScale(
+        metrics = bitmaps.indices.map { SpreadPageMetrics(bitmaps[it].width, bitmaps[it].height, crops[it]) },
+        slotWidths = slots.map { it.width },
+        slotHeight = slotHeight,
+    )
+}
+
+private fun CropMargins.toContentRect(): Rect = Rect(left, top, 1f - right, 1f - bottom)
 
 @Composable
 private fun SpreadPageLayout(

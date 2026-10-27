@@ -268,6 +268,47 @@ class PageCurlComposeTest {
     }
 
     @Test
+    fun twoPageSpreadCurlsOntoTheNextSpread() {
+        // Start on [2, 3] so both spreads have two pages.
+        setReader(twoPage = true, initialPage = 1)
+        freezeClock()
+        tapNext(ReadingDirection.LTR)
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(2, pagerState.currentPage)
+    }
+
+    @Test
+    fun twoPageSpreadFollowsTheFingerThenCompletes() {
+        setReader(twoPage = true, initialPage = 1)
+        freezeClock()
+        startDrag(ReadingDirection.LTR, fromFraction = 0.9f, toFraction = 0.5f)
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        endDrag()
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(2, pagerState.currentPage)
+    }
+
+    @Test
+    fun twoPageSpreadCurlsForwardInRtl() {
+        setReader(twoPage = true, direction = ReadingDirection.RTL, initialPage = 1)
+        freezeClock()
+        tapNext(ReadingDirection.RTL)
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(2, pagerState.currentPage)
+    }
+
+    @Test
     fun zoomedViewUsesSlideWithoutCurl() {
         setReader()
         zoomIn()
