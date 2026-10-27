@@ -11,6 +11,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ColorFilter
@@ -22,10 +23,12 @@ import kotlin.math.roundToInt
 import org.parkjw.apps.pdfbook.CropMargins
 import org.parkjw.apps.pdfbook.CurlSheetLayout
 import org.parkjw.apps.pdfbook.CurlSide
-import org.parkjw.apps.pdfbook.CurlUnderlay
 import org.parkjw.apps.pdfbook.FoldPosture
+import org.parkjw.apps.pdfbook.PageBitmaps
 import org.parkjw.apps.pdfbook.PageCurlOverlay
+import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.SlotAlignment
+import org.parkjw.apps.pdfbook.buildSingleSpreadCurl
 import org.parkjw.apps.pdfbook.colorFilter
 import org.parkjw.apps.pdfbook.curlCanvas
 import org.parkjw.apps.pdfbook.curlLook
@@ -137,6 +140,11 @@ internal fun TwoPageCurlPreview(
  * Lone-page (cover / last page) turn preview shared by the #173 captures: the sheet peels
  * over the pane and the target spread shows only where it has peeled away. Pages are
  * generated synthetic colour pages; no real book, screenshot or private file is used.
+ *
+ * Geometry comes from the real [buildSingleSpreadCurl] with a synthetic renderer, so the
+ * captures cover the builder's sheet, underlay and landing rather than a copy of it.
+ * [mode] applies the same page color filter and curl look the reader passes; [night] is a
+ * dark page with the inverted paper/shadow look and no colour filter (night page mode).
  */
 @Composable
 internal fun SingleSheetCurlPreview(
@@ -147,25 +155,27 @@ internal fun SingleSheetCurlPreview(
     targetRight: Bitmap,
     mode: DisplayMode = DisplayMode.Default,
     twoPageTarget: Boolean = true,
+    direction: ReadingDirection = ReadingDirection.LTR,
+    night: Boolean = false,
 ) {
-    val filter = mode.colorFilter()
-    val look = mode.curlLook()
+    val filter = if (night) null else mode.colorFilter()
+    val look = if (night) DisplayMode.Invert.curlLook() else mode.curlLook()
     BoxWithConstraints(Modifier.fillMaxSize().background(ReaderBackground)) {
         val window = IntSize(constraints.maxWidth, constraints.maxHeight)
-        val canvas = curlCanvas(window, FoldPosture.Flat) ?: return@BoxWithConstraints
-        val slots = listOf(canvas.left, canvas.right)
-        val none = CropMargins()
-        val pane = IntRect(0, 0, canvas.size.width, canvas.size.height)
-        val frontRect = pageDrawRect(page.width, page.height, none, pane, SlotAlignment.Center, null)
-        val targetRects = if (twoPageTarget) {
-            listOf(
-                pageDrawRect(targetLeft.width, targetLeft.height, none, slots[0], SlotAlignment.End, null),
-                pageDrawRect(targetRight.width, targetRight.height, none, slots[1], SlotAlignment.Start, null),
-            )
-        } else {
-            // A lone page as the target: it lands on its own drawn rect, inside the sheet.
-            listOf(pageDrawRect(targetLeft.width, targetLeft.height, none, pane, SlotAlignment.Center, null))
+        val renderer = remember(page, targetLeft, targetRight) {
+            FixturePageBitmaps(mapOf(1 to page, 2 to targetLeft, 3 to targetRight))
         }
+        val targetSpread = if (twoPageTarget) listOf(2, 3) else listOf(2)
+        val built = buildSingleSpreadCurl(
+            renderer = renderer,
+            currentPage = 1,
+            targetSpread = targetSpread,
+            direction = direction,
+            side = side,
+            posture = FoldPosture.Flat,
+            window = window,
+            autoCrop = false,
+        ) ?: return@BoxWithConstraints
         // The pager below sits on the target spread; the overlay repaints the pane.
         val pagerState = rememberPagerState(initialPage = 1) { 2 }
         HorizontalPager(
@@ -175,36 +185,52 @@ internal fun SingleSheetCurlPreview(
         ) { index ->
             ComposeCanvas(Modifier.fillMaxSize()) {
                 if (index == 0) {
-                    drawPage(page, frontRect, filter)
-                } else if (twoPageTarget) {
-                    drawPage(targetLeft, targetRects[0], filter)
-                    drawPage(targetRight, targetRects[1], filter)
+                    built.frontRect?.let { drawPage(built.front, it, filter) }
                 } else {
-                    drawPage(targetLeft, targetRects[0], filter)
+                    built.underlay.forEach { drawPage(it.bitmap, it.dest, filter) }
                 }
             }
         }
         PageCurlOverlay(
-            front = page,
-            back = targetLeft,
+            front = built.front,
+            back = built.back,
             progress = { progress },
             side = side,
             modifier = Modifier.fillMaxSize(),
             colorFilter = filter,
-            frontRect = frontRect,
-            underlay = if (twoPageTarget) {
-                listOf(
-                    CurlUnderlay(targetLeft, null, targetRects[0]),
-                    CurlUnderlay(targetRight, null, targetRects[1]),
-                )
-            } else {
-                listOf(CurlUnderlay(targetLeft, null, targetRects[0]))
-            },
+            frontRect = built.frontRect,
+            underlay = built.underlay,
             flapColor = look.flapColor,
             shadowColor = look.shadowColor,
             shadowAlpha = look.shadowAlpha,
             shadowMidAlpha = look.shadowMidAlpha,
             foldHighlightColor = look.foldHighlightColor,
+        )
+    }
+}
+
+/**
+ * Synthetic [PageBitmaps] for the capture harness: each page is an aspect-fitted copy of the
+ * fixture bitmap at the size the builder asks for, like PageBitmap's prerender.
+ */
+private class FixturePageBitmaps(private val pages: Map<Int, Bitmap>) : PageBitmaps {
+    override val pageCount: Int = pages.size
+
+    override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? =
+        cached(page, maxWidth, maxHeight)
+
+    override fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
+        val source = pages[page] ?: return null
+        if (maxWidth <= 0 || maxHeight <= 0) return null
+        val scale = minOf(
+            maxWidth.toFloat() / source.width,
+            maxHeight.toFloat() / source.height,
+        )
+        return Bitmap.createScaledBitmap(
+            source,
+            (source.width * scale).roundToInt().coerceAtLeast(1),
+            (source.height * scale).roundToInt().coerceAtLeast(1),
+            true,
         )
     }
 }

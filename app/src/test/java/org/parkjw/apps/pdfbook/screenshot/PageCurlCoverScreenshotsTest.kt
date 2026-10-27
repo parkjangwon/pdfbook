@@ -14,6 +14,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.parkjw.apps.pdfbook.CurlSide
+import org.parkjw.apps.pdfbook.ReadingDirection
+import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
@@ -57,6 +59,9 @@ class PageCurlCoverScreenshotsTest {
         var progress by mutableStateOf(0.5f)
         var targetA by mutableStateOf(targetLeft)
         var targetB by mutableStateOf(targetRight)
+        var direction by mutableStateOf(ReadingDirection.LTR)
+        var mode by mutableStateOf(DisplayMode.Default)
+        var night by mutableStateOf(false)
 
         composeRule.setContent {
             ScreenshotTheme(dark = false, systemBarsColor = ReaderBackground) {
@@ -66,6 +71,9 @@ class PageCurlCoverScreenshotsTest {
                     page = page,
                     targetLeft = targetA,
                     targetRight = targetB,
+                    mode = mode,
+                    direction = direction,
+                    night = night,
                 )
             }
         }
@@ -78,6 +86,7 @@ class PageCurlCoverScreenshotsTest {
                 progress = p
                 targetA = targetLeft
                 targetB = targetRight
+                direction = ReadingDirection.LTR
             }
             composeRule.waitForIdle()
             composeRule.onRoot().captureRoboImage("reader-page-curl-cover-ltr-p${percent(p)}.png")
@@ -89,6 +98,8 @@ class PageCurlCoverScreenshotsTest {
                 progress = p
                 targetA = targetLeft
                 targetB = targetRight
+                // RTL shows the target spread reversed; the builder places the pages.
+                direction = ReadingDirection.RTL
             }
             composeRule.waitForIdle()
             composeRule.onRoot().captureRoboImage("reader-page-curl-cover-rtl-p${percent(p)}.png")
@@ -101,6 +112,7 @@ class PageCurlCoverScreenshotsTest {
                 progress = p
                 targetA = previousLeft
                 targetB = previousRight
+                direction = ReadingDirection.LTR
             }
             composeRule.waitForIdle()
             composeRule.onRoot().captureRoboImage("reader-page-curl-last-ltr-p${percent(p)}.png")
@@ -112,11 +124,42 @@ class PageCurlCoverScreenshotsTest {
                 progress = p
                 targetA = previousLeft
                 targetB = previousRight
+                direction = ReadingDirection.RTL
             }
             composeRule.waitForIdle()
             composeRule.onRoot().captureRoboImage("reader-page-curl-last-rtl-p${percent(p)}.png")
         }
+        // Inverted page mode: the page filter and the inverted paper back the reader passes.
+        composeRule.runOnIdle {
+            page = cover
+            side = CurlSide.Right
+            progress = 0.5f
+            targetA = targetLeft
+            targetB = targetRight
+            direction = ReadingDirection.LTR
+            mode = DisplayMode.Invert
+            night = false
+        }
+        composeRule.waitForIdle()
+        composeRule.onRoot().captureRoboImage("reader-page-curl-cover-inverted-p50.png")
+        // Night page mode: already-dark pages, the inverted paper/shadow look, no filter.
+        composeRule.runOnIdle {
+            page = syntheticTwoPageCurlPage(NIGHT_PAGE, NIGHT_ACCENT)
+            targetA = syntheticTwoPageCurlPage(NIGHT_PAGE, NIGHT_LEFT)
+            targetB = syntheticTwoPageCurlPage(NIGHT_PAGE, NIGHT_RIGHT)
+            mode = DisplayMode.Default
+            night = true
+        }
+        composeRule.waitForIdle()
+        composeRule.onRoot().captureRoboImage("reader-page-curl-cover-night-p50.png")
     }
 
     private fun percent(p: Float): Int = (p * 100).roundToInt()
+
+    private companion object {
+        const val NIGHT_PAGE = 0xFF121212.toInt()
+        const val NIGHT_ACCENT = 0xFFCFC6B4.toInt()
+        const val NIGHT_LEFT = 0xFF2E7D32.toInt()
+        const val NIGHT_RIGHT = 0xFFD9534F.toInt()
+    }
 }
