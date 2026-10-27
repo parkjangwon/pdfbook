@@ -10,6 +10,7 @@ data class BookState(
     val direction: ReadingDirection = ReadingDirection.RTL,
     val openedAt: Long = 0,
     val autoCrop: Boolean = false,
+    val spreadShift: Int = 0,
 )
 
 fun bookKey(uri: String, size: Long): String = "$uri|$size"
@@ -24,12 +25,16 @@ fun columnsFor(widthDp: Int): Int = if (widthDp < 600) 2 else (widthDp / 170).co
 fun coverFileName(key: String): String =
     MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) }
 
-fun encodeState(state: BookState): String =
-    "${state.page},${state.pageCount},${state.direction.name},${state.openedAt},${if (state.autoCrop) 1 else 0}"
+fun encodeState(state: BookState): String {
+    val base = "${state.page},${state.pageCount},${state.direction.name},${state.openedAt}," +
+        "${if (state.autoCrop) 1 else 0}"
+    // Older builds reject the sixth field, so only write it when the book uses it.
+    return if (state.spreadShift != 0) "$base,1" else base
+}
 
 fun decodeState(raw: String): BookState? {
     val parts = raw.split(",")
-    if (parts.size !in 4..5) return null
+    if (parts.size !in 4..6) return null
     val page = parts[0].toIntOrNull() ?: return null
     val count = parts[1].toIntOrNull() ?: return null
     val direction = ReadingDirection.entries.firstOrNull { it.name == parts[2] } ?: return null
@@ -39,7 +44,12 @@ fun decodeState(raw: String): BookState? {
         "1" -> true
         else -> return null
     }
-    return BookState(page, count, direction, openedAt, autoCrop)
+    val spreadShift = when (parts.getOrNull(5)) {
+        null, "0" -> 0
+        "1" -> 1
+        else -> return null
+    }
+    return BookState(page, count, direction, openedAt, autoCrop, spreadShift)
 }
 
 fun bookOrder(states: Map<String, BookState>, byName: Boolean): Comparator<BookInfo> {

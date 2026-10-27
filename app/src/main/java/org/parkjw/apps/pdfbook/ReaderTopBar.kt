@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +39,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -99,6 +101,8 @@ internal fun ReaderOverlayTop(
     onOpenPageNav: () -> Unit = {},
     bookmarked: Boolean? = null,
     onToggleBookmark: () -> Unit = {},
+    spreadShift: Boolean? = null,
+    onSpreadShiftChange: () -> Unit = {},
 ) {
     val mode = readerTopBarMode(windowWidthDp)
     var moreExpanded by remember { mutableStateOf(false) }
@@ -219,7 +223,8 @@ internal fun ReaderOverlayTop(
             }
         }
         val moreHasItems = mode == ReaderTopBarMode.Compact || onOpenBookList != null || showPageMode
-        if (mode != ReaderTopBarMode.Expanded && moreHasItems) {
+        val showMore = if (mode == ReaderTopBarMode.Expanded) spreadShift != null else moreHasItems
+        if (showMore) {
             IconButton(
                 onClick = { moreExpanded = true },
                 colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
@@ -241,6 +246,9 @@ internal fun ReaderOverlayTop(
             onOpenBookList = onOpenBookList,
             showPageMode = showPageMode,
             twoPage = twoPage,
+            spreadShift = spreadShift,
+            onSpreadShiftChange = onSpreadShiftChange,
+            onlySpreadShift = mode == ReaderTopBarMode.Expanded,
         )
     }
 }
@@ -255,6 +263,9 @@ private fun ReaderMoreMenu(
     onOpenBookList: (() -> Unit)?,
     showPageMode: Boolean,
     twoPage: Boolean,
+    spreadShift: Boolean?,
+    onSpreadShiftChange: () -> Unit,
+    onlySpreadShift: Boolean,
 ) {
     val transitionState = remember { MutableTransitionState(false) }
     transitionState.targetState = expanded
@@ -297,7 +308,7 @@ private fun ReaderMoreMenu(
                     .testTag("reader_more_menu")
                     .padding(vertical = 8.dp),
             ) {
-                if (onOpenBookList != null) {
+                if (!onlySpreadShift && onOpenBookList != null) {
                     ReaderMenuRow(
                         iconRes = R.drawable.ic_book_list,
                         label = stringResource(R.string.reader_book_list),
@@ -308,7 +319,7 @@ private fun ReaderMoreMenu(
                         },
                     )
                 }
-                if (showDirection) {
+                if (!onlySpreadShift && showDirection) {
                     ReaderMenuRow(
                         iconRes = if (direction == ReadingDirection.RTL) {
                             R.drawable.ic_read_rtl
@@ -330,7 +341,7 @@ private fun ReaderMoreMenu(
                         },
                     )
                 }
-                if (showPageMode) {
+                if (!onlySpreadShift && showPageMode) {
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -348,6 +359,22 @@ private fun ReaderMoreMenu(
                         onClick = null,
                     )
                 }
+                if (spreadShift != null) {
+                    ReaderMenuRow(
+                        iconRes = if (direction == ReadingDirection.RTL) {
+                            R.drawable.ic_spread_shift_rtl
+                        } else {
+                            R.drawable.ic_spread_shift
+                        },
+                        label = stringResource(R.string.reader_spread_shift),
+                        value = stringResource(
+                            if (spreadShift) R.string.reader_crop_state_on else R.string.reader_crop_state_off,
+                        ),
+                        checked = spreadShift,
+                        testTag = "reader_more_spread_shift",
+                        onClick = onSpreadShiftChange,
+                    )
+                }
             }
         }
     }
@@ -361,15 +388,18 @@ private fun ReaderMenuRow(
     onClick: (() -> Unit)?,
     value: String? = null,
     tint: Color = ReaderOnOverlay,
+    checked: Boolean? = null,
 ) {
     Row(
         Modifier
             .fillMaxWidth()
             .then(
-                if (onClick != null) {
-                    Modifier.clickable(role = Role.Button, onClick = onClick)
-                } else {
-                    Modifier
+                when {
+                    checked != null -> Modifier.toggleable(value = checked, role = Role.Switch) {
+                        onClick?.invoke()
+                    }
+                    onClick != null -> Modifier.clickable(role = Role.Button, onClick = onClick)
+                    else -> Modifier
                 },
             )
             .heightIn(min = 48.dp)
@@ -395,6 +425,7 @@ private fun ReaderMenuRow(
                     text = value,
                     color = ReaderOnOverlayVariant,
                     style = MaterialTheme.typography.bodySmall,
+                    modifier = if (checked != null) Modifier.clearAndSetSemantics {} else Modifier,
                 )
             }
         }
