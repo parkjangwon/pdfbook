@@ -3,13 +3,10 @@ package org.parkjw.apps.pdfbook.screenshot
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import kotlinx.coroutines.runBlocking
@@ -30,6 +27,7 @@ import org.parkjw.apps.pdfbook.settings.SettingsSubScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.parkjw.apps.pdfbook.ui.theme.ReaderListCurrent
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -115,23 +113,23 @@ class PageCurlScreenshotsTest {
     @Config(qualifiers = FOLDED_QUALIFIERS)
     fun settingsAnimationCurlFontScale2() {
         // The four-sentence description must still wrap cleanly at 360dp with font scale 2.0.
+        // The font scale comes from the resources, not a LocalDensity override: the choice
+        // panel is a Dialog with its own window, which ignored the composition override and
+        // rendered the description at 1.0 (pixel-identical block, so wrapping was unchecked).
+        RuntimeEnvironment.setFontScale(2f)
         composeRule.setContent {
             ScreenshotTheme(dark = false) {
-                val base = LocalDensity.current
-                CompositionLocalProvider(
-                    LocalDensity provides Density(density = base.density, fontScale = 2f),
-                ) {
-                    SettingsScreen(
-                        settings = AppSettings(pageTurnAnimation = PageTurnAnimation.Curl),
-                        onSettingsChange = {},
-                        versionName = "0.5.0",
-                        initialSubScreen = SettingsSubScreen.Reading,
-                        initiallyShowAnimationChoice = true,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+                SettingsScreen(
+                    settings = AppSettings(pageTurnAnimation = PageTurnAnimation.Curl),
+                    onSettingsChange = {},
+                    versionName = "0.5.0",
+                    initialSubScreen = SettingsSubScreen.Reading,
+                    initiallyShowAnimationChoice = true,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
+        composeRule.waitForIdle()
         composeRule.onRoot().captureRoboImage("settings-animation-curl-light-folded-font2.png")
     }
 
