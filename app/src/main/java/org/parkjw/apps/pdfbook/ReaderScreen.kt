@@ -90,6 +90,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
@@ -331,6 +333,20 @@ private fun ReaderScreenContent(
     )
 
     TrimCacheOnMemoryPressure(renderer)
+
+    // Backgrounding trims the cache to the current page and cancels the prerender job.
+    // Re-request the neighbours as soon as the reader is visible again, otherwise the
+    // first turn after resume finds the next page uncached and falls back to the slide.
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        renderer.prerender(
+            spreadRequests(
+                currentSpreads.getOrNull(pagerState.settledPage).orEmpty(),
+                renderSlot.width,
+                renderSlot.height,
+            ),
+            prerenderTargets(currentSpreads, pagerState.settledPage, renderSlot.width, renderSlot.height),
+        )
+    }
 
     val postureKey = when (posture) {
         FoldPosture.Flat -> "flat"
