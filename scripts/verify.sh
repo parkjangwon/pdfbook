@@ -508,39 +508,44 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
-    # Turn to an inner spread: at the cover the pair cannot change.
-    for _ in $(seq 1 12); do
-      dump_ui
-      find_node resource-id reader_page_12 >/dev/null && break
-      tap_id reader_zone_Next
-      sleep 1
-    done
-    expect_id reader_page_12
-    expect_id reader_page_13
+    # Page 1 is [1], then [2·3], [4·5] ... so six turns land on [12·13].
+    for _ in $(seq 1 6); do tap_id reader_zone_Next; done
     show_overlay
     tap_id reader_more_button
     expect_id reader_more_status
     expect_id reader_more_spread_shift
-    shot spread-shift-menu-off
     page_before="$(node_text reader_progress || true)"
+    [ -z "$page_before" ] || [ "$page_before" = "12 / 30" ] \
+      || die "Expected the reader at page 12 before the shift (got $page_before)."
+    shot spread-shift-menu-off
+    # The reader does not expose reader_page_* to uiautomator, so read the two
+    # pages from their colours (scripts/make-test-pdf.py paints one per page).
+    pair_off="$(python3 "$ROOT/scripts/page-pair.py" "$OUT/"*-spread-shift-menu-off.png)" \
+      || die "Could not read the pair before the shift (last dump: $OUT/ui.xml)"
+    case "$pair_off" in
+      "12 13" | "13 12") ;;
+      *) die "Expected the plain pair 12·13 before the shift, saw '$pair_off' (last dump: $OUT/ui.xml)" ;;
+    esac
     tap_id reader_more_spread_shift
-    dump_ui
-    expect_id reader_page_11
-    expect_id reader_page_12
-    wait_node resource-id reader_page_13 1 >/dev/null \
-      && die "Shift must pair 11 and 12, not keep 13 (last dump: $OUT/ui.xml)"
-    [ -z "$page_before" ] || [ "$(node_text reader_progress || true)" = "$page_before" ] \
-      || die "Shift must keep the page being read ($page_before -> $(node_text reader_progress || true))."
     shot spread-shift-menu-on
+    pair_on="$(python3 "$ROOT/scripts/page-pair.py" "$OUT/"*-spread-shift-menu-on.png)" \
+      || die "Could not read the pair after the shift (last dump: $OUT/ui.xml)"
+    case "$pair_on" in
+      "11 12" | "12 11") ;;
+      *) die "Shift must pair 11 and 12, saw '$pair_on' (last dump: $OUT/ui.xml)" ;;
+    esac
+    [ "$(node_text reader_progress || true)" = "$page_before" ] \
+      || die "Shift must keep the page being read ($page_before -> $(node_text reader_progress || true))."
     tap_id reader_more_spread_shift
-    dump_ui
-    expect_id reader_page_12
-    expect_id reader_page_13
-    wait_node resource-id reader_page_11 1 >/dev/null \
-      && die "Toggling back must pair 12 and 13 again (last dump: $OUT/ui.xml)"
-    [ -z "$page_before" ] || [ "$(node_text reader_progress || true)" = "$page_before" ] \
-      || die "Toggling back must keep the page being read ($page_before -> $(node_text reader_progress || true))."
     shot spread-shift-menu-back
+    pair_back="$(python3 "$ROOT/scripts/page-pair.py" "$OUT/"*-spread-shift-menu-back.png)" \
+      || die "Could not read the pair after toggling back (last dump: $OUT/ui.xml)"
+    case "$pair_back" in
+      "12 13" | "13 12") ;;
+      *) die "Toggling back must pair 12 and 13 again, saw '$pair_back' (last dump: $OUT/ui.xml)" ;;
+    esac
+    [ "$(node_text reader_progress || true)" = "$page_before" ] \
+      || die "Toggling back must keep the page being read ($page_before -> $(node_text reader_progress || true))."
     # Put the reading settings back so a rerun starts where this one did.
     "$ADB" shell input keyevent KEYCODE_BACK
     tap_id reader_back
