@@ -214,6 +214,42 @@ fun PageCurlOverlay(
         val top = fit.top
         val w = fit.width()
         val h = fit.height()
+        // One shape and one set of polygons per frame. A Book hinge gap draws the frame in two
+        // clipped passes, so building them inside drawPass() would do the same work twice.
+        val bounds = if (foldUnion != null && !uniformRects) {
+            foldBounds[0] = foldUnion.left - left
+            foldBounds[1] = foldUnion.top - top
+            foldBounds[2] = foldUnion.right - left
+            foldBounds[3] = foldUnion.bottom - top
+            foldBounds
+        } else {
+            null
+        }
+        updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null, bounds)
+        val foldValid = shape.foldValid
+        val diag = hypot(w, h)
+        val foldTop = Offset(left + shape.foldTopX, top + shape.foldTopY)
+        val foldBottom = Offset(left + shape.foldBottomX, top + shape.foldBottomY)
+        val mid = Offset(left + shape.midX, top + shape.midY)
+        val shadowWidth = CURL_SHADOW_WIDTH_DP.dp.toPx() * curlShadowWidthFraction(p)
+        // The revealed page keeps its own measured rect, which can differ by a few pixels from the
+        // turning page. Clip it to the part the fold has uncovered so it never peeks out beside
+        // the turning page. Equal-size pages draw exactly as before.
+        val reveal = revealDest ?: sheetRect
+        val sameRect = abs(reveal.left - sheetRect.left) <= 1f &&
+            abs(reveal.top - sheetRect.top) <= 1f &&
+            abs(reveal.right - sheetRect.right) <= 1f &&
+            abs(reveal.bottom - sheetRect.bottom) <= 1f
+        if (shape.revealedCount >= 3) {
+            revealedPath.setPolygon(shape.revealed, shape.revealedCount, left, top)
+        }
+        if (shape.frontCount >= 3) {
+            frontPath.setPolygon(shape.front, shape.frontCount, left, top)
+        }
+        if (shape.flapCount >= 3) {
+            flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
+        }
+
         // One pass of the whole frame in virtual-spread coordinates. A Book hinge gap draws it
         // twice with a clip on each side of the spine, so the flap is cut at the fold and the
         // gap keeps showing the fold gap (V071-TWOPAGE.md §4, option A).
@@ -249,30 +285,11 @@ fun PageCurlOverlay(
                 }
             }
 
-            val bounds = if (foldUnion != null && !uniformRects) {
-                foldBounds[0] = foldUnion.left - left
-                foldBounds[1] = foldUnion.top - top
-                foldBounds[2] = foldUnion.right - left
-                foldBounds[3] = foldUnion.bottom - top
-                foldBounds
-            } else {
-                null
-            }
-            updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null, bounds)
             if (twoPage != null) {
-                // The revealed page keeps its own measured rect, which can differ by a few pixels
-                // from the turning page. Clip it to the part the fold has uncovered so it never
-                // peeks out beside the turning page. Equal-size pages draw exactly as before.
-                val reveal = revealDest ?: sheetRect
-                val sameRect = abs(reveal.left - sheetRect.left) <= 1f &&
-                    abs(reveal.top - sheetRect.top) <= 1f &&
-                    abs(reveal.right - sheetRect.right) <= 1f &&
-                    abs(reveal.bottom - sheetRect.bottom) <= 1f
                 if (p > 0.001f && shape.revealedCount >= 3) {
                     if (sameRect) {
                         drawImageInto(backImage, backCrop, reveal, colorFilter, drawFit)
                     } else {
-                        revealedPath.setPolygon(shape.revealed, shape.revealedCount, left, top)
                         clipPath(revealedPath) {
                             drawImageInto(backImage, backCrop, reveal, colorFilter, drawFit)
                         }
@@ -286,20 +303,13 @@ fun PageCurlOverlay(
                 return
             }
 
-            if (!shape.foldValid) {
+            if (!foldValid) {
                 drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
                 return
             }
 
-            val diag = hypot(w, h)
-            val foldTop = Offset(left + shape.foldTopX, top + shape.foldTopY)
-            val foldBottom = Offset(left + shape.foldBottomX, top + shape.foldBottomY)
-            val mid = Offset(left + shape.midX, top + shape.midY)
-
             // Shadow: one linear gradient from the fold onto the revealed page only.
-            val shadowWidth = CURL_SHADOW_WIDTH_DP.dp.toPx() * curlShadowWidthFraction(p)
             if (shadowWidth > 0.5f && shape.revealedCount >= 3) {
-                revealedPath.setPolygon(shape.revealed, shape.revealedCount, left, top)
                 clipPath(revealedPath) {
                     drawFoldGradient(
                         brush = shadowBrush,
@@ -313,7 +323,6 @@ fun PageCurlOverlay(
 
             // Front page: everything the fold has not peeled yet.
             if (shape.frontCount >= 3) {
-                frontPath.setPolygon(shape.front, shape.frontCount, left, top)
                 clipPath(frontPath) {
                     drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
                 }
@@ -321,7 +330,6 @@ fun PageCurlOverlay(
 
             // Flap: back face, inner shade, fold highlight.
             if (shape.flapCount >= 3) {
-                flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
                 // The back face covers the flap at full opacity. With uneven page rects it is shorter
                 // than the flap polygon (the union), so clearing the whole flap would leave a black
                 // hem over the paper; drawing nothing there lets the front or still page underneath
