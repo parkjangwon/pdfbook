@@ -96,6 +96,19 @@ class CropMarginsTest {
     }
 
     @Test
+    fun twoPageRuleSharesOneOuterMarginSoTheHalvesMatch() {
+        val leftPage = CropMargins(left = 0.14f, top = 0.09f, right = 0.15f, bottom = 0.09f)
+        val rightPage = CropMargins(left = 0.16f, top = 0.09f, right = 0.12f, bottom = 0.09f)
+        val (left, right) = alignedTwoPageMargins(leftPage, rightPage)
+        assertEquals(0f, left.right)
+        assertEquals(0f, right.left)
+        // Same outer margin on both halves: the two-page curl compares the turning page with the
+        // facing page within 1px, so unequal widths would make every two-page turn Slide.
+        assertClose(0.12f, left.left)
+        assertClose(0.12f, right.right)
+    }
+
+    @Test
     fun creamPaperIsMeasuredAgainstItsOwnBackground() {
         val margins = detectCropMargins(
             page(background = 0xFFF7F2E8.toInt()),
