@@ -371,10 +371,6 @@ private fun ReaderScreenContent(
         is FoldPosture.Book -> "book:${posture.foldBounds}"
         is FoldPosture.Tabletop -> "tabletop:${posture.foldBounds}"
     }
-    LaunchedEffect(postureKey) {
-        zoom = ZoomState()
-    }
-
     // Remap shownAt so a posture/spread remount does not dismiss the pill (ZF-3 / SPEC-4).
     LaunchedEffect(spreads) {
         val jb = jumpBack ?: return@LaunchedEffect
@@ -429,6 +425,13 @@ private fun ReaderScreenContent(
         curlBack = null
         curlTwoPage = null
         curlProgress = 0f
+    }
+
+    LaunchedEffect(postureKey) {
+        zoom = ZoomState()
+        // A fold or unfold during a turn must not keep the old hinge layout up for the rest of
+        // the animation (an unpainted gap column and a short right edge).
+        clearCurlOverlay()
     }
 
     fun beginCurl(effect: CurlEffectState, front: Bitmap, back: Bitmap, twoPage: TwoPageCurl? = null) {
