@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
@@ -118,9 +119,31 @@ fun ReaderRoute(
             val posture = rememberFoldPosture()
             val twoPage = rememberTwoPage(twoPageMode, posture)
             var spreadShift by rememberSaveable(key) { mutableStateOf(saved?.spreadShift == 1) }
-            var widePages by remember(renderer, widePageAlone) { mutableStateOf(emptySet<Int>()) }
-            LaunchedEffect(renderer, widePageAlone) {
-                widePages = if (widePageAlone) renderer.widePages() else emptySet()
+            var anchorPage by rememberSaveable(key) {
+                mutableIntStateOf(state.page.coerceIn(1, renderer.pageCount.coerceAtLeast(1)))
+            }
+            var widePages by remember(key) { mutableStateOf(WidePageScanCache.get(key) ?: emptySet<Int>()) }
+            LaunchedEffect(renderer, widePageAlone, twoPage) {
+                val cached = WidePageScanCache.get(key)
+                if (!widePageAlone || !twoPage) {
+                    widePages = emptySet()
+                    return@LaunchedEffect
+                }
+                if (cached != null) {
+                    widePages = cached
+                    return@LaunchedEffect
+                }
+                coroutineScope {
+                    val updates = launch {
+                        renderer.widePageUpdates.collect { found ->
+                            if (found.isNotEmpty() && found != widePages) widePages = found
+                        }
+                    }
+                    val found = renderer.widePages(anchorPage)
+                    updates.cancel()
+                    widePages = found
+                    WidePageScanCache.put(key, found)
+                }
             }
             val spreadList = remember(renderer.pageCount, twoPage, coverAlone, spreadShift, widePages) {
                 spreads(
@@ -130,9 +153,6 @@ fun ReaderRoute(
                     shift = if (spreadShift) 1 else 0,
                     widePages = widePages,
                 )
-            }
-            var anchorPage by rememberSaveable(key) {
-                mutableIntStateOf(state.page.coerceIn(1, renderer.pageCount.coerceAtLeast(1)))
             }
             var anchorSync by remember { mutableStateOf(ReadingAnchor(anchorPage)) }
             var direction by rememberSaveable(
@@ -219,6 +239,7 @@ fun ReaderRoute(
                     keepScreenOn = keepScreenOn,
                     spreadShift = spreadShift,
                     onSpreadShiftChange = { spreadShift = it },
+                    widePages = widePages,
                     onRestorePage = { page ->
                         anchorPage = page
                         anchorSync = ReadingAnchor(
