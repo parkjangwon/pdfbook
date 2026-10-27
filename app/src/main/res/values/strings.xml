@@ -63,7 +63,7 @@
     <string name="settings_display_sepia">세피아</string>
     <string name="settings_display_sepia_desc">종이처럼 따뜻한 색으로 바꿔요. 컬러 그림은 갈색 톤이 돼요.</string>
     <string name="settings_animation_curl">책장 넘김</string>
-    <string name="settings_animation_curl_desc">한쪽·두쪽 보기 모두 책처럼 넘겨요. 확대 중이거나 다음 쪽을 준비 중이면 슬라이드로 넘어가요. 두쪽 보기에서 두 쪽 펼침을 표지나 마지막 쪽으로 넘길 때는 슬라이드예요.</string>
+    <string name="settings_animation_curl_desc">한쪽·두쪽 보기 모두 책처럼 넘겨요. 확대 중이거나 다음 쪽을 준비 중이면 슬라이드로 넘어가요. 두쪽 보기에서 표지나 마지막 쪽처럼 한 쪽만 있는 펼침으로 가거나 거기서 올 때도 슬라이드예요.</string>
     <string name="settings_screen_orientation">화면 방향</string>
     <string name="settings_orientation_auto">자동</string>
     <string name="settings_orientation_portrait">세로</string>

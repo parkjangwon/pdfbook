@@ -38,8 +38,9 @@ class SpreadCropScaleTest {
             CropMargins(left = 0.10f, top = 0.05f),
             CropMargins(right = 0.20f, top = 0.05f),
         )
-        // layout[0] is the visually left page in both directions, so its outer (left) margin
-        // crops the left half and the right page keeps its outer (right) margin.
+        // layout[0] is the visually left page in both directions: it crops the left half and the
+        // right page crops the right half. Each keeps its own outer margin; the shared scale
+        // keeps the halves the same height.
         assertEquals(0.10f, margins.first.left)
         assertEquals(0f, margins.first.right)
         assertEquals(0f, margins.second.left)

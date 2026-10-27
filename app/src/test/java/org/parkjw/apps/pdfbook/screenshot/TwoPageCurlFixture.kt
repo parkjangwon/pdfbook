@@ -34,7 +34,8 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 /**
  * Two-page curl preview shared by the #167 captures. Pages are generated synthetic
  * colour pages; no real book, screenshot or private file is used. [mode] applies the same
- * page color filter and curl look the reader passes for that display mode.
+ * page color filter and curl look the reader passes for that display mode. With [showOverlay]
+ * false the pager alone is drawn: the settled target spread the last curl frame must match.
  */
 @Composable
 internal fun TwoPageCurlPreview(
@@ -45,6 +46,7 @@ internal fun TwoPageCurlPreview(
     targetLeft: Bitmap,
     targetRight: Bitmap,
     mode: DisplayMode = DisplayMode.Default,
+    showOverlay: Boolean = true,
 ) {
     val filter = mode.colorFilter()
     val look = mode.curlLook()
@@ -82,27 +84,31 @@ internal fun TwoPageCurlPreview(
         val turning = if (side == CurlSide.Right) 1 else 0
         val sheet = currentRects[turning]
         val backFace = targetRects[1 - turning]
-        PageCurlOverlay(
-            front = if (turning == 1) currentRight else currentLeft,
-            back = if (turning == 1) targetRight else targetLeft,
-            still = if (turning == 1) currentLeft else currentRight,
-            progress = { progress },
-            side = side,
-            modifier = Modifier.fillMaxSize(),
-            colorFilter = filter,
-            flapBack = if (turning == 1) targetLeft else targetRight,
-            layout = CurlSheetLayout(
-                sheet = sheet,
-                spread = sheet.expandedTo(backFace),
-                backFace = backFace,
-                spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
-            ),
-            flapColor = look.flapColor,
-            shadowColor = look.shadowColor,
-            shadowAlpha = look.shadowAlpha,
-            shadowMidAlpha = look.shadowMidAlpha,
-            foldHighlightColor = look.foldHighlightColor,
-        )
+        if (showOverlay) {
+            PageCurlOverlay(
+                front = if (turning == 1) currentRight else currentLeft,
+                back = if (turning == 1) targetRight else targetLeft,
+                still = if (turning == 1) currentLeft else currentRight,
+                progress = { progress },
+                side = side,
+                modifier = Modifier.fillMaxSize(),
+                colorFilter = filter,
+                flapBack = if (turning == 1) targetLeft else targetRight,
+                layout = CurlSheetLayout(
+                    sheet = sheet,
+                    spread = sheet.expandedTo(backFace),
+                    backFace = backFace,
+                    spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+                    landing = targetRects[turning],
+                    still = currentRects[1 - turning],
+                ),
+                flapColor = look.flapColor,
+                shadowColor = look.shadowColor,
+                shadowAlpha = look.shadowAlpha,
+                shadowMidAlpha = look.shadowMidAlpha,
+                foldHighlightColor = look.foldHighlightColor,
+            )
+        }
     }
 }
 
@@ -123,23 +129,27 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPage(
  * Left/right asymmetric page: a band down the left edge and a block in the top-left
  * corner. A mirrored back face puts both on the right, so the capture can tell it apart.
  */
-internal fun syntheticTwoPageCurlPage(fill: Int, accent: Int): Bitmap {
-    val bitmap = Bitmap.createBitmap(TWO_PAGE_WIDTH, TWO_PAGE_HEIGHT, Bitmap.Config.ARGB_8888)
+internal fun syntheticTwoPageCurlPage(
+    fill: Int,
+    accent: Int,
+    height: Int = TWO_PAGE_HEIGHT,
+): Bitmap {
+    val bitmap = Bitmap.createBitmap(TWO_PAGE_WIDTH, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     canvas.drawColor(fill)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
-    canvas.drawRect(0f, 0f, TWO_PAGE_WIDTH * 0.12f, TWO_PAGE_HEIGHT.toFloat(), paint)
+    canvas.drawRect(0f, 0f, TWO_PAGE_WIDTH * 0.12f, height.toFloat(), paint)
     paint.color = TWO_PAGE_INK
     canvas.drawRect(
         TWO_PAGE_WIDTH * 0.22f,
-        TWO_PAGE_HEIGHT * 0.1f,
+        height * 0.1f,
         TWO_PAGE_WIDTH * 0.46f,
-        TWO_PAGE_HEIGHT * 0.22f,
+        height * 0.22f,
         paint,
     )
     paint.style = Paint.Style.STROKE
     paint.strokeWidth = 6f
-    canvas.drawCircle(TWO_PAGE_WIDTH * 0.34f, TWO_PAGE_HEIGHT * 0.62f, TWO_PAGE_WIDTH * 0.16f, paint)
+    canvas.drawCircle(TWO_PAGE_WIDTH * 0.34f, height * 0.62f, TWO_PAGE_WIDTH * 0.16f, paint)
     return bitmap
 }
 
