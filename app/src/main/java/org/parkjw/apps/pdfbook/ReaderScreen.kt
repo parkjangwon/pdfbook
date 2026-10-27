@@ -281,6 +281,7 @@ private fun ReaderScreenContent(
     }
     val sideFraction = tapZoneSideFraction(sidePercent)
     var zoom by remember { mutableStateOf(ZoomState()) }
+    var spreadShiftJob by remember { mutableStateOf<Job?>(null) }
     val zoomRef = rememberUpdatedState(zoom)
     val zoomed = !zoom.allowsPageTurn
     val keepZoomRef = rememberUpdatedState(keepZoom)
@@ -1174,9 +1175,12 @@ private fun ReaderScreenContent(
                 onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
                 spreadShift = if (twoPage && tabletop == null) spreadShift else null,
                 onSpreadShiftChange = {
-                    scope.launch {
-                        snapshotFlow { pagerState.isScrollInProgress || curlActive }.first { !it }
-                        onSpreadShiftChange(!spreadShift)
+                    if (spreadShiftJob?.isActive != true) {
+                        spreadShiftJob = scope.launch {
+                            snapshotFlow { pagerState.isScrollInProgress || curlActive }.first { !it }
+                            zoom = ZoomState()
+                            onSpreadShiftChange(!spreadShift)
+                        }
                     }
                 },
                 modifier = Modifier

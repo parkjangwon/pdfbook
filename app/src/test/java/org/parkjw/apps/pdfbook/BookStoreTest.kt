@@ -222,4 +222,11 @@ class BookStoreTest {
         assertNull(decodeState("1,9,RTL,2,1,2"))
         assertNull(decodeState("1,9,RTL,2,1,"))
     }
+
+    @Test
+    fun shiftOffWritesTheOlderFiveFieldValue() {
+        val plain = BookState(3, 9, ReadingDirection.LTR, 7, autoCrop = true)
+        assertEquals("3,9,LTR,7,1", encodeState(plain))
+        assertEquals("3,9,LTR,7,1,1", encodeState(plain.copy(spreadShift = 1)))
+    }
 }

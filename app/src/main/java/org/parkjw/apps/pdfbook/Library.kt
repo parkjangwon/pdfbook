@@ -25,9 +25,12 @@ fun columnsFor(widthDp: Int): Int = if (widthDp < 600) 2 else (widthDp / 170).co
 fun coverFileName(key: String): String =
     MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) }
 
-fun encodeState(state: BookState): String =
-    "${state.page},${state.pageCount},${state.direction.name},${state.openedAt}," +
-        "${if (state.autoCrop) 1 else 0},${if (state.spreadShift != 0) 1 else 0}"
+fun encodeState(state: BookState): String {
+    val base = "${state.page},${state.pageCount},${state.direction.name},${state.openedAt}," +
+        "${if (state.autoCrop) 1 else 0}"
+    // Older builds reject the sixth field, so only write it when the book uses it.
+    return if (state.spreadShift != 0) "$base,1" else base
+}
 
 fun decodeState(raw: String): BookState? {
     val parts = raw.split(",")
