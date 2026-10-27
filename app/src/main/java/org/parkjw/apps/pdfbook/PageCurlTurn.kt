@@ -91,6 +91,9 @@ private fun IntRect.clipTo(bounds: IntRect): IntRect =
 /**
  * Bitmap cache key size for the visible page slot.
  * Tabletop uses the page pane; book single-page uses the half that [BookHalfPage] draws into.
+ * A two-page Book with a hinge gap uses the virtual spread (halves butted together), so
+ * `spreadRequests` renders each half at half.width and the curl looks them up with the same
+ * key; Flat and a flush Book keep the window.
  */
 fun pageRenderSlot(
     window: IntSize,
@@ -104,9 +107,17 @@ fun pageRenderSlot(
             return IntSize(page.width.coerceAtLeast(1), page.height.coerceAtLeast(1))
         }
         is FoldPosture.Book -> {
+            val halves = bookHalves(window, posture.foldBounds)
             if (!twoPage) {
-                val half = bookSingleHalf(bookHalves(window, posture.foldBounds), direction)
+                val half = bookSingleHalf(halves, direction)
                 return IntSize(half.width.coerceAtLeast(1), half.height.coerceAtLeast(1))
+            }
+            val gap = (halves.second.left - halves.first.right).coerceAtLeast(0)
+            if (gap > 1) {
+                return IntSize(
+                    (halves.first.width + halves.second.width).coerceAtLeast(1),
+                    window.height.coerceAtLeast(1),
+                )
             }
         }
         FoldPosture.Flat -> Unit
@@ -173,7 +184,9 @@ fun curlCanvas(window: IntSize, posture: FoldPosture): CurlCanvas? {
         is FoldPosture.Book -> {
             val halves = bookHalves(window, posture.foldBounds)
             val gap = (halves.second.left - halves.first.right).coerceAtLeast(0)
-            if (gap > 0 && halves.first.width > 0 && halves.second.width > 0) {
+            // A real hinge gap (> 1px) curls on the virtual spread; one pixel is left to the
+            // flush path, where the 1px landing rule already holds.
+            if (gap > 1 && halves.first.width > 0 && halves.second.width > 0) {
                 val size = IntSize(halves.first.width + halves.second.width, window.height)
                 CurlCanvas(
                     size,
