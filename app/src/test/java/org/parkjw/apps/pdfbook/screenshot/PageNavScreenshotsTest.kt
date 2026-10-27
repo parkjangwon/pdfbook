@@ -111,6 +111,26 @@ class PageNavScreenshotsTest {
 
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun thumbnailsCroppedLightFolded() =
+        captureSheet(
+            "reader-page-nav-thumbnails-cropped-light-folded.png",
+            dark = false,
+            pagesTab = true,
+            crop = true,
+        )
+
+    @Test
+    @Config(qualifiers = FOLDED_NIGHT_QUALIFIERS)
+    fun thumbnailsCroppedDarkFolded() =
+        captureSheet(
+            "reader-page-nav-thumbnails-cropped-dark-folded.png",
+            dark = true,
+            pagesTab = true,
+            crop = true,
+        )
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
     fun contentsLightFolded() =
         captureSheet("reader-page-nav-contents-light-folded.png", dark = false, pagesTab = false)
 
@@ -137,7 +157,9 @@ class PageNavScreenshotsTest {
         dark: Boolean,
         pagesTab: Boolean,
         displayMode: DisplayMode = DisplayMode.Default,
+        crop: Boolean = false,
     ) {
+        val renderer = samplePages().also { it.setAutoCrop(crop) }
         composeRule.setContent {
             ScreenshotTheme(dark, ReaderBackground) {
                 CompositionLocalProvider(
@@ -146,7 +168,7 @@ class PageNavScreenshotsTest {
                 ) {
                     Box(Modifier.fillMaxSize().background(ReaderBackground)) {
                         PageNavSheet(
-                            renderer = samplePages(),
+                            renderer = renderer,
                             outline = sampleOutline,
                             pageCount = 120,
                             currentPage = 37,
