@@ -445,6 +445,13 @@ private fun ReadingSettingsScreen(
                     onCheckedChange = { checked -> onSettingsChange { it.copy(coverAlone = checked) } },
                 )
                 GroupDivider()
+                SwitchRow(
+                    title = stringResource(R.string.settings_wide_page_alone),
+                    supporting = stringResource(R.string.settings_wide_page_alone_desc),
+                    checked = settings.widePageAlone,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(widePageAlone = checked) } },
+                )
+                GroupDivider()
                 SecurityValueRow(
                     label = stringResource(R.string.settings_page_turn_animation),
                     value = animationOptions.first { it.first == settings.pageTurnAnimation }.second,

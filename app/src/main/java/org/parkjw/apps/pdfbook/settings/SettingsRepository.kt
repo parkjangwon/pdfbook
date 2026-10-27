@@ -43,6 +43,7 @@ class SettingsRepository(
         val VolumeKeyPagingKey = booleanPreferencesKey("volume_key_paging")
         val DefaultReadingDirectionKey = stringPreferencesKey("default_reading_direction")
         val CoverAloneKey = booleanPreferencesKey("cover_alone")
+        val WidePageAloneKey = booleanPreferencesKey("wide_page_alone")
         val TwoPageModeKey = stringPreferencesKey("two_page_mode")
         val KeepScreenOnKey = booleanPreferencesKey("keep_screen_on")
         val LanguageKey = stringPreferencesKey("language")
@@ -75,6 +76,7 @@ internal fun Preferences.toAppSettings(): AppSettings {
             defaults.defaultReadingDirection,
         ),
         coverAlone = this[SettingsRepository.CoverAloneKey] ?: defaults.coverAlone,
+        widePageAlone = this[SettingsRepository.WidePageAloneKey] ?: defaults.widePageAlone,
         twoPageMode = enumOrDefault(this[SettingsRepository.TwoPageModeKey], defaults.twoPageMode),
         keepScreenOn = this[SettingsRepository.KeepScreenOnKey] ?: defaults.keepScreenOn,
         language = enumOrDefault(this[SettingsRepository.LanguageKey], defaults.language),
@@ -117,6 +119,7 @@ private fun MutablePreferences.write(settings: AppSettings) {
     this[SettingsRepository.VolumeKeyPagingKey] = settings.volumeKeyPaging
     this[SettingsRepository.DefaultReadingDirectionKey] = settings.defaultReadingDirection.name
     this[SettingsRepository.CoverAloneKey] = settings.coverAlone
+    this[SettingsRepository.WidePageAloneKey] = settings.widePageAlone
     this[SettingsRepository.TwoPageModeKey] = settings.twoPageMode.name
     this[SettingsRepository.KeepScreenOnKey] = settings.keepScreenOn
     this[SettingsRepository.LanguageKey] = settings.language.name
