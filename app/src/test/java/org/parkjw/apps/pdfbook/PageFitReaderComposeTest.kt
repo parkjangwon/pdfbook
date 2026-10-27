@@ -9,12 +9,10 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeUp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,10 +61,17 @@ class PageFitReaderComposeTest {
     @Test
     fun swipePansWithinThePageAndNeverTurnsIt() {
         setReader(ReadingDirection.RTL, PageFit.Width)
-        composeRule.onRoot().performTouchInput { swipeUp() }
+        val maxOffset = pageFitMaxOffsetY()
+        assertEquals(maxOffset, zoom().offsetY, 0.5f)
+        // A small drag from the start must move by the drag delta, not snap back to the centre.
+        composeRule.onRoot().performTouchInput {
+            down(center)
+            moveBy(Offset(0f, -100f))
+            up()
+        }
         settle()
         assertEquals(0, pagerState.currentPage)
-        assertTrue(zoom().offsetY < pageFitMaxOffsetY())
+        assertEquals(maxOffset - 100f, zoom().offsetY, 1.5f)
     }
 
     @Test
