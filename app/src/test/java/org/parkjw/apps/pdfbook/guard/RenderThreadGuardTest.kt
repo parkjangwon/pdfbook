@@ -37,16 +37,18 @@ class RenderThreadGuardTest {
     @Test
     fun renderAndPrerenderNeverDrawOnMainThread() {
         val source = ThreadRecordingSource()
-        PageRenderer(source).use { renderer ->
-            runBlocking {
-                renderer.render(1, 10, 10)
-                renderer.prerender(listOf(PageRequest(1, 10, 10)), listOf(PageRequest(2, 10, 10)))
-                renderer.awaitPrerender()
-            }
+        val renderer = PageRenderer(source)
+        runBlocking {
+            renderer.render(1, 10, 10)
+            renderer.prerender(listOf(PageRequest(1, 10, 10)), listOf(PageRequest(2, 10, 10)))
+            renderer.awaitPrerender()
         }
+        renderer.close()
+        runBlocking { renderer.awaitClosed() }
         assertEquals(listOf(1, 2), source.pages)
         assertFalse("draw ran on the calling thread", source.threads.contains(Thread.currentThread()))
         assertFalse("draw ran on the main looper", source.onMain.any { it })
+        assertTrue("source was not closed", source.closed)
         assertFalse("close ran on the main looper", source.closedOnMain)
     }
 
@@ -65,6 +67,7 @@ class RenderThreadGuardTest {
         val threads = mutableListOf<Thread>()
         val onMain = mutableListOf<Boolean>()
         @Volatile var closedOnMain = false
+        @Volatile var closed = false
 
         override val pageCount: Int = 3
 
@@ -77,6 +80,7 @@ class RenderThreadGuardTest {
         }
 
         override fun close() {
+            closed = true
             closedOnMain = Looper.getMainLooper().isCurrentThread
         }
     }

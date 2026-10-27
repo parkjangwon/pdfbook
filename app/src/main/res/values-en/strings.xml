@@ -101,6 +101,9 @@
     <string name="reader_zone_previous">Previous</string>
     <string name="reader_zone_menu">Menu</string>
     <string name="reader_zone_next">Next</string>
+    <string name="reader_zone_previous_a11y">Previous page</string>
+    <string name="reader_zone_menu_a11y">Open or close the menu</string>
+    <string name="reader_zone_next_a11y">Next page</string>
     <string name="reader_tap_zone_label">Tap zones</string>
     <string name="reader_auto_crop_label">Crop margins</string>
     <string name="reader_crop_subtitle_single">Finds and trims white margins automatically</string>

@@ -100,6 +100,9 @@
     <string name="reader_zone_previous">이전</string>
     <string name="reader_zone_menu">메뉴</string>
     <string name="reader_zone_next">다음</string>
+    <string name="reader_zone_previous_a11y">이전 쪽으로 넘겨요</string>
+    <string name="reader_zone_menu_a11y">메뉴를 열거나 닫아요</string>
+    <string name="reader_zone_next_a11y">다음 쪽으로 넘겨요</string>
     <string name="reader_tap_zone_label">탭 영역</string>
     <string name="reader_auto_crop_label">여백 자르기</string>
     <string name="reader_crop_subtitle_single">흰 여백을 자동으로 찾아 잘라요</string>

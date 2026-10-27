@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -16,8 +17,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,6 +77,42 @@ class ReaderBrightnessSheetTest {
         composeRule.onNodeWithTag(READER_BRIGHTNESS_SWITCH_TAG).assertIsOn()
         composeRule.onAllNodesWithTag(READER_BRIGHTNESS_SLIDER_TAG).assertCountEquals(0)
         composeRule.runOnIdle { assertEquals(true, followSystem.value) }
+    }
+
+    @Test
+    fun sliderDragPreviewsButPersistsOnceOnRelease() {
+        var previews = 0
+        var lastPreview = -1
+        val persisted = mutableListOf<Int>()
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                ReaderBrightnessSheet(
+                    followSystem = false,
+                    percent = 40,
+                    onFollowSystemChange = {},
+                    onPercentChange = { persisted += it },
+                    onPercentPreview = {
+                        previews++
+                        lastPreview = it
+                    },
+                )
+            }
+        }
+        composeRule.onNodeWithTag(READER_BRIGHTNESS_SLIDER_TAG).performTouchInput {
+            down(Offset(width * 0.4f, center.y))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.55f, center.y))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.75f, center.y))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.9f, center.y))
+            advanceEventTime(16)
+            up()
+        }
+        composeRule.waitForIdle()
+        assertTrue("previews=$previews persisted=$persisted", previews >= 2)
+        assertEquals("release must persist exactly once", 1, persisted.size)
+        assertEquals(lastPreview, persisted.single())
     }
 
     private fun setReader() {

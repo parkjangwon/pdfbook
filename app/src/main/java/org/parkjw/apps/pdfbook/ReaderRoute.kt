@@ -1,7 +1,9 @@
 package org.parkjw.apps.pdfbook
 
+import android.content.Context
 import android.content.pm.ActivityInfo
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,9 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
 import org.parkjw.apps.pdfbook.settings.ScreenOrientation
@@ -93,19 +98,9 @@ fun ReaderRoute(
     ) {
         if (rendererOverride != null) return@produceState
         value = PdfOpenResult.Loading
-        val pfd = context.contentResolver.openFileDescriptor(uri, "r")
-        if (pfd == null) {
-            value = PdfOpenResult.Failed
-            return@produceState
-        }
-        var opened: PageRenderer? = null
-        value = try {
-            PageRenderer.open(pfd).also { opened = it }.let { PdfOpenResult.Ready(it) }
-        } catch (_: Exception) {
-            pfd.close()
-            PdfOpenResult.Failed
-        }
-        awaitDispose { opened?.close() }
+        val renderer = openReaderRenderer(context, uri)
+        value = if (renderer != null) PdfOpenResult.Ready(renderer) else PdfOpenResult.Failed
+        awaitDispose { renderer?.close() }
     }
 
     when (val result = openResult) {
@@ -216,4 +211,23 @@ private sealed class PdfOpenResult {
     data object Loading : PdfOpenResult()
     data object Failed : PdfOpenResult()
     data class Ready(val renderer: PageBitmaps) : PdfOpenResult()
+}
+
+internal suspend fun openReaderRenderer(
+    context: Context,
+    uri: Uri,
+    open: (ParcelFileDescriptor) -> PageRenderer = { PageRenderer.open(it) },
+): PageRenderer? = withContext(Dispatchers.IO) {
+    val renderer = try {
+        val pfd = context.contentResolver.openFileDescriptor(uri, "r") ?: return@withContext null
+        open(pfd)
+    } catch (_: Exception) {
+        return@withContext null
+    }
+    if (isActive) {
+        renderer
+    } else {
+        renderer.close()
+        null
+    }
 }
