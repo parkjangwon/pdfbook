@@ -713,6 +713,7 @@ private fun App(
                 pageTurnAnimation = settings.pageTurnAnimation,
                 screenOrientation = settings.screenOrientation,
                 fullScreenReading = settings.fullScreenReading,
+                displayMode = settings.displayMode,
                 coverAlone = settings.coverAlone,
                 keepScreenOn = settings.keepScreenOn,
                 onTapZoneSidePercentChange = { value -> onSettingsChange { it.copy(tapZoneSidePercent = value) } },

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list settings keep-zoom"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom display-mode"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -413,6 +413,16 @@ case "$FEATURE" in
     expect_id book_list_row
     shot book-list
     ;;
+  bookmarks)
+    open_book
+    show_overlay
+    tap_id reader_bookmark_toggle
+    shot bookmark-added
+    tap_id reader_bookmark_list_button
+    expect_id bookmark_sheet
+    expect_id bookmark_row
+    shot bookmark-list
+    ;;
   settings)
     open_library
     tap_id library_settings
@@ -436,6 +446,25 @@ case "$FEATURE" in
     shot keep-zoom-off
     tap_node text "$keep_zoom"
     shot keep-zoom-on
+    ;;
+  display-mode)
+    open_library
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    display_mode='Page color|페이지 색'
+    for _ in 1 2 3; do
+      wait_node text "$display_mode" 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    shot display-mode-default
+    tap_node text "$display_mode"
+    tap_node text 'Inverted|색 반전'
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_book
+    shot display-mode-invert
     ;;
 esac
 
