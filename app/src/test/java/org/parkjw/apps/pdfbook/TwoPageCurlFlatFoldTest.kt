@@ -299,16 +299,44 @@ class TwoPageCurlFlatFoldTest {
     }
 
     @Test
-    fun bookPostureStillSlidesOnARealHingeGap() {
-        // #172: the hinge gap keeps the Slide fallback until the hinge-cut curl lands.
-        val gap = build(
-            Case("book gap", listOf(2, 3), listOf(4, 5), ReadingDirection.LTR, CurlSide.Right),
-            posture = FoldPosture.Book(
-                IntRect(WINDOW_WIDTH / 2 - 4, 0, WINDOW_WIDTH / 2 + 4, WINDOW_HEIGHT),
-            ),
+    fun bookPostureHingeGapCurlsOnTheVirtualSpread() {
+        // #172: a real hinge gap now curls with the hinge cut instead of sliding. The layout is
+        // measured on the virtual spread (halves butted together) and carries the gap.
+        val fold = FoldPosture.Book(
+            IntRect(WINDOW_WIDTH / 2 - 8, 0, WINDOW_WIDTH / 2 + 8, WINDOW_HEIGHT),
         )
-        assertNull(gap.curl)
-        assertEquals(TwoPageCurlFallback.SpineGap, gap.fallback)
+        val cases = listOf(
+            Case("ltr forward", listOf(2, 3), listOf(4, 5), ReadingDirection.LTR, CurlSide.Right),
+            Case("ltr backward", listOf(4, 5), listOf(2, 3), ReadingDirection.LTR, CurlSide.Left),
+            Case("rtl forward", listOf(2, 3), listOf(4, 5), ReadingDirection.RTL, CurlSide.Left),
+            Case("rtl backward", listOf(4, 5), listOf(2, 3), ReadingDirection.RTL, CurlSide.Right),
+        )
+        cases.forEach { case ->
+            val built = build(case, posture = fold)
+            val curl = built.curl
+            assertTrue("${case.name} must curl, was ${built.fallback}", curl != null)
+            val layout = curl!!.layout
+            assertEquals("${case.name} hinge gap", 16f, layout.hinge!!.gap, 0.001f)
+            // The virtual spread is the two halves butted: nothing reaches past its width.
+            val virtualWidth = WINDOW_WIDTH - 16f
+            assertTrue("${case.name} sheet inside the spread", layout.sheet.right <= virtualWidth + 1f)
+            assertTrue("${case.name} back face inside the spread", layout.backFace.right <= virtualWidth + 1f)
+            assertTrue("${case.name} landing inside the spread", layout.landing.right <= virtualWidth + 1f)
+        }
+    }
+
+    @Test
+    fun aOnePixelGapKeepsTheFlushGeometry() {
+        // Not a real hinge gap: the 1px landing rule already holds, so it stays on the old path
+        // and is not cut (there is nothing to show through a 1px seam).
+        val fold = FoldPosture.Book(IntRect(WINDOW_WIDTH / 2, 0, WINDOW_WIDTH / 2 + 1, WINDOW_HEIGHT))
+        val built = build(
+            Case("book 1px", listOf(2, 3), listOf(4, 5), ReadingDirection.LTR, CurlSide.Right),
+            posture = fold,
+        )
+        val curl = built.curl
+        assertTrue("1px gap must still curl on the flush path, was ${built.fallback}", curl != null)
+        assertNull("1px gap must not be cut", curl!!.layout.hinge)
     }
 
     private fun build(
