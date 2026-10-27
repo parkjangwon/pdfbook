@@ -177,4 +177,49 @@ class BookStoreTest {
         store.save("content://a|1", saved.copy(page = 9, openedAt = 99L))
         assertEquals(BookState(page = 9, openedAt = 99L, autoCrop = true), store.state("content://a|1"))
     }
+
+    @Test
+    fun spreadShiftDefaultsToOff() = runTest {
+        val store = BookStore(dataStore())
+        assertNull(store.state("content://a|1"))
+        assertEquals(0, BookState().spreadShift)
+        store.save("content://a|1", BookState(page = 2))
+        assertEquals(0, store.state("content://a|1")?.spreadShift)
+    }
+
+    @Test
+    fun spreadShiftIsRememberedPerBook() = runTest {
+        val store = BookStore(dataStore())
+        store.save("content://a|1", BookState(page = 4, pageCount = 20, spreadShift = 1))
+        store.save("content://b|1", BookState(page = 1, pageCount = 8, spreadShift = 0))
+
+        assertEquals(1, store.state("content://a|1")?.spreadShift)
+        assertEquals(0, store.state("content://b|1")?.spreadShift)
+    }
+
+    @Test
+    fun legacyStateWithoutSpreadShiftReadsAsZero() = runTest {
+        val data = dataStore()
+        data.edit { it[stringPreferencesKey("book:old|1")] = "5,50,LTR,7,1" }
+        data.edit { it[stringPreferencesKey("book:older|1")] = "5,50,LTR,7" }
+
+        val books = BookStore(data)
+        assertEquals(0, books.state("old|1")?.spreadShift)
+        assertEquals(0, books.state("older|1")?.spreadShift)
+        assertEquals(
+            mapOf(
+                "old|1" to BookState(5, 50, ReadingDirection.LTR, 7, true),
+                "older|1" to BookState(5, 50, ReadingDirection.LTR, 7),
+            ),
+            books.states.first(),
+        )
+    }
+
+    @Test
+    fun spreadShiftRoundTripsAndRejectsOtherValues() {
+        val shifted = BookState(1, 9, ReadingDirection.RTL, 2, autoCrop = true, spreadShift = 1)
+        assertEquals(shifted, decodeState(encodeState(shifted)))
+        assertNull(decodeState("1,9,RTL,2,1,2"))
+        assertNull(decodeState("1,9,RTL,2,1,"))
+    }
 }
