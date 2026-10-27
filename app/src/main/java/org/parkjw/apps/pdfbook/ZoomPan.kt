@@ -36,12 +36,26 @@ fun clampZoomOffset(
     scale: Float,
     viewportWidth: Float,
     viewportHeight: Float,
+): Pair<Float, Float> = clampZoomOffset(x, y, scale, viewportWidth, viewportHeight, viewportWidth, viewportHeight)
+
+/**
+ * Clamps against the drawn content size instead of the viewport. A page fit to its width is
+ * already taller than the viewport at scale 1, so its scroll range must come from the bitmap.
+ */
+fun clampZoomOffset(
+    x: Float,
+    y: Float,
+    scale: Float,
+    viewportWidth: Float,
+    viewportHeight: Float,
+    contentWidth: Float,
+    contentHeight: Float,
 ): Pair<Float, Float> {
     if (scale <= 1f || viewportWidth <= 0f || viewportHeight <= 0f) {
         return 0f to 0f
     }
-    val maxX = viewportWidth * (scale - 1f) / 2f
-    val maxY = viewportHeight * (scale - 1f) / 2f
+    val maxX = ((contentWidth * scale - viewportWidth) / 2f).coerceAtLeast(0f)
+    val maxY = ((contentHeight * scale - viewportHeight) / 2f).coerceAtLeast(0f)
     return x.coerceIn(-maxX, maxX) to y.coerceIn(-maxY, maxY)
 }
 
@@ -51,16 +65,18 @@ fun ZoomState.applyPinch(
     centroidY: Float,
     viewportWidth: Float,
     viewportHeight: Float,
+    contentWidth: Float = viewportWidth,
+    contentHeight: Float = viewportHeight,
 ): ZoomState {
     val newScale = (scale * zoomChange).coerceIn(MinZoomScale, MaxZoomScale)
     if (newScale == scale) {
-        return clampToViewport(viewportWidth, viewportHeight)
+        return clampToViewport(viewportWidth, viewportHeight, contentWidth, contentHeight)
     }
     val ratio = newScale / scale
     val newOffsetX = offsetX * ratio + (centroidX - viewportWidth / 2f) * (1f - ratio)
     val newOffsetY = offsetY * ratio + (centroidY - viewportHeight / 2f) * (1f - ratio)
     return ZoomState(newScale, newOffsetX, newOffsetY)
-        .clampToViewport(viewportWidth, viewportHeight)
+        .clampToViewport(viewportWidth, viewportHeight, contentWidth, contentHeight)
 }
 
 fun ZoomState.applyPan(
@@ -68,12 +84,15 @@ fun ZoomState.applyPan(
     deltaY: Float,
     viewportWidth: Float,
     viewportHeight: Float,
+    contentWidth: Float = viewportWidth,
+    contentHeight: Float = viewportHeight,
+    allowPanAtBaseScale: Boolean = false,
 ): ZoomState {
-    if (allowsPageTurn) {
+    if (allowsPageTurn && !allowPanAtBaseScale) {
         return this
     }
     return copy(offsetX = offsetX + deltaX, offsetY = offsetY + deltaY)
-        .clampToViewport(viewportWidth, viewportHeight)
+        .clampToViewport(viewportWidth, viewportHeight, contentWidth, contentHeight)
 }
 
 fun ZoomState.applyGesture(
@@ -84,13 +103,24 @@ fun ZoomState.applyGesture(
     panY: Float,
     viewportWidth: Float,
     viewportHeight: Float,
+    contentWidth: Float = viewportWidth,
+    contentHeight: Float = viewportHeight,
+    allowPanAtBaseScale: Boolean = false,
 ): ZoomState {
     val afterZoom = if (zoomChange == 1f) {
         this
     } else {
-        applyPinch(zoomChange, centroidX, centroidY, viewportWidth, viewportHeight)
+        applyPinch(zoomChange, centroidX, centroidY, viewportWidth, viewportHeight, contentWidth, contentHeight)
     }
-    return afterZoom.applyPan(panX, panY, viewportWidth, viewportHeight)
+    return afterZoom.applyPan(
+        panX,
+        panY,
+        viewportWidth,
+        viewportHeight,
+        contentWidth,
+        contentHeight,
+        allowPanAtBaseScale,
+    )
 }
 
 fun ZoomState.toggleDoubleTap(
@@ -108,8 +138,10 @@ fun ZoomState.reset(): ZoomState = ZoomState()
 fun ZoomState.clampToViewport(
     viewportWidth: Float,
     viewportHeight: Float,
+    contentWidth: Float = viewportWidth,
+    contentHeight: Float = viewportHeight,
 ): ZoomState {
-    val (x, y) = clampZoomOffset(offsetX, offsetY, scale, viewportWidth, viewportHeight)
+    val (x, y) = clampZoomOffset(offsetX, offsetY, scale, viewportWidth, viewportHeight, contentWidth, contentHeight)
     return copy(offsetX = x, offsetY = y)
 }
 
