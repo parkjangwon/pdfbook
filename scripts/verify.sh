@@ -695,6 +695,8 @@ case "$FEATURE" in
     reading_settings
     scroll_to_text "$page_fit" 10 || true
     tap_node text "$page_fit"
+    # At 320dp / font 2 the third option sits below the dialog fold.
+    scroll_to_text "$fit_height" 6 || true
     wait_node text "$fit_height" 30 >/dev/null || die "Page fit dialog did not open at 320dp/font 2 (last dump: $OUT/ui.xml)"
     shot page-fit-dialog-320dp-font2
     "$ADB" shell input keyevent KEYCODE_BACK
