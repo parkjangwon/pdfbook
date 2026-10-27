@@ -1286,6 +1286,8 @@ internal data class TwoPageCurl(
  * page of [targetSpread], and the flap's back face is the opposite-side page, drawn at 100%.
  * The current spread's other page is returned as [TwoPageCurl.still] so the overlay can keep
  * it on screen while the pager is already on the target spread.
+ * A Book posture with a hinge gap is computed on the virtual spread (halves butted together)
+ * and carries the [CurlHinge], so the overlay cuts the turn at the fold instead of sliding.
  * Null (Slide fallback) when the bitmap cache missed or when the sheet and the pages it
  * lands on differ by more than 1px (오대리 rule), so the last frame cannot jump.
  */
@@ -1307,16 +1309,18 @@ internal fun buildTwoPageCurl(
     val visualCurrent = spreadLayout(currentSpread, direction)
     val visualTarget = spreadLayout(targetSpread, direction)
     val slots = listOf(canvas.left, canvas.right)
-    // spreadRequests() renders both pages at canvasWidth / 2, so look them up with that key:
-    // the curl slots can differ by one pixel on an odd width and would always miss the cache.
-    val requestWidth = (canvas.size.width / 2).coerceAtLeast(1)
+    // spreadRequests() renders both pages of a spread at slotWidth / 2 x slotHeight, with the
+    // slot from pageRenderSlot(): the window for Flat and for two-page Book (a hinge gap only
+    // shortens the virtual canvas), the top half for Tabletop. Look them up with that key.
+    val slot = pageRenderSlot(window, posture, direction, twoPage = true)
+    val requestWidth = (slot.width / 2).coerceAtLeast(1)
     val bitmapsCurrent = visualCurrent.map { page ->
-        renderer.cached(page, requestWidth, canvas.size.height)
+        renderer.cached(page, requestWidth, slot.height)
             ?.takeUnless { it.isRecycled }
             ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
     val bitmapsTarget = visualTarget.map { page ->
-        renderer.cached(page, requestWidth, canvas.size.height)
+        renderer.cached(page, requestWidth, slot.height)
             ?.takeUnless { it.isRecycled }
             ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
@@ -1353,6 +1357,7 @@ internal fun buildTwoPageCurl(
                 spread = sheet.expandedTo(backFace),
                 backFace = backFace,
                 spineX = if (side == CurlSide.Right) sheet.left else sheet.right,
+                hinge = canvas.hinge,
             ),
             frontCrop = cropsCurrent[turning].toContentRect(),
             backCrop = cropsTarget[turning].toContentRect(),

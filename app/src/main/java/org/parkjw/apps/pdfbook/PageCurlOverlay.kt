@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.asAndroidColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
@@ -53,6 +55,8 @@ data class CurlSheetLayout(
     val spread: Rect,
     val backFace: Rect,
     val spineX: Float,
+    /** Set for a Book posture with a hinge gap: the overlay cuts the frame at [spineX]. */
+    val hinge: CurlHinge? = null,
 )
 
 /**
@@ -187,112 +191,129 @@ fun PageCurlOverlay(
         val w = fit.width()
         val h = fit.height()
 
-        // The pager already shows the target spread, so two-page mode repaints its canvas
-        // and the page that must stay still from the current spread.
-        if (twoPage != null) {
-            drawRect(ReaderBackground)
-            val stillBitmap = stillImage
-            val stillCropPx = stillCrop
-            val stillRect = stillDest
-            if (stillBitmap != null && stillCropPx != null && stillRect != null) {
-                drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
+        // One pass of the whole frame in virtual-spread coordinates. A Book hinge gap draws it
+        // twice with a clip on each side of the spine, so the flap is cut at the fold and the
+        // gap is never painted (V071-TWOPAGE.md §4, option A).
+        // Local function: the draw phase must not allocate.
+        fun DrawScope.drawPass() {
+            // The pager already shows the target spread, so two-page mode repaints its canvas
+            // and the page that must stay still from the current spread.
+            if (twoPage != null) {
+                drawRect(ReaderBackground)
+                val stillBitmap = stillImage
+                val stillCropPx = stillCrop
+                val stillRect = stillDest
+                if (stillBitmap != null && stillCropPx != null && stillRect != null) {
+                    drawImageInto(stillBitmap, stillCropPx, stillRect, colorFilter, drawFit)
+                }
             }
-        }
 
-        drawImageInto(backImage, backCrop, sheetRect, colorFilter, drawFit)
-        if (p <= 0.001f) {
-            drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
-            return@Canvas
-        }
-
-        updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null)
-        if (!shape.foldValid) {
-            drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
-            return@Canvas
-        }
-
-        val diag = hypot(w, h)
-        val foldTop = Offset(left + shape.foldTopX, top + shape.foldTopY)
-        val foldBottom = Offset(left + shape.foldBottomX, top + shape.foldBottomY)
-        val mid = Offset(left + shape.midX, top + shape.midY)
-
-        // Shadow: one linear gradient from the fold onto the revealed page only.
-        val shadowWidth = CURL_SHADOW_WIDTH_DP.dp.toPx() * curlShadowWidthFraction(p)
-        if (shadowWidth > 0.5f && shape.revealedCount >= 3) {
-            revealedPath.setPolygon(shape.revealed, shape.revealedCount, left, top)
-            clipPath(revealedPath) {
-                drawFoldGradient(
-                    brush = shadowBrush,
-                    origin = mid,
-                    angle = atan2(-shape.normalY, -shape.normalX),
-                    lengthPx = shadowWidth,
-                    diagonal = diag,
-                )
-            }
-        }
-
-        // Front page: everything the fold has not peeled yet.
-        if (shape.frontCount >= 3) {
-            frontPath.setPolygon(shape.front, shape.frontCount, left, top)
-            clipPath(frontPath) {
+            drawImageInto(backImage, backCrop, sheetRect, colorFilter, drawFit)
+            if (p <= 0.001f) {
                 drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
+                return
             }
-        }
 
-        // Flap: back face, inner shade, fold highlight.
-        if (shape.flapCount >= 3) {
-            flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
-            drawPath(flapPath, flapColor)
-            clipPath(flapPath) {
-                val backFace = flapBack
-                val backFaceCrop = flapBackCrop
-                if (backFace != null && backFaceCrop != null) {
-                    drawMirroredPage(
-                        bitmap = backFace,
-                        crop = backFaceCrop,
-                        frontFit = fit,
-                        stillDest = stillDest,
-                        shape = shape,
-                        mirror = mirror,
-                        mirrorValues = backFaceValues,
-                        paint = mirrorPaint,
-                        androidFilter = androidFilter,
-                        srcRect = srcRect,
-                        dstRect = dstRect,
-                        alpha = 255,
-                        spineSide = side,
-                    )
-                } else {
-                    drawMirroredPage(
-                        bitmap = front,
-                        crop = crop,
-                        frontFit = fit,
-                        stillDest = null,
-                        shape = shape,
-                        mirror = mirror,
-                        mirrorValues = mirrorValues,
-                        paint = mirrorPaint,
-                        androidFilter = androidFilter,
-                        srcRect = srcRect,
-                        dstRect = dstRect,
-                        alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt(),
-                        spineSide = null,
+            updateCurlShape(w, h, p, side, shape, spreadFlap || layout != null)
+            if (!shape.foldValid) {
+                drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
+                return
+            }
+
+            val diag = hypot(w, h)
+            val foldTop = Offset(left + shape.foldTopX, top + shape.foldTopY)
+            val foldBottom = Offset(left + shape.foldBottomX, top + shape.foldBottomY)
+            val mid = Offset(left + shape.midX, top + shape.midY)
+
+            // Shadow: one linear gradient from the fold onto the revealed page only.
+            val shadowWidth = CURL_SHADOW_WIDTH_DP.dp.toPx() * curlShadowWidthFraction(p)
+            if (shadowWidth > 0.5f && shape.revealedCount >= 3) {
+                revealedPath.setPolygon(shape.revealed, shape.revealedCount, left, top)
+                clipPath(revealedPath) {
+                    drawFoldGradient(
+                        brush = shadowBrush,
+                        origin = mid,
+                        angle = atan2(-shape.normalY, -shape.normalX),
+                        lengthPx = shadowWidth,
+                        diagonal = diag,
                     )
                 }
-                drawFoldGradient(
-                    brush = shadeBrush,
-                    origin = mid,
-                    angle = atan2(shape.normalY, shape.normalX),
-                    lengthPx = CURL_SHADE_WIDTH_DP.dp.toPx(),
-                    diagonal = diag,
+            }
+
+            // Front page: everything the fold has not peeled yet.
+            if (shape.frontCount >= 3) {
+                frontPath.setPolygon(shape.front, shape.frontCount, left, top)
+                clipPath(frontPath) {
+                    drawImageInto(frontImage, crop, sheetRect, colorFilter, drawFit)
+                }
+            }
+
+            // Flap: back face, inner shade, fold highlight.
+            if (shape.flapCount >= 3) {
+                flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
+                drawPath(flapPath, flapColor)
+                clipPath(flapPath) {
+                    val backFace = flapBack
+                    val backFaceCrop = flapBackCrop
+                    if (backFace != null && backFaceCrop != null) {
+                        drawMirroredPage(
+                            bitmap = backFace,
+                            crop = backFaceCrop,
+                            frontFit = fit,
+                            stillDest = stillDest,
+                            shape = shape,
+                            mirror = mirror,
+                            mirrorValues = backFaceValues,
+                            paint = mirrorPaint,
+                            androidFilter = androidFilter,
+                            srcRect = srcRect,
+                            dstRect = dstRect,
+                            alpha = 255,
+                            spineSide = side,
+                        )
+                    } else {
+                        drawMirroredPage(
+                            bitmap = front,
+                            crop = crop,
+                            frontFit = fit,
+                            stillDest = null,
+                            shape = shape,
+                            mirror = mirror,
+                            mirrorValues = mirrorValues,
+                            paint = mirrorPaint,
+                            androidFilter = androidFilter,
+                            srcRect = srcRect,
+                            dstRect = dstRect,
+                            alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt(),
+                            spineSide = null,
+                        )
+                    }
+                    drawFoldGradient(
+                        brush = shadeBrush,
+                        origin = mid,
+                        angle = atan2(shape.normalY, shape.normalX),
+                        lengthPx = CURL_SHADE_WIDTH_DP.dp.toPx(),
+                        diagonal = diag,
+                    )
+                }
+                drawLine(
+                    color = foldHighlightColor,
+                    start = foldTop,
+                    end = foldBottom,
+                    strokeWidth = CURL_FOLD_HIGHLIGHT_DP.dp.toPx(),
                 )
             }
-            drawLine(
-                color = foldHighlightColor,
-                start = foldTop,
-                end = foldBottom,
-                strokeWidth = CURL_FOLD_HIGHLIGHT_DP.dp.toPx(),
-            )
+        }
+
+        val hinge = twoPage?.hinge
+        if (hinge == null) {
+            drawPass()
+        } else {
+            val spine = twoPage.spineX
+            clipRect(0f, 0f, spine, size.height) { drawPass() }
+            clipRect(spine + hinge.gap, 0f, size.width, size.height) {
+                translate(hinge.gap, 0f) { drawPass() }
+            }
         }
     }
 }
