@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.R
@@ -321,10 +322,23 @@ internal fun SecurityValueRow(
     label: String,
     value: String,
     onClick: () -> Unit,
+    supporting: String? = null,
+    enabled: Boolean = true,
 ) {
     ListItem(
         headlineContent = {
             Text(label, style = MaterialTheme.typography.bodyLarge)
+        },
+        supportingContent = supporting?.let {
+            {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -343,6 +357,6 @@ internal fun SecurityValueRow(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier
             .fillMaxWidth()
-            .selectable(selected = false, onClick = onClick),
+            .selectable(selected = false, enabled = enabled, onClick = onClick),
     )
 }
