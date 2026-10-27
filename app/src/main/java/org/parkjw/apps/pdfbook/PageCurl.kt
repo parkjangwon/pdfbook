@@ -197,13 +197,21 @@ class CurlShape {
 
 const val CURL_MAX_VERTS = 12
 
-/** Fills [out] with the curl polygons for [progress]; no allocation. */
+/**
+ * Fills [out] with the curl polygons for [progress]; no allocation.
+ *
+ * [spreadFlap] widens only the flap clip from the sheet rect to the whole spread rect
+ * (sheet and the page across the spine). The fold and tip math is unchanged, so at
+ * progress 1 the flap lands exactly on the opposite page. The default keeps the
+ * single-sheet output byte-identical.
+ */
 fun updateCurlShape(
     width: Float,
     height: Float,
     progress: Float,
     side: CurlSide,
     out: CurlShape,
+    spreadFlap: Boolean = false,
 ) {
     out.frontCount = 0
     out.revealedCount = 0
@@ -252,22 +260,35 @@ fun updateCurlShape(
     fillPageRect(width, height, out.scratchA)
     // Front page: the part on the far side of the fold from the origin.
     val frontCount = clipHalfPlane(out.scratchA, 4, out.front, midX, midY, dx, dy, keepPositive = true)
-    out.frontCount = clipPageRect(frontCount, out.front, out.scratchA, out.scratchB, width, height, out.front)
+    out.frontCount = clipRect(
+        frontCount,
+        out.front,
+        out.scratchA,
+        out.scratchB,
+        0f,
+        0f,
+        width,
+        height,
+        out.front,
+    )
 
     // Revealed next page: the part the flap uncovers.
     fillPageRect(width, height, out.scratchA)
     val revealedCount = clipHalfPlane(out.scratchA, 4, out.scratchB, midX, midY, dx, dy, keepPositive = false)
-    out.revealedCount = clipPageRect(
+    out.revealedCount = clipRect(
         revealedCount,
         out.scratchB,
         out.scratchA,
         out.revealed,
+        0f,
+        0f,
         width,
         height,
         out.revealed,
     )
 
-    // Flap: the peeled part reflected across the fold, clipped to the page.
+    // Flap: the peeled part reflected across the fold, clipped to the sheet or, for a
+    // spread, to the page across the spine as well.
     val reflected = reflectAcrossFold(
         out.revealed,
         out.revealedCount,
@@ -278,12 +299,16 @@ fun updateCurlShape(
         len,
         out.scratchA,
     )
-    out.flapCount = clipPageRect(
+    val flapLeft = if (spreadFlap && side == CurlSide.Right) -width else 0f
+    val flapRight = if (spreadFlap && side == CurlSide.Left) 2f * width else width
+    out.flapCount = clipRect(
         reflected,
         out.scratchA,
         out.scratchB,
         out.scratchA,
-        width,
+        flapLeft,
+        0f,
+        flapRight,
         height,
         out.flap,
     )
@@ -418,19 +443,21 @@ private fun clipHalfPlane(
     return out
 }
 
-private fun clipPageRect(
+private fun clipRect(
     count: Int,
     src: FloatArray,
     bufA: FloatArray,
     bufB: FloatArray,
-    width: Float,
-    height: Float,
+    left: Float,
+    top: Float,
+    right: Float,
+    bottom: Float,
     out: FloatArray,
 ): Int {
-    var current = clipHalfPlane(src, count, bufA, 0f, 0f, 1f, 0f, keepPositive = true)
-    current = clipHalfPlane(bufA, current, bufB, width, 0f, -1f, 0f, keepPositive = true)
-    current = clipHalfPlane(bufB, current, bufA, 0f, 0f, 0f, 1f, keepPositive = true)
-    current = clipHalfPlane(bufA, current, bufB, 0f, height, 0f, -1f, keepPositive = true)
+    var current = clipHalfPlane(src, count, bufA, left, top, 1f, 0f, keepPositive = true)
+    current = clipHalfPlane(bufA, current, bufB, right, top, -1f, 0f, keepPositive = true)
+    current = clipHalfPlane(bufB, current, bufA, left, top, 0f, 1f, keepPositive = true)
+    current = clipHalfPlane(bufA, current, bufB, left, bottom, 0f, -1f, keepPositive = true)
     if (bufB !== out) {
         for (i in 0 until current * 2) out[i] = bufB[i]
     }

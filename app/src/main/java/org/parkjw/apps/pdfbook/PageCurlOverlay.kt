@@ -51,6 +51,14 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
  * [flapColor], [shadowColor], [shadowAlpha], [shadowMidAlpha] and
  * [foldHighlightColor] carry the per-mode values (normal mode by default; the
  * sepia and night variants are supplied by the display-mode work).
+ *
+ * [flapBack] is an optional back-face bitmap for the peeled flap: when non-null it is
+ * turned with the sheet (R ∘ Mspine) into its still page across the spine at full opacity,
+ * cropped by [flapContentCrop] and tinted by [colorFilter], so the text on it is never
+ * mirrored and the last frame equals the still spread; when null the flap keeps the v0.7.0
+ * look (paper-back color plus the front page mirrored at 8%). [spreadFlap] lets the flap
+ * extend over the opposite page across the spine; the default keeps the single-sheet output
+ * unchanged.
  */
 @Composable
 fun PageCurlOverlay(
@@ -62,6 +70,9 @@ fun PageCurlOverlay(
     colorFilter: ColorFilter? = null,
     contentCrop: Rect? = null,
     backContentCrop: Rect? = contentCrop,
+    flapBack: Bitmap? = null,
+    flapContentCrop: Rect? = backContentCrop,
+    spreadFlap: Boolean = false,
     flapColor: Color = ReaderPageBack,
     shadowColor: Color = ReaderPageShadow,
     shadowAlpha: Float = CURL_SHADOW_ALPHA,
@@ -77,12 +88,16 @@ fun PageCurlOverlay(
     val backCrop = remember(back, backContentCrop) {
         sourceCropPixels(back.width, back.height, backContentCrop)
     }
+    val flapBackCrop = remember(flapBack, flapContentCrop) {
+        flapBack?.let { sourceCropPixels(it.width, it.height, flapContentCrop) }
+    }
     val shape = remember { CurlShape() }
     val frontPath = remember { Path() }
     val revealedPath = remember { Path() }
     val flapPath = remember { Path() }
     val mirror = remember { Matrix() }
     val mirrorValues = remember { FloatArray(9) }
+    val backFaceValues = remember { FloatArray(9) }
     val mirrorPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
     }
@@ -122,7 +137,7 @@ fun PageCurlOverlay(
             return@Canvas
         }
 
-        updateCurlShape(w, h, p, side, shape)
+        updateCurlShape(w, h, p, side, shape, spreadFlap)
         if (!shape.foldValid) {
             drawImageFit(frontImage, crop, colorFilter)
             return@Canvas
@@ -156,26 +171,49 @@ fun PageCurlOverlay(
             }
         }
 
-        // Flap: paper back, mirrored front at 8%, inner shade, fold highlight.
+        // Flap: back face, inner shade, fold highlight.
         if (shape.flapCount >= 3) {
             flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
             drawPath(flapPath, flapColor)
             clipPath(flapPath) {
-                drawMirroredFront(
-                    bitmap = front,
-                    crop = crop,
-                    left = left,
-                    top = top,
-                    width = w,
-                    height = h,
-                    shape = shape,
-                    mirror = mirror,
-                    mirrorValues = mirrorValues,
-                    paint = mirrorPaint,
-                    androidFilter = androidFilter,
-                    srcRect = srcRect,
-                    dstRect = dstRect,
-                )
+                val backFace = flapBack
+                val backFaceCrop = flapBackCrop
+                if (backFace != null && backFaceCrop != null) {
+                    drawMirroredFront(
+                        bitmap = backFace,
+                        crop = backFaceCrop,
+                        left = left,
+                        top = top,
+                        width = w,
+                        height = h,
+                        shape = shape,
+                        mirror = mirror,
+                        mirrorValues = backFaceValues,
+                        paint = mirrorPaint,
+                        androidFilter = androidFilter,
+                        srcRect = srcRect,
+                        dstRect = dstRect,
+                        alpha = 255,
+                        spineSide = side,
+                    )
+                } else {
+                    drawMirroredFront(
+                        bitmap = front,
+                        crop = crop,
+                        left = left,
+                        top = top,
+                        width = w,
+                        height = h,
+                        shape = shape,
+                        mirror = mirror,
+                        mirrorValues = mirrorValues,
+                        paint = mirrorPaint,
+                        androidFilter = androidFilter,
+                        srcRect = srcRect,
+                        dstRect = dstRect,
+                        alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt(),
+                    )
+                }
                 drawFoldGradient(
                     brush = shadeBrush,
                     origin = mid,
@@ -240,6 +278,61 @@ private fun DrawScope.drawMirroredFront(
     androidFilter: android.graphics.ColorFilter?,
     srcRect: android.graphics.Rect,
     dstRect: RectF,
+    alpha: Int,
+    /** Non-null draws a flap back face: turned by R ∘ Mspine into the still page across the spine. */
+    spineSide: CurlSide? = null,
+) {
+    val nx = shape.normalX
+    val ny = shape.normalY
+    if (spineSide == null) {
+        val a = 1f - 2f * nx * nx
+        val b = -2f * nx * ny
+        val d = 1f - 2f * ny * ny
+        val midX = left + shape.midX
+        val midY = top + shape.midY
+        // Filled in place: the draw phase must not allocate.
+        mirrorValues[0] = a
+        mirrorValues[1] = b
+        mirrorValues[2] = midX - (a * midX + b * midY)
+        mirrorValues[3] = b
+        mirrorValues[4] = d
+        mirrorValues[5] = midY - (b * midX + d * midY)
+        mirrorValues[6] = 0f
+        mirrorValues[7] = 0f
+        mirrorValues[8] = 1f
+        dstRect.set(left, top, left + width, top + height)
+    } else {
+        flapBackMatrixValues(shape, left, top, width, spineSide, mirrorValues)
+        val stillLeft = if (spineSide == CurlSide.Right) left - width else left + width
+        dstRect.set(stillLeft, top, stillLeft + width, top + height)
+    }
+    mirror.setValues(mirrorValues)
+    paint.alpha = alpha
+    paint.colorFilter = androidFilter
+    srcRect.set(crop.left, crop.top, crop.left + crop.width, crop.top + crop.height)
+    drawIntoCanvas { canvas ->
+        val native = canvas.nativeCanvas
+        val save = native.save()
+        native.concat(mirror)
+        native.drawBitmap(bitmap, srcRect, dstRect, paint)
+        native.restoreToCount(save)
+    }
+}
+
+/**
+ * Writes the flap back-face matrix M = R ∘ Mspine into [out]: the sheet is first reflected
+ * about the spine (x → 2·spineX − x, with spineX = [left] for [CurlSide.Right] and
+ * left + [width] for [CurlSide.Left]) and then folded by R. The back face is drawn into its
+ * still rect across the spine, so at progress 1 M is the identity and the frame equals the
+ * still spread with no mirrored text. Filled in place: the draw phase must not allocate.
+ */
+internal fun flapBackMatrixValues(
+    shape: CurlShape,
+    left: Float,
+    top: Float,
+    width: Float,
+    side: CurlSide,
+    out: FloatArray,
 ) {
     val nx = shape.normalX
     val ny = shape.normalY
@@ -248,28 +341,18 @@ private fun DrawScope.drawMirroredFront(
     val d = 1f - 2f * ny * ny
     val midX = left + shape.midX
     val midY = top + shape.midY
-    // Filled in place: the draw phase must not allocate.
-    mirrorValues[0] = a
-    mirrorValues[1] = b
-    mirrorValues[2] = midX - (a * midX + b * midY)
-    mirrorValues[3] = b
-    mirrorValues[4] = d
-    mirrorValues[5] = midY - (b * midX + d * midY)
-    mirrorValues[6] = 0f
-    mirrorValues[7] = 0f
-    mirrorValues[8] = 1f
-    mirror.setValues(mirrorValues)
-    paint.alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt()
-    paint.colorFilter = androidFilter
-    srcRect.set(crop.left, crop.top, crop.left + crop.width, crop.top + crop.height)
-    dstRect.set(left, top, left + width, top + height)
-    drawIntoCanvas { canvas ->
-        val native = canvas.nativeCanvas
-        val save = native.save()
-        native.concat(mirror)
-        native.drawBitmap(bitmap, srcRect, dstRect, paint)
-        native.restoreToCount(save)
-    }
+    val tx = midX - (a * midX + b * midY)
+    val ty = midY - (b * midX + d * midY)
+    val spineX = if (side == CurlSide.Right) left else left + width
+    out[0] = -a
+    out[1] = b
+    out[2] = 2f * spineX * a + tx
+    out[3] = -b
+    out[4] = d
+    out[5] = 2f * spineX * b + ty
+    out[6] = 0f
+    out[7] = 0f
+    out[8] = 1f
 }
 
 private fun DrawScope.drawImageFit(

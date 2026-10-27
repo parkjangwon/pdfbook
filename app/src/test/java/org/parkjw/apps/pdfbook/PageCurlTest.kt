@@ -3,6 +3,7 @@ package org.parkjw.apps.pdfbook
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -124,6 +125,33 @@ class PageCurlTest {
     }
 
     @Test
+    fun flapBackMatrixTurnsTheBackFaceIntoTheStillSpread() {
+        val width = 400f
+        val height = 600f
+        val left = 120f
+        val top = 40f
+        val identity = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
+        for (side in listOf(CurlSide.Left, CurlSide.Right)) {
+            val shape = CurlShape()
+            updateCurlShape(width, height, 1f, side, shape, spreadFlap = true)
+            val values = FloatArray(9)
+            flapBackMatrixValues(shape, left, top, width, side, values)
+            for (i in identity.indices) {
+                assertEquals("M[$i] at p=1, $side", identity[i], values[i], 1e-4f)
+            }
+
+            // At the half turn the tip sits on the spine and no flap has crossed it yet.
+            val half = CurlShape()
+            updateCurlShape(width, height, 0.5f, side, half, spreadFlap = true)
+            val spine = if (side == CurlSide.Right) 0f else width
+            assertEquals("tip at the spine, $side", spine, half.tipX, 0.01f)
+            val box = boundsOf(half.flap, half.flapCount)
+            val past = if (side == CurlSide.Right) box[0] else width - box[1]
+            assertEquals("flap past the spine at p=0.5, $side", 0f, past, 0.01f)
+        }
+    }
+
+    @Test
     fun releaseCompletesByDistanceOrFlingOnly() {
         // Slow drags: a quarter turn from the mockup completes.
         assertTrue(curlReleaseCompletes(0.25f, alongVelocityPx = 0f, flingVelocityPx = 1000f))
@@ -210,6 +238,203 @@ class PageCurlTest {
         assertNull(curlOverlayBounds(window, FoldPosture.Flat, ReadingDirection.LTR, twoPage = false))
         val tabletop = FoldPosture.Tabletop(IntRect(0, 280, 800, 320))
         assertNull(curlOverlayBounds(window, tabletop, ReadingDirection.LTR, twoPage = false))
+    }
+
+    @Test
+    fun singlePageFlapKeepsTheV070Geometry() {
+        val width = 400f
+        val height = 600f
+        val shape = CurlShape()
+        updateCurlShape(width, height, 0.4f, CurlSide.Right, shape)
+        assertEquals(80f, shape.tipX, 0.01f)
+        assertEquals(497.29f, shape.tipY, 0.02f)
+        assertEquals(400f, shape.foldTopX, 0.01f)
+        assertEquals(50.18f, shape.foldTopY, 0.05f)
+        assertEquals(223.52f, shape.foldBottomX, 0.05f)
+        assertEquals(600f, shape.foldBottomY, 0.01f)
+        assertEquals(0.7978f, polygonArea(shape.front, shape.frontCount) / (width * height), 0.001f)
+        assertEquals(0.2022f, polygonArea(shape.flap, shape.flapCount) / (width * height), 0.001f)
+
+        val explicit = CurlShape()
+        updateCurlShape(width, height, 0.4f, CurlSide.Right, explicit, spreadFlap = false)
+        assertArrayEquals(shape.flap, explicit.flap, 0f)
+        assertArrayEquals(shape.front, explicit.front, 0f)
+        assertArrayEquals(shape.revealed, explicit.revealed, 0f)
+    }
+
+    @Test
+    fun singlePageFlapNeverLeavesTheSheet() {
+        val width = 400f
+        val height = 600f
+        for (side in listOf(CurlSide.Left, CurlSide.Right)) {
+            var p = 0f
+            while (p <= 1f) {
+                val shape = CurlShape()
+                updateCurlShape(width, height, p, side, shape)
+                assertInside(shape.flap, shape.flapCount, 0f, 0f, width, height, "sheet p=$p $side")
+                p += 0.01f
+            }
+        }
+    }
+
+    @Test
+    fun spreadFlapCoversTheOppositePageAtTheEnd() {
+        val width = 400f
+        val height = 600f
+        for (side in listOf(CurlSide.Left, CurlSide.Right)) {
+            val shape = CurlShape()
+            updateCurlShape(width, height, 1f, side, shape, spreadFlap = true)
+            assertEquals(
+                "flap area $side",
+                width * height,
+                polygonArea(shape.flap, shape.flapCount),
+                1f,
+            )
+            val left = if (side == CurlSide.Right) -width else width
+            val right = if (side == CurlSide.Right) 0f else 2f * width
+            assertInside(shape.flap, shape.flapCount, left, 0f, right, height, "opposite page $side")
+        }
+    }
+
+    @Test
+    fun spreadFlapStaysInsideTheSpreadAndGrowsWithProgress() {
+        val width = 400f
+        val height = 600f
+        for (side in listOf(CurlSide.Left, CurlSide.Right)) {
+            val left = if (side == CurlSide.Right) -width else 0f
+            val right = if (side == CurlSide.Right) width else 2f * width
+            var previous = 0f
+            var p = 0f
+            while (p <= 1f) {
+                val sheet = CurlShape()
+                updateCurlShape(width, height, p, side, sheet)
+                val spread = CurlShape()
+                updateCurlShape(width, height, p, side, spread, spreadFlap = true)
+                val spreadArea = polygonArea(spread.flap, spread.flapCount)
+                assertInside(spread.flap, spread.flapCount, left, 0f, right, height, "spread p=$p $side")
+                assertTrue(
+                    "spread flap shrank at p=$p $side ($spreadArea < $previous)",
+                    spreadArea >= previous - 0.5f,
+                )
+                assertTrue(
+                    "spread flap smaller than the sheet flap at p=$p $side",
+                    spreadArea >= polygonArea(sheet.flap, sheet.flapCount) - 0.5f,
+                )
+                previous = spreadArea
+                p += 0.01f
+            }
+            assertEquals(width * height, previous, 1f)
+        }
+    }
+
+    @Test
+    fun leftAndRightSpreadFlapsAreMirrorImages() {
+        val width = 400f
+        val height = 600f
+        for (p in listOf(0.25f, 0.5f, 0.75f, 1f)) {
+            val right = CurlShape()
+            updateCurlShape(width, height, p, CurlSide.Right, right, spreadFlap = true)
+            val left = CurlShape()
+            updateCurlShape(width, height, p, CurlSide.Left, left, spreadFlap = true)
+            assertEquals(
+                "flap area p=$p",
+                polygonArea(right.flap, right.flapCount),
+                polygonArea(left.flap, left.flapCount),
+                0.5f,
+            )
+            val rightBox = boundsOf(right.flap, right.flapCount)
+            val leftBox = boundsOf(left.flap, left.flapCount)
+            assertEquals("mirrored left edge p=$p", width - rightBox[1], leftBox[0], 0.5f)
+            assertEquals("mirrored right edge p=$p", width - rightBox[0], leftBox[1], 0.5f)
+            assertEquals("top edge p=$p", rightBox[2], leftBox[2], 0.5f)
+            assertEquals("bottom edge p=$p", rightBox[3], leftBox[3], 0.5f)
+        }
+    }
+
+    @Test
+    fun spreadRectsMirrorForLtrRtlAndKeepTheHingeUncovered() {
+        val window = IntSize(800, 600)
+        val book = FoldPosture.Book(IntRect(390, 0, 410, 600))
+        val forwardLtr = curlSpreadRects(window, book, ReadingDirection.LTR, curlSide(ReadingDirection.LTR, true), 2)!!
+        assertEquals(IntRect(410, 0, 800, 600), forwardLtr.sheet)
+        assertEquals(IntRect(0, 0, 800, 600), forwardLtr.spread)
+        assertEquals(IntRect(390, 0, 410, 600), forwardLtr.gap)
+
+        val forwardRtl = curlSpreadRects(window, book, ReadingDirection.RTL, curlSide(ReadingDirection.RTL, true), 2)!!
+        assertEquals(IntRect(0, 0, 390, 600), forwardRtl.sheet)
+        assertEquals(forwardLtr.spread, forwardRtl.spread)
+        assertEquals(forwardLtr.gap, forwardRtl.gap)
+
+        val backwardLtr = curlSpreadRects(window, book, ReadingDirection.LTR, curlSide(ReadingDirection.LTR, false), 2)!!
+        assertEquals(forwardRtl.sheet, backwardLtr.sheet)
+    }
+
+    @Test
+    fun onePageSpreadUsesTheSingleBookHalf() {
+        val window = IntSize(800, 600)
+        val book = FoldPosture.Book(IntRect(390, 0, 410, 600))
+        val ltr = curlSpreadRects(window, book, ReadingDirection.LTR, CurlSide.Right, 1)!!
+        assertEquals(IntRect(0, 0, 390, 600), ltr.sheet)
+        assertEquals(ltr.sheet, ltr.spread)
+        assertNull(ltr.gap)
+
+        val rtl = curlSpreadRects(window, book, ReadingDirection.RTL, CurlSide.Left, 1)!!
+        assertEquals(IntRect(410, 0, 800, 600), rtl.sheet)
+        assertEquals(rtl.sheet, rtl.spread)
+    }
+
+    @Test
+    fun tabletopAndFlatSpreadsUseTheirPageSlot() {
+        val window = IntSize(800, 600)
+        val tabletop = FoldPosture.Tabletop(IntRect(0, 280, 800, 320))
+        val slot = tabletopHalves(window, tabletop.foldBounds).first
+        val tableRects = curlSpreadRects(window, tabletop, ReadingDirection.LTR, CurlSide.Right, 2)!!
+        assertEquals(slot, tableRects.spread)
+        assertEquals(IntRect(400, 0, 800, 280), tableRects.sheet)
+        assertNull(tableRects.gap)
+        val tableSingle = curlSpreadRects(window, tabletop, ReadingDirection.LTR, CurlSide.Left, 1)!!
+        assertEquals(slot, tableSingle.sheet)
+        assertEquals(slot, tableSingle.spread)
+
+        val flat = curlSpreadRects(window, FoldPosture.Flat, ReadingDirection.LTR, CurlSide.Left, 2)!!
+        assertEquals(IntRect(0, 0, 800, 600), flat.spread)
+        assertEquals(IntRect(0, 0, 400, 600), flat.sheet)
+        assertNull(flat.gap)
+        assertNull(curlSpreadRects(window, FoldPosture.Flat, ReadingDirection.LTR, CurlSide.Left, 0))
+    }
+
+    private fun assertInside(
+        points: FloatArray,
+        count: Int,
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+        label: String,
+    ) {
+        if (count < 3) return
+        for (i in 0 until count) {
+            val x = points[i * 2]
+            val y = points[i * 2 + 1]
+            assertTrue("$label: x $x outside $left..$right", x >= left - 0.01f && x <= right + 0.01f)
+            assertTrue("$label: y $y outside $top..$bottom", y >= top - 0.01f && y <= bottom + 0.01f)
+        }
+    }
+
+    private fun boundsOf(points: FloatArray, count: Int): FloatArray {
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+        for (i in 0 until count) {
+            val x = points[i * 2]
+            val y = points[i * 2 + 1]
+            if (x < minX) minX = x
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+        }
+        return floatArrayOf(minX, maxX, minY, maxY)
     }
 
     @Test
