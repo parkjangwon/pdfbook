@@ -18,8 +18,12 @@ class DesignGuardTest {
             Regex("""shadowElevation\s*=\s*+(?!0(?:\.0)?\.dp\b)"""),
             Regex("""tonalElevation\s*=\s*+(?!0(?:\.0)?\.dp\b)"""),
         )
+        // The page-curl flap is the one approved shadow/gradient exception
+        // (docs/DESIGN-EXCEPTIONS.md "Page curl (approved exception)").
+        val brushAllowed = setOf("PageCurlOverlay.kt")
         val offenders = javaRoot.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
+            .filterNot { it.name in brushAllowed }
             .flatMap { file ->
                 val rel = file.relativeTo(root)
                 val lineHits = file.readLines().mapIndexedNotNull { index, line ->
@@ -322,6 +326,42 @@ class DesignGuardTest {
         assertTrue(usesZeroTonalElevation("Surface(shadowElevation = 0.dp, tonalElevation = 0.dp) {}"))
     }
 
+    @Test
+    fun pageCurlOverlayAllocatesOnlyOutsideRemember() {
+        val source = File(
+            projectRoot(),
+            "app/src/main/java/org/parkjw/apps/pdfbook/PageCurlOverlay.kt",
+        ).readText()
+        val offenders = findPerFrameAllocations(source)
+        assertEquals(
+            "allocations in the page-curl draw phase:\n${offenders.joinToString("\n")}",
+            emptyList<String>(),
+            offenders,
+        )
+        assertTrue(
+            "self-check: the old per-frame mirror array must be caught",
+            findPerFrameAllocations(
+                """
+                fun draw() {
+                    mirror.setValues(floatArrayOf(a, b, c))
+                }
+                """.trimIndent(),
+            ).isNotEmpty(),
+        )
+        assertFalse(
+            "self-check: remembered paths and arrays are fine",
+            findPerFrameAllocations(
+                """
+                val path = remember { Path() }
+                val values = remember { FloatArray(9) }
+                fun draw() {
+                    mirror.setValues(values)
+                }
+                """.trimIndent(),
+            ).isNotEmpty(),
+        )
+    }
+
     private fun projectRoot(): File {
         var dir = File(System.getProperty("user.dir") ?: ".").canonicalFile
         repeat(12) {
@@ -379,6 +419,52 @@ class DesignGuardTest {
             Regex("""SnackbarDefaults\.actionColor\b""")
         private val snackbarInversePrimary =
             Regex("""\binversePrimary\b""")
+        private val rememberBlock =
+            Regex("""remember\s*(?:\([^)]*\))?\s*\{""")
+        private val perFrameAllocation =
+            Regex("""(?<![A-Za-z0-9_])(?:floatArrayOf|arrayOf|listOf|mutableListOf)\s*\(|\bPath\s*\(\s*\)""")
+
+        fun findPerFrameAllocations(source: String): List<String> {
+            val lines = blankRememberBlocks(source)
+            return lines.mapIndexedNotNull { index, line ->
+                if (perFrameAllocation.containsMatchIn(line)) {
+                    "line ${index + 1}: ${line.trim()}"
+                } else {
+                    null
+                }
+            }
+        }
+
+        // Blanks remembered regions so line numbers survive; nested braces are counted.
+        private fun blankRememberBlocks(source: String): List<String> {
+            val chars = source.toCharArray()
+            var from = 0
+            while (true) {
+                val match = rememberBlock.find(source, from) ?: break
+                var depth = 0
+                var end = -1
+                var i = match.range.last
+                while (i < source.length) {
+                    when (source[i]) {
+                        '{' -> depth++
+                        '}' -> {
+                            depth--
+                            if (depth == 0) {
+                                end = i
+                                break
+                            }
+                        }
+                    }
+                    i++
+                }
+                if (end < 0) break
+                for (k in match.range.first..end) {
+                    if (chars[k] != '\n') chars[k] = ' '
+                }
+                from = end + 1
+            }
+            return String(chars).lines()
+        }
 
         fun findTextButtonsWithoutColors(source: String): List<String> {
             val hits = mutableListOf<String>()
