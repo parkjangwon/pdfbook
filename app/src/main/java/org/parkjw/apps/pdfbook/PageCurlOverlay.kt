@@ -51,6 +51,12 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderPageShadow
  * [flapColor], [shadowColor], [shadowAlpha], [shadowMidAlpha] and
  * [foldHighlightColor] carry the per-mode values (normal mode by default; the
  * sepia and night variants are supplied by the display-mode work).
+ *
+ * [flapBack] is an optional back-face bitmap for the peeled flap: when non-null it is
+ * drawn mirrored across the fold at full opacity, cropped by [flapContentCrop] and tinted
+ * by [colorFilter]; when null the flap keeps the v0.7.0 look (paper-back color plus the
+ * front page mirrored at 8%). [spreadFlap] lets the flap extend over the opposite page
+ * across the spine; the default keeps the single-sheet output unchanged.
  */
 @Composable
 fun PageCurlOverlay(
@@ -62,6 +68,9 @@ fun PageCurlOverlay(
     colorFilter: ColorFilter? = null,
     contentCrop: Rect? = null,
     backContentCrop: Rect? = contentCrop,
+    flapBack: Bitmap? = null,
+    flapContentCrop: Rect? = backContentCrop,
+    spreadFlap: Boolean = false,
     flapColor: Color = ReaderPageBack,
     shadowColor: Color = ReaderPageShadow,
     shadowAlpha: Float = CURL_SHADOW_ALPHA,
@@ -76,6 +85,9 @@ fun PageCurlOverlay(
     }
     val backCrop = remember(back, backContentCrop) {
         sourceCropPixels(back.width, back.height, backContentCrop)
+    }
+    val flapBackCrop = remember(flapBack, flapContentCrop) {
+        flapBack?.let { sourceCropPixels(it.width, it.height, flapContentCrop) }
     }
     val shape = remember { CurlShape() }
     val frontPath = remember { Path() }
@@ -122,7 +134,7 @@ fun PageCurlOverlay(
             return@Canvas
         }
 
-        updateCurlShape(w, h, p, side, shape)
+        updateCurlShape(w, h, p, side, shape, spreadFlap)
         if (!shape.foldValid) {
             drawImageFit(frontImage, crop, colorFilter)
             return@Canvas
@@ -156,26 +168,48 @@ fun PageCurlOverlay(
             }
         }
 
-        // Flap: paper back, mirrored front at 8%, inner shade, fold highlight.
+        // Flap: back face, inner shade, fold highlight.
         if (shape.flapCount >= 3) {
             flapPath.setPolygon(shape.flap, shape.flapCount, left, top)
             drawPath(flapPath, flapColor)
             clipPath(flapPath) {
-                drawMirroredFront(
-                    bitmap = front,
-                    crop = crop,
-                    left = left,
-                    top = top,
-                    width = w,
-                    height = h,
-                    shape = shape,
-                    mirror = mirror,
-                    mirrorValues = mirrorValues,
-                    paint = mirrorPaint,
-                    androidFilter = androidFilter,
-                    srcRect = srcRect,
-                    dstRect = dstRect,
-                )
+                val backFace = flapBack
+                val backFaceCrop = flapBackCrop
+                if (backFace != null && backFaceCrop != null) {
+                    drawMirroredFront(
+                        bitmap = backFace,
+                        crop = backFaceCrop,
+                        left = left,
+                        top = top,
+                        width = w,
+                        height = h,
+                        shape = shape,
+                        mirror = mirror,
+                        mirrorValues = mirrorValues,
+                        paint = mirrorPaint,
+                        androidFilter = androidFilter,
+                        srcRect = srcRect,
+                        dstRect = dstRect,
+                        alpha = 255,
+                    )
+                } else {
+                    drawMirroredFront(
+                        bitmap = front,
+                        crop = crop,
+                        left = left,
+                        top = top,
+                        width = w,
+                        height = h,
+                        shape = shape,
+                        mirror = mirror,
+                        mirrorValues = mirrorValues,
+                        paint = mirrorPaint,
+                        androidFilter = androidFilter,
+                        srcRect = srcRect,
+                        dstRect = dstRect,
+                        alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt(),
+                    )
+                }
                 drawFoldGradient(
                     brush = shadeBrush,
                     origin = mid,
@@ -240,6 +274,7 @@ private fun DrawScope.drawMirroredFront(
     androidFilter: android.graphics.ColorFilter?,
     srcRect: android.graphics.Rect,
     dstRect: RectF,
+    alpha: Int,
 ) {
     val nx = shape.normalX
     val ny = shape.normalY
@@ -259,7 +294,7 @@ private fun DrawScope.drawMirroredFront(
     mirrorValues[7] = 0f
     mirrorValues[8] = 1f
     mirror.setValues(mirrorValues)
-    paint.alpha = (CURL_MIRROR_ALPHA * 255f).roundToInt()
+    paint.alpha = alpha
     paint.colorFilter = androidFilter
     srcRect.set(crop.left, crop.top, crop.left + crop.width, crop.top + crop.height)
     dstRect.set(left, top, left + width, top + height)
