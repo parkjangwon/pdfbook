@@ -440,7 +440,7 @@ private fun ReaderScreenContent(
         if (jumpBackHiddenBySettle(jumpBack, pagerState.settledPage)) jumpBack = null
     }
 
-    LaunchedEffect(fitMode, pageViewport) { fitAnchorAppliedFor = null }
+    LaunchedEffect(fitMode, pageViewport, direction) { fitAnchorAppliedFor = null }
 
     // A fit page starts at its reading-direction top corner; a backward turn lands at the end.
     // Runs as soon as the page's drawn size is known, from the cache or its own report, so the
