@@ -177,4 +177,36 @@ class BookStoreTest {
         store.save("content://a|1", saved.copy(page = 9, openedAt = 99L))
         assertEquals(BookState(page = 9, openedAt = 99L, autoCrop = true), store.state("content://a|1"))
     }
+
+    @Test
+    fun pageFitDefaultsToScreenAndIsRememberedPerBook() = runTest {
+        val store = BookStore(dataStore())
+        assertEquals(PageFit.Screen, store.fit("content://a|1").first())
+
+        store.saveFit("content://a|1", PageFit.Width)
+        store.saveFit("content://b|1", PageFit.Height)
+
+        assertEquals(PageFit.Width, store.fit("content://a|1").first())
+        assertEquals(PageFit.Height, store.fit("content://b|1").first())
+    }
+
+    @Test
+    fun pageFitBackToScreenDropsTheEntry() = runTest {
+        val data = dataStore()
+        val store = BookStore(data)
+        store.saveFit("content://a|1", PageFit.Height)
+        store.saveFit("content://a|1", PageFit.Screen)
+
+        assertEquals(PageFit.Screen, store.fit("content://a|1").first())
+        assertNull(data.data.first()[stringPreferencesKey("fit:content://a|1")])
+    }
+
+    @Test
+    fun pageFitDoesNotLeakIntoBookStatesOrBookmarks() = runTest {
+        val store = BookStore(dataStore())
+        store.saveFit("content://a|1", PageFit.Width)
+        store.save("content://a|1", BookState(page = 3, pageCount = 9))
+        assertEquals(setOf("content://a|1"), store.states.first().keys)
+        assertEquals(emptyList<Int>(), store.bookmarks("content://a|1").first())
+    }
 }
