@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -71,7 +70,6 @@ const val IMAGE_ADJUST_GRAYSCALE_TAG = "image_adjust_grayscale"
 const val IMAGE_ADJUST_RESET_TAG = "image_adjust_reset"
 
 private val PREVIEW_HEIGHT = 248.dp
-private val PREVIEW_UNFOLDED_WIDTH = 300.dp
 private const val PREVIEW_MAX_PX = 1200
 
 /**
@@ -135,11 +133,7 @@ internal fun ImageAdjustScreen(
                         page = page,
                         adjust = adjust,
                         displayMode = displayMode,
-                        modifier = if (unfolded) {
-                            Modifier.width(PREVIEW_UNFOLDED_WIDTH)
-                        } else {
-                            Modifier.fillMaxWidth()
-                        },
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 val controlsBlock: @Composable () -> Unit = {
@@ -197,16 +191,24 @@ internal fun ImageAdjustScreen(
                     }
                 }
                 if (unfolded) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = PdfBookSpacing.screenHorizontalUnfolded),
-                        horizontalArrangement = Arrangement.spacedBy(PdfBookSpacing.md),
-                    ) {
-                        Box(Modifier.weight(1f)) { previewBlock() }
+                    Row(Modifier.fillMaxWidth()) {
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .padding(
+                                    start = PdfBookSpacing.screenHorizontalUnfolded,
+                                    end = PdfBookSpacing.sm,
+                                ),
+                        ) {
+                            previewBlock()
+                        }
                         Box(Modifier.weight(1f)) { controlsBlock() }
                     }
                 } else {
-                    Column(Modifier.padding(horizontal = PdfBookSpacing.screenHorizontalFolded)) {
-                        previewBlock()
+                    Column {
+                        Box(Modifier.padding(horizontal = PdfBookSpacing.screenHorizontalFolded)) {
+                            previewBlock()
+                        }
                         controlsBlock()
                     }
                 }
@@ -292,7 +294,12 @@ private fun AdjustPreview(
 @Composable
 private fun NoticeNote() {
     Row(
-        modifier = Modifier.padding(top = PdfBookSpacing.md, bottom = PdfBookSpacing.xs),
+        modifier = Modifier.padding(
+            start = PdfBookSpacing.screenHorizontalFolded,
+            end = PdfBookSpacing.screenHorizontalFolded,
+            top = PdfBookSpacing.md,
+            bottom = PdfBookSpacing.xs,
+        ),
         verticalAlignment = Alignment.Top,
     ) {
         Icon(
