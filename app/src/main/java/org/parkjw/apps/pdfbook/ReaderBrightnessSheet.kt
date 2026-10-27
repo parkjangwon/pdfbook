@@ -20,7 +20,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,7 +57,10 @@ fun ReaderBrightnessSheet(
     onFollowSystemChange: (Boolean) -> Unit,
     onPercentChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onPercentPreview: (Int) -> Unit = {},
 ) {
+    // Local while dragging so a DataStore write happens once, on release.
+    var sliderPercent by remember(percent) { mutableIntStateOf(percent) }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -130,8 +136,15 @@ fun ReaderBrightnessSheet(
                     style = PdfBookNumeric.copy(fontSize = 11.sp, color = ReaderOnOverlayVariant),
                 )
                 PdfBookReaderSlider(
-                    value = percent.toFloat(),
-                    onValueChange = { onPercentChange(snapReaderBrightnessPercent(it)) },
+                    value = sliderPercent.toFloat(),
+                    onValueChange = {
+                        val snapped = snapReaderBrightnessPercent(it)
+                        if (snapped != sliderPercent) {
+                            sliderPercent = snapped
+                            onPercentPreview(snapped)
+                        }
+                    },
+                    onValueChangeFinished = { onPercentChange(sliderPercent) },
                     valueRange = READER_BRIGHTNESS_MIN_PERCENT.toFloat()..READER_BRIGHTNESS_MAX_PERCENT.toFloat(),
                     colors = SliderDefaults.colors(
                         thumbColor = ReaderAccent,
@@ -148,7 +161,7 @@ fun ReaderBrightnessSheet(
                 )
             }
             Text(
-                text = stringResource(R.string.reader_brightness_percent, percent),
+                text = stringResource(R.string.reader_brightness_percent, sliderPercent),
                 style = PdfBookNumeric.copy(fontSize = 13.sp, color = ReaderOnOverlay),
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
