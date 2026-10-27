@@ -440,12 +440,12 @@ private fun ReaderScreenContent(
         if (jumpBackHiddenBySettle(jumpBack, pagerState.settledPage)) jumpBack = null
     }
 
-    LaunchedEffect(fitMode) { fitAnchorAppliedFor = null }
+    LaunchedEffect(fitMode, pageViewport) { fitAnchorAppliedFor = null }
 
     // A fit page starts at its reading-direction top corner; a backward turn lands at the end.
     // Runs as soon as the page's drawn size is known, from the cache or its own report, so the
     // incoming page is already positioned when it settles instead of jumping from the centre.
-    LaunchedEffect(fitMode, pagerState.settledPage, fitContentSize, pageViewport, keepZoom) {
+    LaunchedEffect(fitMode, pagerState.settledPage, fitContentSize, pageViewport, keepZoom, fitAnchorAppliedFor) {
         if (fitMode == PageFit.Screen) return@LaunchedEffect
         if (fitAnchorAppliedFor == pagerState.settledPage) return@LaunchedEffect
         if (fitContentSize == IntSize.Zero || pageViewport.width <= 0f || pageViewport.height <= 0f) {
