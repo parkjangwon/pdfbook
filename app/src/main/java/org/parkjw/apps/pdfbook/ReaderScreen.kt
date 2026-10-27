@@ -113,8 +113,10 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
@@ -163,6 +165,8 @@ fun ReaderScreen(
     fullScreenReading: Boolean = true,
     displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
+    spreadShift: Boolean = false,
+    onSpreadShiftChange: (Boolean) -> Unit = {},
 ) {
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
@@ -211,6 +215,8 @@ fun ReaderScreen(
             bookmarks = bookmarks,
             pageTurnAnimation = pageTurnAnimation,
             fullScreenReading = fullScreenReading,
+            spreadShift = spreadShift,
+            onSpreadShiftChange = onSpreadShiftChange,
         )
     }
 }
@@ -253,6 +259,8 @@ private fun ReaderScreenContent(
     bookmarks: ReaderBookmarks?,
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
+    spreadShift: Boolean,
+    onSpreadShiftChange: (Boolean) -> Unit,
 ) {
     SideEffect { renderer.setAutoCrop(autoCrop) }
     // Slider drags preview the window brightness without a DataStore write; only release persists.
@@ -1157,6 +1165,13 @@ private fun ReaderScreenContent(
                 onOpenPageNav = { pageNavVisible = true },
                 bookmarked = bookmarks?.let { spreadBookmarked(it.pages, currentSpread) },
                 onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
+                spreadShift = if (twoPage && tabletop == null) spreadShift else null,
+                onSpreadShiftChange = {
+                    scope.launch {
+                        snapshotFlow { pagerState.isScrollInProgress || curlActive }.first { !it }
+                        onSpreadShiftChange(!spreadShift)
+                    }
+                },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .then(

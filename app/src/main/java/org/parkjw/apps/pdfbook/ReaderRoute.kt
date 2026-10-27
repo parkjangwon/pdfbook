@@ -115,8 +115,14 @@ fun ReaderRoute(
             val renderer = result.renderer
             val posture = rememberFoldPosture()
             val twoPage = rememberTwoPage(twoPageMode, posture)
-            val spreadList = remember(renderer.pageCount, twoPage, coverAlone) {
-                spreads(renderer.pageCount, twoPage = twoPage, coverAlone = coverAlone)
+            var spreadShift by rememberSaveable(key) { mutableStateOf(saved?.spreadShift == 1) }
+            val spreadList = remember(renderer.pageCount, twoPage, coverAlone, spreadShift) {
+                spreads(
+                    renderer.pageCount,
+                    twoPage = twoPage,
+                    coverAlone = coverAlone,
+                    shift = if (spreadShift) 1 else 0,
+                )
             }
             var anchorPage by rememberSaveable(key) {
                 mutableIntStateOf(state.page.coerceIn(1, renderer.pageCount.coerceAtLeast(1)))
@@ -149,7 +155,7 @@ fun ReaderRoute(
                         if (sync.page != anchorPage) anchorPage = sync.page
                     }
                 }
-                LaunchedEffect(anchorPage, direction, autoCrop) {
+                LaunchedEffect(anchorPage, direction, autoCrop, spreadShift) {
                     store.save(
                         key,
                         state.copy(
@@ -158,6 +164,7 @@ fun ReaderRoute(
                             direction = direction,
                             openedAt = System.currentTimeMillis(),
                             autoCrop = autoCrop,
+                            spreadShift = if (spreadShift) 1 else 0,
                         ),
                     )
                 }
@@ -201,6 +208,8 @@ fun ReaderRoute(
                     fullScreenReading = fullScreenReading,
                     displayMode = displayMode,
                     keepScreenOn = keepScreenOn,
+                    spreadShift = spreadShift,
+                    onSpreadShiftChange = { spreadShift = it },
                 )
             }
         }
