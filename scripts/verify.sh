@@ -498,7 +498,15 @@ case "$FEATURE" in
     done
     shot reading-info-settings-off
     tap_node text "$page_switch"
+    for _ in 1 2 3; do
+      wait_node text 'Time|시각' 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
     tap_node text 'Time|시각'
+    for _ in 1 2 3; do
+      wait_node text 'Battery|배터리' 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
     tap_node text 'Battery|배터리'
     shot reading-info-settings-on
     "$ADB" shell input keyevent KEYCODE_BACK
