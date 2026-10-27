@@ -804,7 +804,12 @@ internal fun SwitchRow(
 ) {
     ListItem(
         headlineContent = {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
+                ),
+            )
         },
         supportingContent = supporting?.let {
             {
