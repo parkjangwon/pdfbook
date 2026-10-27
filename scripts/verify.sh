@@ -468,6 +468,9 @@ case "$FEATURE" in
     shot display-mode-invert
     ;;
   page-fit)
+    # Page fit targets the last read book, so read one first.
+    open_book
+    "$ADB" shell input keyevent KEYCODE_BACK
     open_library
     tap_id library_settings
     expect_id settings_screen
@@ -480,9 +483,9 @@ case "$FEATURE" in
     done
     shot page-fit-row
     tap_node text "$page_fit"
-    expect_id settings_page_fit_option_Width
+    wait_node text '너비 맞춤|Fit width' 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
     shot page-fit-dialog
-    tap_id settings_page_fit_option_Width
+    tap_node text '너비 맞춤|Fit width'
     sleep 1
     shot page-fit-row-width
     "$ADB" shell input keyevent KEYCODE_BACK
