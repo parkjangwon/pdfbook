@@ -5,6 +5,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -316,12 +317,48 @@ class TwoPageCurlFlatFoldTest {
             val curl = built.curl
             assertTrue("${case.name} must curl, was ${built.fallback}", curl != null)
             val layout = curl!!.layout
-            assertEquals("${case.name} hinge gap", 16f, layout.hinge!!.gap, 0.001f)
+            val hinge = layout.hinge!!
+            assertEquals("${case.name} hinge gap", 16f, hinge.gap, 0.001f)
             // The virtual spread is the two halves butted: nothing reaches past its width.
             val virtualWidth = WINDOW_WIDTH - 16f
             assertTrue("${case.name} sheet inside the spread", layout.sheet.right <= virtualWidth + 1f)
             assertTrue("${case.name} back face inside the spread", layout.backFace.right <= virtualWidth + 1f)
             assertTrue("${case.name} landing inside the spread", layout.landing.right <= virtualWidth + 1f)
+            // The cut is on the virtual spread: the spine is the left half's width and, shifted
+            // back by the gap, it is exactly the fold's right edge where BookHalfPage starts the
+            // right page. So the virtual rects land on the real half rects, no jump.
+            val halves = bookHalves(portrait, fold.foldBounds)
+            assertEquals("${case.name} spine is the left half", halves.first.width.toFloat(), layout.spineX, 0.001f)
+            assertEquals(
+                "${case.name} spine + gap is the fold's right edge",
+                fold.foldBounds.right.toFloat(),
+                layout.spineX + hinge.gap,
+                0.001f,
+            )
+            val rects = listOf(
+                "sheet" to layout.sheet,
+                "landing" to layout.landing,
+                "back face" to layout.backFace,
+                "still" to layout.still,
+            )
+            rects.forEach { (name, rect) ->
+                // Every page's inner edge lies on the spine, half a turn apart on screen.
+                val inner = minOf(abs(rect.left - layout.spineX), abs(rect.right - layout.spineX))
+                assertTrue("${case.name} $name inner edge $inner off the spine", inner <= 1f)
+            }
+            val rightRects = if (case.side == CurlSide.Right) {
+                listOf("sheet" to layout.sheet, "landing" to layout.landing)
+            } else {
+                listOf("back face" to layout.backFace, "still" to layout.still)
+            }
+            rightRects.forEach { (name, rect) ->
+                assertEquals(
+                    "${case.name} $name left + gap must be the right half",
+                    fold.foldBounds.right.toFloat(),
+                    rect.left + hinge.gap,
+                    1f,
+                )
+            }
         }
     }
 

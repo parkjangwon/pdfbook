@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ColorFilter
@@ -52,20 +53,17 @@ internal fun TwoPageCurlPreview(
     mode: DisplayMode = DisplayMode.Default,
     showOverlay: Boolean = true,
     hingeGap: Int = 0,
+    pagerPage: Int = 1,
 ) {
     val filter = mode.colorFilter()
     val look = mode.curlLook()
     BoxWithConstraints(Modifier.fillMaxSize().background(ReaderBackground)) {
         val window = IntSize(constraints.maxWidth, constraints.maxHeight)
         val posture = if (hingeGap > 0) {
-            FoldPosture.Book(
-                IntRect(
-                    window.width / 2 - hingeGap / 2,
-                    0,
-                    window.width / 2 + hingeGap / 2,
-                    window.height,
-                ),
-            )
+            // Keep the gap exactly [hingeGap] wide, odd values included: ±gap/2 would make an
+            // odd gap one pixel narrower.
+            val gapLeft = window.width / 2 - hingeGap / 2
+            FoldPosture.Book(IntRect(gapLeft, 0, gapLeft + hingeGap, window.height))
         } else {
             FoldPosture.Flat
         }
@@ -83,7 +81,10 @@ internal fun TwoPageCurlPreview(
         // when the turn animates, so the pager below sits on the target spread. Page 0 is
         // the current spread; the capture would expose the swap if the still page were
         // taken from the pager.
-        val pagerState = rememberPagerState(initialPage = 1) { 2 }
+        val pagerState = rememberPagerState(initialPage = pagerPage) { 2 }
+        LaunchedEffect(pagerPage) {
+            if (pagerState.currentPage != pagerPage) pagerState.scrollToPage(pagerPage)
+        }
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
