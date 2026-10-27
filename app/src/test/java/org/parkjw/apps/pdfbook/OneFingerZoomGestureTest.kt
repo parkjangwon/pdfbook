@@ -2,6 +2,10 @@ package org.parkjw.apps.pdfbook
 
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
@@ -29,6 +33,8 @@ class OneFingerZoomGestureTest {
 
     private lateinit var pagerState: PagerState
     private var opened: Any? = null
+    private var sidePercent by mutableIntStateOf(DEFAULT_TAP_ZONE_SIDE_PERCENT)
+    private var direction by mutableStateOf(ReadingDirection.LTR)
 
     @Test
     fun offQuickDoubleTapStillZooms() {
@@ -100,6 +106,55 @@ class OneFingerZoomGestureTest {
         assertEquals(MinZoomScale, zoom().scale, 0f)
         assertEquals(PAGE_COUNT - 1, pagerState.currentPage)
         assertNull(opened)
+    }
+
+    @Test
+    fun onHoldUsesUpdatedZoneWidth() {
+        setReader(oneFingerZoom = true)
+        sidePercent = TAP_ZONE_SIDE_MAX_PERCENT
+        composeRule.waitForIdle()
+
+        holdSecondTap()
+
+        // The held point is still the page centre; a stale middle-zone start would
+        // anchor the zoom about 0.12 x width away from it.
+        assertEquals(DoubleTapZoomScale, zoom().scale, 0f)
+        assertEquals(0f, zoom().offsetX, 20f)
+        releaseHold()
+    }
+
+    @Test
+    fun onSideZoneTapUsesUpdatedDirectionWhileZoomed() {
+        setReader(oneFingerZoom = true)
+        doubleTap()
+        settle()
+        assertEquals(DoubleTapZoomScale, zoom().scale, 0f)
+
+        direction = ReadingDirection.RTL
+        composeRule.waitForIdle()
+
+        tap(0.1f)
+        settle()
+        assertEquals(1, pagerState.currentPage)
+    }
+
+    @Test
+    fun offNoneModeDragStillPansWhileZoomed() {
+        setReader(oneFingerZoom = false, pageTurnAnimation = PageTurnAnimation.None)
+        doubleTap()
+        settle()
+        assertEquals(DoubleTapZoomScale, zoom().scale, 0f)
+
+        composeRule.onRoot().performTouchInput {
+            down(Offset(width * 0.5f, height / 2f))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.5f - 120f, height / 2f))
+            advanceEventTime(16)
+        }
+        composeRule.mainClock.advanceTimeByFrame()
+        assertEquals(-120f, zoom().offsetX, 5f)
+        composeRule.onRoot().performTouchInput { up() }
+        composeRule.mainClock.advanceTimeBy(1_000)
     }
 
     @Test
@@ -179,7 +234,8 @@ class OneFingerZoomGestureTest {
                     twoPage = false,
                     onBack = {},
                     onDirectionChange = {},
-                    direction = ReadingDirection.LTR,
+                    direction = direction,
+                    tapZoneSidePercent = sidePercent,
                     oneFingerZoom = oneFingerZoom,
                     pageTurnAnimation = pageTurnAnimation,
                     volumes = if (nextBook) {

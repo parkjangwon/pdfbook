@@ -725,6 +725,7 @@ private fun ReaderScreenContent(
                                             pagerHeight,
                                         )
                                     },
+                                    isHolding = { oneFingerZoomBase != null },
                                 )
                             }
                             .pointerInput(lastActive, direction, curlGestures, instantSwipes) {
@@ -733,6 +734,7 @@ private fun ReaderScreenContent(
                                     direction = direction,
                                     isZoomed = { !zoomRef.value.allowsPageTurn },
                                     onSwipe = { if (pagerState.targetPage == pageIndex) nextAtEnd() },
+                                    isHolding = { oneFingerZoomBase != null },
                                 )
                             }
                             .pointerInput(activePage, instantSwipes, direction, pagerWidth) {
@@ -760,6 +762,7 @@ private fun ReaderScreenContent(
                                         }
                                     },
                                     onSwipePastEnd = { nextAtEnd() },
+                                    isHolding = { oneFingerZoomBase != null },
                                 )
                             }
                             .pointerInput(activePage, curlGestures, direction, pagerWidth, prerenderWidth, prerenderHeight) {
@@ -950,7 +953,7 @@ private fun ReaderScreenContent(
                                                             true
                                                         }
                                                     }
-                                                    .pointerInput(oneFingerZoom, pagerWidth, pagerHeight) {
+                                                    .pointerInput(oneFingerZoom, span, pagerWidth, pagerHeight) {
                                                         detectOneFingerZoomTapZone(
                                                             onTap = onTap,
                                                             onDoubleTap = { toggleZoom() },
@@ -1991,6 +1994,7 @@ private suspend fun PointerInputScope.detectCurlSwipe(
     onSwipePastEnd: () -> Unit,
     onSlideFollow: ((from: Int, target: Int, progress: Float, forward: Boolean) -> Unit)? = null,
     fling: Boolean = false,
+    isHolding: () -> Boolean = { false },
 ) {
     val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
@@ -2029,7 +2033,7 @@ private suspend fun PointerInputScope.detectCurlSwipe(
             }
             val change = event.changes.firstOrNull { it.id == down.id } ?: continue
             // A one-finger zoom hold owns the drag; release must not turn the page.
-            if (change.isConsumed && !drag) return@awaitEachGesture
+            if (isHolding() && change.isConsumed && !drag) return@awaitEachGesture
             last = change.position
             // Only moving samples: a still release sample would bend the fit to zero.
             if (change.pressed) velocityTracker.addPosition(change.uptimeMillis, change.position)
@@ -2086,6 +2090,7 @@ private suspend fun PointerInputScope.detectSwipePastEnd(
     direction: ReadingDirection,
     isZoomed: () -> Boolean,
     onSwipe: () -> Unit,
+    isHolding: () -> Boolean = { false },
 ) {
     val threshold = END_SWIPE_THRESHOLD.toPx()
     awaitEachGesture {
@@ -2097,7 +2102,7 @@ private suspend fun PointerInputScope.detectSwipePastEnd(
             val event = awaitPointerEvent()
             if (event.changes.count { it.pressed } > 1) multiTouch = true
             event.changes.firstOrNull { it.id == down.id }?.let {
-                if (it.isConsumed) consumed = true
+                if (isHolding() && it.isConsumed) consumed = true
                 last = it.position
             }
         } while (event.changes.any { it.pressed })
@@ -2186,6 +2191,7 @@ private suspend fun PointerInputScope.detectOneFingerZoomTapZone(
 private suspend fun PointerInputScope.detectReaderZoomGestures(
     isZoomed: () -> Boolean,
     onGesture: (centroid: Offset, zoomChange: Float, pan: Offset) -> Unit,
+    isHolding: () -> Boolean = { false },
 ) {
     val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
@@ -2209,7 +2215,8 @@ private suspend fun PointerInputScope.detectReaderZoomGestures(
                         if (it.positionChanged()) it.consume()
                     }
                 }
-                pressed == 1 && isZoomed() && event.changes.none { it.isConsumed } -> {
+                pressed == 1 && isZoomed() &&
+                    (!isHolding() || event.changes.none { it.isConsumed }) -> {
                     val pan = event.calculatePan()
                     panDistance += pan.getDistance()
                     if (!panPastSlop && panDistance >= touchSlop) {
