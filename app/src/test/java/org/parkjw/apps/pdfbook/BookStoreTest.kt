@@ -177,4 +177,35 @@ class BookStoreTest {
         store.save("content://a|1", saved.copy(page = 9, openedAt = 99L))
         assertEquals(BookState(page = 9, openedAt = 99L, autoCrop = true), store.state("content://a|1"))
     }
+
+    @Test
+    fun adjustIsPerBookAndSeparateFromReadingState() = runTest {
+        val store = BookStore(dataStore())
+        val a = ImageAdjust(brightness = 20, contrast = -10, gamma = 1.35f, grayscale = 60)
+        store.saveAdjust(bookKey("content://a", 1), a)
+
+        assertEquals(a, store.adjust(bookKey("content://a", 1)))
+        assertEquals(a, store.adjustFlow(bookKey("content://a", 1)).first())
+        assertEquals(ImageAdjust.Default, store.adjust(bookKey("content://b", 1)))
+        assertEquals(ImageAdjust.Default, store.adjust(bookKey("content://a", 2)))
+        assertNull(store.state(bookKey("content://a", 1)))
+        assertEquals(emptyMap<String, BookState>(), store.states.first())
+    }
+
+    @Test
+    fun savingDefaultAdjustClearsTheEntry() = runTest {
+        val store = BookStore(dataStore())
+        val key = bookKey("content://a", 1)
+        store.saveAdjust(key, ImageAdjust(contrast = 30))
+        store.saveAdjust(key, ImageAdjust.Default)
+        assertEquals(ImageAdjust.Default, store.adjust(key))
+        assertEquals(ImageAdjust.Default, store.adjustFlow(key).first())
+    }
+
+    @Test
+    fun adjustSurvivesReopeningTheStore() = runTest {
+        val data = dataStore()
+        BookStore(data).saveAdjust("k", ImageAdjust(gamma = 0.75f))
+        assertEquals(ImageAdjust(gamma = 0.75f), BookStore(data).adjust("k"))
+    }
 }

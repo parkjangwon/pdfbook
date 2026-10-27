@@ -86,7 +86,7 @@ fun ReaderCropSheet(
         value = loadCropPreview(renderer, pages)
     }
     val displayMode = LocalDisplayMode.current
-    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
+    val colorFilter = rememberReaderColorFilter(displayMode)
     val previewHeight = if (twoPage) PREVIEW_HEIGHT_SPREAD else PREVIEW_HEIGHT
     Column(
         modifier = modifier
