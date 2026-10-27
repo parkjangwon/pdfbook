@@ -63,8 +63,8 @@
     <string name="page_fit_width_desc">Fits the page width. Scroll down for the rest.</string>
     <string name="page_fit_height">Fit height</string>
     <string name="page_fit_height_desc">Fits the page height. Scroll sideways for the rest.</string>
-    <string name="page_fit_note_rtl">Starts from the top right, following the book\'s direction. Single-page view only; two-page view uses Fit screen.</string>
-    <string name="page_fit_note_ltr">Starts from the top left, following the book\'s direction. Single-page view only; two-page view uses Fit screen.</string>
+    <string name="page_fit_note_rtl">Starts from the top right, following the book\'s direction. Single-page view only; two-page view always fits the screen.</string>
+    <string name="page_fit_note_ltr">Starts from the top left, following the book\'s direction. Single-page view only; two-page view always fits the screen.</string>
     <string name="settings_page_turn_animation">Page turn animation</string>
     <string name="settings_animation_slide">Slide</string>
     <string name="settings_animation_none">None</string>

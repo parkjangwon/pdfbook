@@ -56,7 +56,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.LineBreak
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.PageFit
@@ -700,8 +699,7 @@ private fun <T> SettingsChoiceDialog(
                         subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("settings_dialog_subtitle"),
                     )
                 }
             }
@@ -797,24 +795,28 @@ private fun PageFitPreview(fit: PageFit, direction: ReadingDirection) {
             cornerRadius = CornerRadius(4.dp.toPx()),
             style = Stroke(hairline),
         )
-        val pad = 3.dp.toPx()
-        val pageLeft = if (fit == PageFit.Height) pad else pad + hairline
-        val pageTop = if (fit == PageFit.Width) pad else pad + hairline
-        val pageRight = if (fit == PageFit.Height) size.width - pad else size.width - pad - hairline
-        val pageBottom = if (fit == PageFit.Width) size.height - pad else size.height - pad - hairline
+        // Screen fit is inset on every side; width fills the frame's width and height its height.
+        val inset = 5.dp.toPx()
+        val pageLeft = if (fit == PageFit.Height) inset else hairline
+        val pageTop = if (fit == PageFit.Width) inset else hairline
+        val pageRight = if (fit == PageFit.Height) size.width - inset else size.width - hairline
+        val pageBottom = if (fit == PageFit.Width) size.height - inset else size.height - hairline
         drawRect(
             color = page,
             topLeft = Offset(pageLeft, pageTop),
             size = Size(pageRight - pageLeft, pageBottom - pageTop),
             style = Stroke(hairline),
         )
-        val arm = 6.dp.toPx()
-        val cornerX = if (direction == ReadingDirection.RTL) size.width - pad - arm else pad + arm
-        val cornerY = pad + hairline
-        val towardCenter = if (direction == ReadingDirection.RTL) -1f else 1f
-        val accentStroke = 2.dp.toPx()
-        drawLine(accent, Offset(cornerX, cornerY), Offset(cornerX + towardCenter * arm, cornerY), accentStroke)
-        drawLine(accent, Offset(cornerX, cornerY), Offset(cornerX, cornerY + arm), accentStroke)
+        // Only a fit that can overflow carries the reading start corner, on the page corner.
+        if (fit != PageFit.Screen) {
+            val arm = 6.dp.toPx()
+            val cornerX = if (direction == ReadingDirection.RTL) pageRight else pageLeft
+            val cornerY = pageTop
+            val towardCenter = if (direction == ReadingDirection.RTL) -1f else 1f
+            val accentStroke = 2.dp.toPx()
+            drawLine(accent, Offset(cornerX, cornerY), Offset(cornerX + towardCenter * arm, cornerY), accentStroke)
+            drawLine(accent, Offset(cornerX, cornerY), Offset(cornerX, cornerY + arm), accentStroke)
+        }
     }
 }
 

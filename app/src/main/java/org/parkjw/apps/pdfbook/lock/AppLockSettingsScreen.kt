@@ -325,9 +325,12 @@ internal fun SecurityValueRow(
     supporting: String? = null,
     enabled: Boolean = true,
 ) {
+    val muted = MaterialTheme.extendedColors.muted
+    val titleColor = if (enabled) Color.Unspecified else muted
+    val valueColor = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else muted
     ListItem(
         headlineContent = {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
+            Text(label, style = MaterialTheme.typography.bodyLarge, color = titleColor)
         },
         supportingContent = supporting?.let {
             {
@@ -345,12 +348,12 @@ internal fun SecurityValueRow(
                 Text(
                     text = value,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = valueColor,
                 )
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron_right),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else muted,
                 )
             }
         },

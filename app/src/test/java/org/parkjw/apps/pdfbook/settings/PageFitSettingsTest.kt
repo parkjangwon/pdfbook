@@ -1,8 +1,6 @@
 package org.parkjw.apps.pdfbook.settings
 
 import android.app.Application
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -10,10 +8,13 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.unit.Density
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,6 +22,7 @@ import org.parkjw.apps.pdfbook.PageFit
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
@@ -92,23 +94,39 @@ class PageFitSettingsTest {
     @Test
     @Config(sdk = [37], qualifiers = "ko-w320dp-h800dp-mdpi")
     fun dialogScrollsAt320dpAndFontScale2() {
+        // The dialog composes in its own window, so the scale has to come from the configuration.
+        RuntimeEnvironment.setFontScale(2f)
         composeRule.setContent {
-            val base = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale = 2f)) {
-                PdfBookTheme(themeMode = ThemeMode.Light) {
-                    SettingsScreen(
-                        settings = AppSettings(),
-                        onSettingsChange = {},
-                        versionName = "0.8.0",
-                        initialSubScreen = SettingsSubScreen.Reading,
-                        pageFitBookTitle = "원피스 01",
-                    )
-                }
+            PdfBookTheme(themeMode = ThemeMode.Light) {
+                SettingsScreen(
+                    settings = AppSettings(),
+                    onSettingsChange = {},
+                    versionName = "0.8.0",
+                    initialSubScreen = SettingsSubScreen.Reading,
+                    pageFitBookTitle = "등대지기의 편지 2권",
+                )
             }
         }
         openDialog()
         composeRule.onNodeWithTag("settings_page_fit_option_Height").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(app.getString(R.string.page_fit_note_rtl)).performScrollTo().assertIsDisplayed()
+        val subtitle = composeRule.onNodeWithTag("settings_dialog_subtitle")
+        subtitle.assertIsDisplayed()
+        val layouts = mutableListOf<TextLayoutResult>()
+        subtitle.fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layouts)
+        val layout = layouts.first()
+        // The subtitle used to be maxLines=1 + Ellipsis; it must be free to wrap in the dialog.
+        assertEquals(Int.MAX_VALUE, layout.layoutInput.maxLines)
+        assertEquals(TextOverflow.Clip, layout.layoutInput.overflow)
+        assertEquals(
+            app.getString(R.string.settings_image_adjust_book, "등대지기의 편지 2권"),
+            layout.layoutInput.text.text,
+        )
+        // One 12sp line is ~16px at mdpi, so this also proves the configuration font scale arrived.
+        assertTrue(layout.size.height > 28)
     }
 
     private fun openDialog() {
