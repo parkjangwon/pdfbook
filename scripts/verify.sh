@@ -497,7 +497,11 @@ case "$FEATURE" in
     expect_id reader_more_status
     expect_id reader_more_spread_shift
     shot spread-shift-menu-off
+    page_before="$(node_text reader_progress || true)"
     tap_id reader_more_spread_shift
+    dump_ui
+    [ -z "$page_before" ] || [ "$(node_text reader_progress || true)" = "$page_before" ] \
+      || die "Shift must keep the page being read ($page_before -> $(node_text reader_progress || true))."
     expect_id reader_more_spread_shift
     shot spread-shift-menu-on
     ;;
