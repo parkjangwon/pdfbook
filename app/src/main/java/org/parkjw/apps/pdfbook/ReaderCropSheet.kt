@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
@@ -67,6 +68,7 @@ const val READER_CROP_DONE_TAG = "reader_crop_done"
 const val READER_CROP_RESET_TAG = "reader_crop_reset"
 
 private val PREVIEW_HEIGHT = 220.dp
+private val PREVIEW_HEIGHT_SPREAD = 280.dp
 
 @Composable
 fun ReaderCropSheet(
@@ -81,6 +83,9 @@ fun ReaderCropSheet(
     val preview by produceState<CropPreview?>(initialValue = null, renderer, pages) {
         value = loadCropPreview(renderer, pages)
     }
+    val displayMode = LocalDisplayMode.current
+    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
+    val previewHeight = if (twoPage) PREVIEW_HEIGHT_SPREAD else PREVIEW_HEIGHT
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -154,7 +159,7 @@ fun ReaderCropSheet(
             Modifier
                 .fillMaxWidth()
                 .padding(top = 10.dp)
-                .height(PREVIEW_HEIGHT)
+                .height(previewHeight)
                 .clip(RoundedCornerShape(8.dp))
                 .background(ReaderBackground)
                 .padding(vertical = 12.dp)
@@ -162,8 +167,8 @@ fun ReaderCropSheet(
         ) {
             val data = preview
             if (data != null) {
-                Canvas(Modifier.fillMaxWidth().height(PREVIEW_HEIGHT - 24.dp)) {
-                    drawCropPreview(data, enabled)
+                Canvas(Modifier.fillMaxWidth().height(previewHeight - 24.dp)) {
+                    drawCropPreview(data, enabled, colorFilter)
                 }
             }
         }
@@ -266,7 +271,11 @@ private suspend fun loadCropPreview(renderer: PageBitmaps, pages: List<Int>): Cr
     )
 }
 
-private fun DrawScope.drawCropPreview(data: CropPreview, enabled: Boolean) {
+private fun DrawScope.drawCropPreview(
+    data: CropPreview,
+    enabled: Boolean,
+    colorFilter: ColorFilter?,
+) {
     val pages = data.pages
     if (pages.isEmpty()) return
     val totalSourceWidth = pages.sumOf { it.width.toDouble() }.toFloat()
@@ -285,6 +294,7 @@ private fun DrawScope.drawCropPreview(data: CropPreview, enabled: Boolean) {
             image = page.image,
             dstOffset = androidx.compose.ui.unit.IntOffset(x.toInt(), top.toInt()),
             dstSize = androidx.compose.ui.unit.IntSize(width.toInt().coerceAtLeast(1), height.toInt().coerceAtLeast(1)),
+            colorFilter = colorFilter,
         )
         cropRects += Rect(
             left = x + page.crop.left * width,
