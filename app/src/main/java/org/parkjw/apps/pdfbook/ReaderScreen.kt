@@ -325,6 +325,8 @@ private fun ReaderScreenContent(
     var curlEffect by remember { mutableStateOf<CurlEffectState?>(null) }
     var curlJob by remember { mutableStateOf<Job?>(null) }
     val curlProgressAnim = remember { Animatable(0f) }
+    // Drag reference for a two-page curl: the drawn spread width (2w), not the pane.
+    val curlDragWidth = remember { mutableFloatStateOf(0f) }
     var renderSlot by remember { mutableStateOf(IntSize(1, 1)) }
     ReaderSystemBars(
         fullScreenReading = fullScreenReading,
@@ -707,7 +709,7 @@ private fun ReaderScreenContent(
                                 if (!activePage || !instantSwipes || zoomed) return@pointerInput
                                 detectCurlSwipe(
                                     direction = direction,
-                                    width = pagerWidth,
+                                    width = { pagerWidth },
                                     currentIndex = { pagerState.targetPage },
                                     pageCount = { pagerState.pageCount },
                                     onDragStart = { _, forward ->
@@ -734,7 +736,7 @@ private fun ReaderScreenContent(
                                 if (!activePage || !curlGestures) return@pointerInput
                                 detectCurlSwipe(
                                     direction = direction,
-                                    width = pagerWidth,
+                                    width = { curlDragWidth.floatValue },
                                     currentIndex = { pagerState.targetPage },
                                     pageCount = { pagerState.pageCount },
                                     onDragStart = { targetIndex, forward ->
@@ -761,6 +763,9 @@ private fun ReaderScreenContent(
                                         } else {
                                             null
                                         }
+                                        // Two-page: progress is drag / spread width (2w).
+                                        curlDragWidth.floatValue =
+                                            two?.layout?.spread?.width ?: pagerWidth
                                         val slotW = renderSlot.width
                                         val slotH = renderSlot.height
                                         val fromBmp = two?.front
@@ -977,6 +982,8 @@ private fun ReaderScreenContent(
                         },
                         flapBack = two?.flapBack,
                         flapContentCrop = two?.flapCrop,
+                        still = two?.still,
+                        stillContentCrop = two?.stillCrop,
                         layout = two?.layout,
                         colorFilter = curlFilter,
                         flapColor = curlLook.flapColor,
@@ -1232,10 +1239,12 @@ private data class TwoPageCurl(
     val front: Bitmap,
     val back: Bitmap,
     val flapBack: Bitmap,
+    val still: Bitmap,
     val layout: CurlSheetLayout,
     val frontCrop: Rect?,
     val backCrop: Rect?,
     val flapCrop: Rect?,
+    val stillCrop: Rect?,
 )
 
 /**
@@ -1243,6 +1252,8 @@ private data class TwoPageCurl(
  *
  * Design A: the page on [side] turns about the spine. Its revealed page is the same-side
  * page of [targetSpread], and the flap's back face is the opposite-side page, drawn at 100%.
+ * The current spread's other page is returned as [TwoPageCurl.still] so the overlay can keep
+ * it on screen while the pager is already on the target spread.
  * Null (Slide fallback) when the bitmap cache missed or when the sheet and the pages it
  * lands on differ by more than 1px (오대리 rule), so the last frame cannot jump.
  */
@@ -1287,11 +1298,15 @@ private fun buildTwoPageCurl(
     val sheet = rectCurrent[turning]
     val landing = rectTarget[turning]
     val backFace = rectTarget[1 - turning]
-    if (!sheetLandsOnSpread(sheet, landing, backFace, side)) return null
+    // The current spread's other page must sit exactly where the back face lands, or its
+    // edges would show around the flap at progress 1.
+    val still = rectCurrent[1 - turning]
+    if (!sheetLandsOnSpread(sheet, landing, backFace, side, still)) return null
     return TwoPageCurl(
         front = bitmapsCurrent[turning],
         back = bitmapsTarget[turning],
         flapBack = bitmapsTarget[1 - turning],
+        still = bitmapsCurrent[1 - turning],
         layout = CurlSheetLayout(
             sheet = sheet,
             spread = sheet.expandedTo(backFace),
@@ -1301,6 +1316,7 @@ private fun buildTwoPageCurl(
         frontCrop = cropsCurrent[turning].toContentRect(),
         backCrop = cropsTarget[turning].toContentRect(),
         flapCrop = cropsTarget[1 - turning].toContentRect(),
+        stillCrop = cropsCurrent[1 - turning].toContentRect(),
     )
 }
 
@@ -1884,7 +1900,7 @@ internal fun CroppedPage(
 
 private suspend fun PointerInputScope.detectCurlSwipe(
     direction: ReadingDirection,
-    width: Float,
+    width: () -> Float,
     currentIndex: () -> Int,
     pageCount: () -> Int,
     onDragStart: (targetIndex: Int, forward: Boolean) -> Boolean,
@@ -1955,7 +1971,7 @@ private suspend fun PointerInputScope.detectCurlSwipe(
                 }
             }
             if (drag) {
-                val raw = curlProgressFromDrag(dx, width, side)
+                val raw = curlProgressFromDrag(dx, width(), side)
                 val following = !startedCurl && targetIndex != fromIndex && onSlideFollow != null
                 progress = if (following) curlFollowProgress(raw, followOffset) else raw
                 when {

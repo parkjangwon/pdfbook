@@ -221,16 +221,19 @@ fun rectsMatch(a: Rect, b: Rect, tolerance: Float = 1f): Boolean =
 /**
  * 오대리 rule: the turning sheet must land exactly on the opposite page, so the sheet and
  * the pages it turns onto have to agree within 1px. Otherwise the end frame jumps and the
- * turn falls back to Slide.
+ * turn falls back to Slide. [still] is the current spread's other page: it is painted under
+ * the turn, so it must occupy the same rect as [backFace].
  */
 fun sheetLandsOnSpread(
     sheet: Rect,
     targetSheet: Rect,
     backFace: Rect,
     side: CurlSide,
+    still: Rect,
     tolerance: Float = 1f,
 ): Boolean {
     if (!rectsMatch(sheet, targetSheet, tolerance)) return false
+    if (!rectsMatch(still, backFace, tolerance)) return false
     if (abs(sheet.width - backFace.width) > tolerance) return false
     if (abs(sheet.height - backFace.height) > tolerance) return false
     if (abs(sheet.top - backFace.top) > tolerance) return false

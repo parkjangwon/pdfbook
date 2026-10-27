@@ -33,6 +33,22 @@ class PageCurlTest {
     }
 
     @Test
+    fun twoPageDragUsesTheSpreadWidthNotThePane() {
+        // A 2400px pane with two 763px pages: the drawn spread is 1526px, not the pane.
+        val pane = 2400f
+        val spread = 1526f
+        val completes = { progress: Float ->
+            curlReleaseCompletes(progress, alongVelocityPx = 0f, flingVelocityPx = 1000f)
+        }
+        val quarter = curlProgressFromDrag(-spread * 0.25f, spread, CurlSide.Right)
+        assertEquals(0.25f, quarter, 0.001f)
+        assertTrue(completes(quarter))
+        assertFalse(completes(curlProgressFromDrag(-spread * 0.24f, spread, CurlSide.Right)))
+        // The same finger travel against the pane width is only a 16% turn: it springs back.
+        assertFalse(completes(curlProgressFromDrag(-spread * 0.25f, pane, CurlSide.Right)))
+    }
+
+    @Test
     fun geometryBuildsForMidProgress() {
         val geo = curlGeometry(400f, 600f, 0.4f, CurlSide.Right)
         assertNotNull(geo)
@@ -646,16 +662,20 @@ class PageCurlTest {
     fun twoPageSheetMustLandOnTheOppositePageWithinOnePixel() {
         val sheet = Rect(400f, 0f, 800f, 600f)
         val backFace = Rect(0f, 0f, 400f, 600f)
-        assertTrue(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right))
+        val still = Rect(0f, 0f, 400f, 600f)
+        assertTrue(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right, still))
         // One pixel of difference is tolerated; two is not.
-        assertTrue(sheetLandsOnSpread(sheet, sheet.translate(1f, 0f), backFace, CurlSide.Right))
-        assertFalse(sheetLandsOnSpread(sheet, sheet.translate(2f, 0f), backFace, CurlSide.Right))
+        assertTrue(sheetLandsOnSpread(sheet, sheet.translate(1f, 0f), backFace, CurlSide.Right, still))
+        assertFalse(sheetLandsOnSpread(sheet, sheet.translate(2f, 0f), backFace, CurlSide.Right, still))
         // The back face must be the same size and sit on the other side of the spine.
-        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(0f, 0f, 390f, 600f), CurlSide.Right))
-        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(10f, 0f, 410f, 600f), CurlSide.Right))
+        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(0f, 0f, 390f, 600f), CurlSide.Right, still))
+        assertFalse(sheetLandsOnSpread(sheet, sheet, Rect(10f, 0f, 410f, 600f), CurlSide.Right, still))
+        // The current still page must land exactly where the back face does.
+        assertTrue(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right, still.translate(1f, 0f)))
+        assertFalse(sheetLandsOnSpread(sheet, sheet, backFace, CurlSide.Right, still.translate(2f, 0f)))
         // Mirrored side: the left sheet lands on the right page.
         val left = Rect(0f, 0f, 400f, 600f)
-        assertTrue(sheetLandsOnSpread(left, left, Rect(400f, 0f, 800f, 600f), CurlSide.Left))
+        assertTrue(sheetLandsOnSpread(left, left, Rect(400f, 0f, 800f, 600f), CurlSide.Left, sheet))
     }
 
     @Test
