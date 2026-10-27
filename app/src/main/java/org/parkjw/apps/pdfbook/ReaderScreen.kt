@@ -63,12 +63,16 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -136,7 +140,9 @@ fun ReaderScreen(
     onFollowSystemBrightnessChange: (Boolean) -> Unit = {},
     onBrightnessChange: (Int) -> Unit = {},
     brightnessSheetVisible: Boolean = false,
+    bookmarkSheetVisible: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
+    bookmarks: ReaderBookmarks? = null,
     pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
     fullScreenReading: Boolean = true,
     keepScreenOn: Boolean = true,
@@ -179,7 +185,9 @@ fun ReaderScreen(
             onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
             onBrightnessChange = onBrightnessChange,
             initialBrightnessSheetVisible = brightnessSheetVisible,
+            initialBookmarkSheetVisible = bookmarkSheetVisible,
             posture = posture,
+            bookmarks = bookmarks,
             pageTurnAnimation = pageTurnAnimation,
             fullScreenReading = fullScreenReading,
         )
@@ -217,10 +225,13 @@ private fun ReaderScreenContent(
     onFollowSystemBrightnessChange: (Boolean) -> Unit,
     onBrightnessChange: (Int) -> Unit,
     initialBrightnessSheetVisible: Boolean,
+    initialBookmarkSheetVisible: Boolean,
     posture: FoldPosture,
+    bookmarks: ReaderBookmarks?,
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
 ) {
+    var bookmarkSheetVisible by rememberSaveable { mutableStateOf(initialBookmarkSheetVisible) }
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
@@ -272,7 +283,8 @@ private fun ReaderScreenContent(
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
     var goToPageVisible by remember { mutableStateOf(false) }
     val sheetOpen = widthSheetVisible || goToPageVisible || brightnessSheetVisible ||
-        (bookListVisible && volumes.bookList != null)
+        (bookListVisible && volumes.bookList != null) ||
+        (bookmarkSheetVisible && bookmarks != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
     var curlFront by remember { mutableStateOf<Bitmap?>(null) }
@@ -406,10 +418,12 @@ private fun ReaderScreenContent(
             return
         }
         curlProgressAnim.snapTo(fromProgress)
-        val animTarget = if (animateForward) 1f else 0f
-        curlProgressAnim.animateTo(animTarget, tween(durationMillis = duration.toInt())) {
+        val animTarget = if (animateForward) CURL_CLEAR_PROGRESS else 0f
+        curlProgressAnim.animateTo(
+            animTarget,
+            tween(durationMillis = duration.toInt(), easing = CurlEasing),
+        ) {
             curlProgress = value
-            curlEffect = curlEffect?.copy(progress = value)
         }
         if (!animateForward) pagerState.scrollToPage(fromIndex)
         clearCurlOverlay()
@@ -435,8 +449,9 @@ private fun ReaderScreenContent(
         curlJob?.cancel()
         curlJob = scope.launch {
             val interrupted = curlEffect
+            val liveProgress = curlProgress
             clearCurlOverlay()
-            val from = interrupted?.let { curlFinishIndex(it) } ?: pagerState.targetPage
+            val from = interrupted?.let { curlFinishIndex(it, liveProgress) } ?: pagerState.targetPage
             if (interrupted != null && pagerState.targetPage != from) {
                 pagerState.scrollToPage(from)
             }
@@ -553,6 +568,7 @@ private fun ReaderScreenContent(
             val pagerWidth = (pageArea?.width ?: window.width).toFloat()
             val pagerHeight = (pageArea?.height ?: window.height).toFloat()
             val slot = pageRenderSlot(window, posture, direction, twoPage)
+            val curlBounds = curlOverlayBounds(window, posture, direction, twoPage)
             val prerenderWidth = slot.width
             val prerenderHeight = slot.height
             renderSlot = slot
@@ -632,9 +648,9 @@ private fun ReaderScreenContent(
                                         false
                                     },
                                     onDrag = { _, _ -> },
-                                    onRelease = { progress, from, targetIndex, _, _, forward ->
+                                    onRelease = { _, from, targetIndex, _, _, forward, completes ->
                                         if (!forward) endNotice = null
-                                        if (shouldCompleteCurl(progress)) {
+                                        if (completes) {
                                             if (targetIndex != from) {
                                                 scope.launch { pagerState.scrollToPage(targetIndex) }
                                             } else if (forward &&
@@ -694,20 +710,15 @@ private fun ReaderScreenContent(
                                     onDrag = { progress, side ->
                                         curlSideState = side
                                         curlProgress = progress
-                                        curlEffect = curlEffect?.copy(
-                                            progress = progress,
-                                            side = side,
-                                            completing = shouldCompleteCurl(progress),
-                                        )
                                     },
-                                    onRelease = { progress, from, targetIndex, side, startedCurl, forward ->
+                                    onRelease = { progress, from, targetIndex, side, startedCurl, forward, completes ->
                                         if (!forward) endNotice = null
                                         if (!startedCurl) {
                                             // Uncached: finger-follow via pager, then settle.
                                             if (pagerState.targetPage != from) {
                                                 return@detectCurlSwipe
                                             }
-                                            if (shouldCompleteCurl(progress)) {
+                                            if (completes) {
                                                 if (targetIndex != from) {
                                                     settlePage(targetIndex, ResolvedPageTurn.Slide)
                                                 } else if (forward &&
@@ -732,7 +743,7 @@ private fun ReaderScreenContent(
                                         if (front == null || back == null) {
                                             clearCurlOverlay()
                                             if (pagerState.targetPage == from &&
-                                                shouldCompleteCurl(progress) &&
+                                                completes &&
                                                 targetIndex != from
                                             ) {
                                                 settlePage(targetIndex, ResolvedPageTurn.Slide)
@@ -746,7 +757,7 @@ private fun ReaderScreenContent(
                                             front = front,
                                             back = back,
                                             fromProgress = progress,
-                                            animateForward = shouldCompleteCurl(progress),
+                                            animateForward = completes,
                                         )
                                     },
                                     onSwipePastEnd = { nextAtEnd() },
@@ -756,6 +767,7 @@ private fun ReaderScreenContent(
                                             pagerState.scrollToPage(from, pageOffsetFraction = offset)
                                         }
                                     },
+                                    fling = true,
                                 )
                             },
                     ) {
@@ -824,14 +836,22 @@ private fun ReaderScreenContent(
                 val frontBmp = curlFront
                 val backBmp = curlBack
                 if (curlActive && frontBmp != null && backBmp != null) {
+                    // Book single-page draws into one half; the overlay must cover
+                    // that same rect or the page jumps across the hinge mid-turn.
+                    val overlayModifier = if (curlBounds != null) {
+                        Modifier
+                            .offset { IntOffset(curlBounds.left, curlBounds.top) }
+                            .width(with(density) { curlBounds.width.toDp() })
+                            .height(with(density) { curlBounds.height.toDp() })
+                    } else {
+                        Modifier.fillMaxSize()
+                    }
                     PageCurlOverlay(
                         front = frontBmp,
                         back = backBmp,
-                        progress = curlProgress,
+                        progress = { curlProgress },
                         side = curlSideState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("reader_page_curl"),
+                        modifier = overlayModifier.testTag("reader_page_curl"),
                     )
                 }
             }
@@ -912,6 +932,18 @@ private fun ReaderScreenContent(
                 onPercentChange = onBrightnessChange,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        } else if (bookmarkSheetVisible && bookmarks != null) {
+            BackHandler { bookmarkSheetVisible = false }
+            BookmarkSheet(
+                pages = bookmarks.pages,
+                onPick = { page ->
+                    bookmarkSheetVisible = false
+                    jumpBack = null
+                    scrollTo(spreadIndexOf(currentSpreads, page))
+                },
+                onDelete = bookmarks.onToggle,
+                onDismiss = { bookmarkSheetVisible = false },
+            )
         } else if (bookListVisible && volumes.bookList != null) {
             BackHandler { bookListVisible = false }
             BookListSheet(
@@ -925,6 +957,7 @@ private fun ReaderScreenContent(
                 onDismiss = { bookListVisible = false },
             )
         } else if (overlayVisible) {
+            val currentSpread = currentSpreads.getOrElse(spreadIndexOf(currentSpreads, currentPage)) { listOf(currentPage) }
             ReaderOverlayTop(
                 title = title,
                 twoPage = twoPage,
@@ -933,6 +966,8 @@ private fun ReaderScreenContent(
                 onDirectionChange = onDirectionChange,
                 showPageMode = tabletop == null,
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
+                bookmarked = bookmarks?.let { spreadBookmarked(it.pages, currentSpread) },
+                onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .then(
@@ -963,6 +998,7 @@ private fun ReaderScreenContent(
                         widthSheetVisible = true
                     },
                     onOpenBrightness = { brightnessSheetVisible = true },
+                    onOpenBookmarks = bookmarks?.let { { bookmarkSheetVisible = true } },
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
                     modifier = Modifier
@@ -1217,6 +1253,8 @@ private fun ReaderOverlayTop(
     showPageMode: Boolean = true,
     modifier: Modifier = Modifier,
     onOpenBookList: (() -> Unit)? = null,
+    bookmarked: Boolean? = null,
+    onToggleBookmark: () -> Unit = {},
 ) {
     Row(
         modifier
@@ -1251,6 +1289,26 @@ private fun ReaderOverlayTop(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (bookmarked != null) {
+            IconButton(
+                onClick = onToggleBookmark,
+                colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+                modifier = Modifier
+                    .testTag("reader_bookmark_toggle")
+                    .semantics {
+                        role = Role.Checkbox
+                        toggleableState = ToggleableState(bookmarked)
+                    },
+            ) {
+                Icon(
+                    painter = painterResource(if (bookmarked) R.drawable.ic_bookmark_on else R.drawable.ic_bookmark),
+                    contentDescription = stringResource(
+                        if (bookmarked) R.string.reader_bookmark_remove else R.string.reader_bookmark_add,
+                    ),
+                    tint = ReaderOnOverlay,
+                )
+            }
+        }
         if (onOpenBookList != null) {
             IconButton(
                 onClick = onOpenBookList,
@@ -1314,6 +1372,7 @@ private fun ReaderOverlayBottom(
     onAdjustTapZones: () -> Unit,
     onOpenBrightness: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenBookmarks: (() -> Unit)? = null,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
 ) {
@@ -1376,15 +1435,28 @@ private fun ReaderOverlayBottom(
         // Under the slider (above page number): keeps |< slider >| mirrored pair intact;
         // tap-zone entry stays above the slider as before.
         ReaderToolRow(
-            items = listOf(
-                ReaderToolItem.Action(
-                    tool = ReaderTool.Brightness,
-                    iconRes = R.drawable.ic_brightness,
-                    label = stringResource(R.string.reader_brightness),
-                    testTag = "reader_brightness",
-                    onClick = onOpenBrightness,
-                ),
-            ),
+            items = buildList {
+                add(
+                    ReaderToolItem.Action(
+                        tool = ReaderTool.Brightness,
+                        iconRes = R.drawable.ic_brightness,
+                        label = stringResource(R.string.reader_brightness),
+                        testTag = "reader_brightness",
+                        onClick = onOpenBrightness,
+                    ),
+                )
+                if (onOpenBookmarks != null) {
+                    add(
+                        ReaderToolItem.Action(
+                            tool = ReaderTool.Bookmarks,
+                            iconRes = R.drawable.ic_bookmark_list,
+                            label = stringResource(R.string.reader_bookmark_list),
+                            testTag = "reader_bookmark_list_button",
+                            onClick = onOpenBookmarks,
+                        ),
+                    )
+                }
+            },
         )
         val goToPageLabel = stringResource(R.string.go_to_page_title)
         Text(
@@ -1475,15 +1547,18 @@ private suspend fun PointerInputScope.detectCurlSwipe(
         side: CurlSide,
         startedCurl: Boolean,
         forward: Boolean,
+        completes: Boolean,
     ) -> Unit,
     onSwipePastEnd: () -> Unit,
     onSlideFollow: ((from: Int, target: Int, progress: Float, forward: Boolean) -> Unit)? = null,
+    fling: Boolean = false,
 ) {
     val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        var multiTouch = false
-        var dragging = false
+        val velocityTracker = VelocityTracker()
+        velocityTracker.addPosition(down.uptimeMillis, down.position)
+        var drag = false
         var startedCurl = false
         var side = CurlSide.Right
         var fromIndex = currentIndex()
@@ -1496,13 +1571,31 @@ private suspend fun PointerInputScope.detectCurlSwipe(
         while (pressed) {
             val event = awaitPointerEvent()
             pressed = event.changes.any { it.pressed }
-            if (event.changes.count { it.pressed } > 1) multiTouch = true
+            if (event.changes.count { it.pressed } > 1) {
+                // A second pointer ends the turn cleanly: settle to the nearest
+                // state so the overlay is never left half-turned, then stop
+                // consuming so pinch zoom can start.
+                if (drag && (startedCurl || targetIndex != fromIndex)) {
+                    onRelease(
+                        progress,
+                        fromIndex,
+                        targetIndex,
+                        side,
+                        startedCurl,
+                        forward,
+                        curlSettleCompletes(progress),
+                    )
+                }
+                return@awaitEachGesture
+            }
             val change = event.changes.firstOrNull { it.id == down.id } ?: continue
             last = change.position
+            // Only moving samples: a still release sample would bend the fit to zero.
+            if (change.pressed) velocityTracker.addPosition(change.uptimeMillis, change.position)
             val dx = last.x - down.position.x
             val dy = last.y - down.position.y
-            if (!dragging && !multiTouch && abs(dx) > touchSlop && abs(dx) > abs(dy)) {
-                dragging = true
+            if (!drag && abs(dx) > touchSlop && abs(dx) > abs(dy)) {
+                drag = true
                 forward = if (direction == ReadingDirection.RTL) dx > 0f else dx < 0f
                 side = curlSide(direction, forward)
                 fromIndex = currentIndex()
@@ -1512,7 +1605,7 @@ private suspend fun PointerInputScope.detectCurlSwipe(
                     if (startedCurl) onDrag(0f, side)
                 }
             }
-            if (dragging && !multiTouch) {
+            if (drag) {
                 val raw = curlProgressFromDrag(dx, width, side)
                 val following = !startedCurl && targetIndex != fromIndex && onSlideFollow != null
                 progress = if (following) curlFollowProgress(raw, followOffset) else raw
@@ -1526,14 +1619,25 @@ private suspend fun PointerInputScope.detectCurlSwipe(
                 if (startedCurl || targetIndex != fromIndex) change.consume()
             }
         }
-        if (multiTouch || !dragging) return@awaitEachGesture
+        if (!drag) return@awaitEachGesture
         if (targetIndex == fromIndex && forward &&
             isTurnPastEnd(fromIndex, 1, pageCount())
         ) {
             onSwipePastEnd()
             return@awaitEachGesture
         }
-        onRelease(progress, fromIndex, targetIndex, side, startedCurl, forward)
+        val velocity = velocityTracker.calculateVelocity().x
+        val alongVelocity = curlAlongVelocity(velocity, side)
+        val completes = if (fling) {
+            curlReleaseCompletes(
+                progress = progress,
+                alongVelocityPx = alongVelocity,
+                flingVelocityPx = CURL_FLING_DP_PER_SECOND.dp.toPx(),
+            )
+        } else {
+            shouldCompleteCurl(progress)
+        }
+        onRelease(progress, fromIndex, targetIndex, side, startedCurl, forward, completes)
     }
 }
 

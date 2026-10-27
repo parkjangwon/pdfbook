@@ -12,7 +12,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -28,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
 import org.parkjw.apps.pdfbook.settings.ScreenOrientation
@@ -154,6 +157,15 @@ fun ReaderRoute(
                         ),
                     )
                 }
+                val pageCount = renderer.pageCount
+                val bookmarkFlow = remember(store, key, pageCount) { store.bookmarks(key, pageCount) }
+                val bookmarkPages by bookmarkFlow.collectAsState(null)
+                val bookmarkScope = rememberCoroutineScope()
+                val readerBookmarks = remember(bookmarkPages, key) {
+                    bookmarkPages?.let { pages ->
+                        ReaderBookmarks(pages) { page -> bookmarkScope.launch { store.toggleBookmark(key, page) } }
+                    }
+                }
                 ReaderScreen(
                     renderer = renderer,
                     pagerState = pagerState,
@@ -178,6 +190,7 @@ fun ReaderRoute(
                     brightnessPercent = brightnessPercent,
                     onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
                     onBrightnessChange = onBrightnessChange,
+                    bookmarks = readerBookmarks,
                     pageTurnAnimation = pageTurnAnimation,
                     fullScreenReading = fullScreenReading,
                     keepScreenOn = keepScreenOn,
