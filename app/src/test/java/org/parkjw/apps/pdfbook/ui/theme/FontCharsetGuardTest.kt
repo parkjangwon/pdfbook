@@ -19,6 +19,9 @@ class FontCharsetGuardTest {
         val root = projectRoot()
         val charset = File(root, "fonts/pretendard_subset_chars.txt").readText(Charsets.UTF_8).toSet()
         assertTrue(charset.size > 2000)
+        // Strings made only of these characters are drawn with the JetBrains Mono subset,
+        // which carries the en dash for the two-page range.
+        val numericChars = "0123456789.,%/×:-– ".toSet()
         val formatArg = Regex("""%(\d+\$)?[a-zA-Z]""")
         val missing = linkedSetOf<Char>()
         File(root, "app/src/main/res").walkTopDown()
@@ -29,6 +32,7 @@ class FontCharsetGuardTest {
                     val nodes = doc.getElementsByTagName(tag)
                     for (i in 0 until nodes.length) {
                         val text = formatArg.replace(nodes.item(i).textContent ?: continue, "")
+                        if (text.isNotEmpty() && text.all { it in numericChars }) continue
                         for (ch in text) {
                             if (ch !in charset) missing.add(ch)
                         }

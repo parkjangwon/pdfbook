@@ -59,6 +59,9 @@ class SettingsRepository(
         val ReaderBrightnessPercentKey = intPreferencesKey("reader_brightness_percent")
         val FullScreenReadingKey = booleanPreferencesKey("full_screen_reading")
         val DisplayModeKey = stringPreferencesKey("display_mode")
+        val ReadingInfoPageKey = booleanPreferencesKey("reading_info_page")
+        val ReadingInfoTimeKey = booleanPreferencesKey("reading_info_time")
+        val ReadingInfoBatteryKey = booleanPreferencesKey("reading_info_battery")
     }
 }
 
@@ -108,6 +111,9 @@ internal fun Preferences.toAppSettings(): AppSettings {
         },
         fullScreenReading = this[SettingsRepository.FullScreenReadingKey] ?: defaults.fullScreenReading,
         displayMode = enumOrDefault(this[SettingsRepository.DisplayModeKey], defaults.displayMode),
+        readingInfoPage = this[SettingsRepository.ReadingInfoPageKey] ?: defaults.readingInfoPage,
+        readingInfoTime = this[SettingsRepository.ReadingInfoTimeKey] ?: defaults.readingInfoTime,
+        readingInfoBattery = this[SettingsRepository.ReadingInfoBatteryKey] ?: defaults.readingInfoBattery,
     )
 }
 
@@ -134,6 +140,9 @@ private fun MutablePreferences.write(settings: AppSettings) {
         normalizeReaderBrightnessPercent(settings.readerBrightnessPercent)
     this[SettingsRepository.FullScreenReadingKey] = settings.fullScreenReading
     this[SettingsRepository.DisplayModeKey] = settings.displayMode.name
+    this[SettingsRepository.ReadingInfoPageKey] = settings.readingInfoPage
+    this[SettingsRepository.ReadingInfoTimeKey] = settings.readingInfoTime
+    this[SettingsRepository.ReadingInfoBatteryKey] = settings.readingInfoBattery
 }
 
 private inline fun <reified T : Enum<T>> enumOrDefault(raw: String?, default: T): T {

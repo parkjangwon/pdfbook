@@ -81,7 +81,7 @@ Checked contrast (light/dark): body 14.3/14.6, body on card 15.4/13.4, secondary
 
 ## 3. Type
 - Pretendard (Regular and SemiBold only). Headings use weight 400 with negative tracking; only card titles use 600. Don't use Bold or Medium (they are not bundled and get faked).
-- Numbers (page counts, `42%`, `$12.40`, counts, zoom, versions) use a JetBrains Mono subset (0-9 . , % / × : - and space; add a symbol such as `$` to the subset and the numeric regex if the project needs it). Never use it for letters.
+- Numbers (page counts, `42%`, `$12.40`, counts, zoom, versions) use a JetBrains Mono subset (0-9 . , % / × : - – and space; add a symbol such as `$` to the subset and the numeric regex if the project needs it). Never use it for letters.
 - Use the type scale through `MaterialTheme.typography`; avoid raw `fontSize` in screen code.
 
 | Style | Size (sp) | Weight | Tracking | Use |

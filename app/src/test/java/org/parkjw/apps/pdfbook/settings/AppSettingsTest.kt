@@ -23,5 +23,8 @@ class AppSettingsTest {
         assertEquals(false, s.showDotFiles)
         assertTrue(s.followSystemBrightness)
         assertEquals(100, s.readerBrightnessPercent)
+        assertEquals(false, s.readingInfoPage)
+        assertEquals(false, s.readingInfoTime)
+        assertEquals(false, s.readingInfoBattery)
     }
 }

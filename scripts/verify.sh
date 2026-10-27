@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode reading-info"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -481,6 +481,48 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
     shot display-mode-invert
+    ;;
+  reading-info)
+    open_book
+    shot reading-info-off
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id library_screen
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    page_switch='Page number|쪽 번호'
+    for _ in 1 2 3 4 5; do
+      wait_node text "$page_switch" 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    shot reading-info-settings-off
+    tap_node text "$page_switch"
+    for _ in 1 2 3; do
+      wait_node text 'Time|시각' 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    tap_node text 'Time|시각'
+    for _ in 1 2 3; do
+      wait_node text 'Battery|배터리' 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    tap_node text 'Battery|배터리'
+    shot reading-info-settings-on
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id library_screen
+    tap_id library_book
+    expect_id reader_screen
+    shot reading-info-single
+    tap_id reader_zone_Next
+    sleep 1
+    shot reading-info-page-2
+    tap_id reader_zone_Menu
+    expect_id reader_overlay_bottom
+    sleep 1
+    shot reading-info-overlay-hidden
     ;;
 esac
 

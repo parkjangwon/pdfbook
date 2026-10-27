@@ -533,6 +533,37 @@ private fun ReadingSettingsScreen(
                         .selectable(selected = false, onClick = { showTapWidthSheet = true }),
                 )
             }
+            SettingsSection(stringResource(R.string.settings_reading_info))
+            Text(
+                text = stringResource(R.string.settings_reading_info_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(
+                    start = PdfBookSpacing.screenHorizontalFolded,
+                    end = PdfBookSpacing.screenHorizontalFolded,
+                    top = PdfBookSpacing.xxs,
+                    bottom = PdfBookSpacing.xs,
+                ),
+            )
+            SettingsGroup {
+                SwitchRow(
+                    title = stringResource(R.string.settings_reading_info_page),
+                    checked = settings.readingInfoPage,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(readingInfoPage = checked) } },
+                )
+                GroupDivider()
+                SwitchRow(
+                    title = stringResource(R.string.settings_reading_info_time),
+                    checked = settings.readingInfoTime,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(readingInfoTime = checked) } },
+                )
+                GroupDivider()
+                SwitchRow(
+                    title = stringResource(R.string.settings_reading_info_battery),
+                    checked = settings.readingInfoBattery,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(readingInfoBattery = checked) } },
+                )
+            }
         }
     }
     when (choice) {

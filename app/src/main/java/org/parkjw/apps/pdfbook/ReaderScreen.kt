@@ -167,6 +167,9 @@ fun ReaderScreen(
     fullScreenReading: Boolean = true,
     displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
+    readingInfoPage: Boolean = false,
+    readingInfoTime: Boolean = false,
+    readingInfoBattery: Boolean = false,
 ) {
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
@@ -216,6 +219,9 @@ fun ReaderScreen(
             bookmarks = bookmarks,
             pageTurnAnimation = pageTurnAnimation,
             fullScreenReading = fullScreenReading,
+            readingInfoPage = readingInfoPage,
+            readingInfoTime = readingInfoTime,
+            readingInfoBattery = readingInfoBattery,
         )
     }
 }
@@ -259,6 +265,9 @@ private fun ReaderScreenContent(
     bookmarks: ReaderBookmarks?,
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
+    readingInfoPage: Boolean,
+    readingInfoTime: Boolean,
+    readingInfoBattery: Boolean,
 ) {
     SideEffect { renderer.setAutoCrop(autoCrop) }
     // Slider drags preview the window brightness without a DataStore write; only release persists.
@@ -660,6 +669,7 @@ private fun ReaderScreenContent(
     val tabletop = posture as? FoldPosture.Tabletop
     val book = posture as? FoldPosture.Book
     val bottomBarShown = overlayVisible && !sheetOpen && tabletop == null
+    val readingInfoEnabled = readingInfoPage || readingInfoTime || readingInfoBattery
 
     Box(
         modifier = modifier
@@ -678,6 +688,14 @@ private fun ReaderScreenContent(
             val pagerHeight = (pageArea?.height ?: window.height).toFloat()
             val slot = pageRenderSlot(window, posture, direction, twoPage)
             val curlBounds = curlOverlayBounds(window, posture, direction, twoPage)
+            val infoPaneWidth = when {
+                pageArea != null -> pageArea.width
+                book != null -> bookHalves(window, book.foldBounds).second.width
+                else -> window.width
+            }
+            val infoMaxWidth = with(density) {
+                (infoPaneWidth - 16.dp.roundToPx()).coerceAtLeast(0).toDp()
+            }
             val prerenderWidth = slot.width
             val prerenderHeight = slot.height
             renderSlot = slot
@@ -1077,6 +1095,20 @@ private fun ReaderScreenContent(
                         foldHighlightColor = curlLook.foldHighlightColor,
                     )
                 }
+                if (readingInfoEnabled) {
+                    ReadingInfoHost(
+                        spreads = currentSpreads,
+                        pagerState = pagerState,
+                        maxWidth = infoMaxWidth,
+                        showPage = readingInfoPage,
+                        showTime = readingInfoTime,
+                        showBattery = readingInfoBattery,
+                        omitPage = tabletop != null,
+                        atFold = tabletop != null,
+                        visible = !overlayVisible,
+                        modifier = Modifier.align(Alignment.BottomEnd),
+                    )
+                }
             }
             if (padArea != null) {
                 TabletopPads(
@@ -1279,6 +1311,7 @@ private fun ReaderScreenContent(
         val noticeInset = noticeBottomInset(
             bottomBarShown,
             with(density) { bottomBarHeight.toDp() },
+            readingInfoEnabled && !overlayVisible,
         )
         EndNoticeHost(
             notice = endNotice,

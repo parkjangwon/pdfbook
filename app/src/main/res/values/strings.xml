@@ -71,6 +71,11 @@
     <string name="settings_volume_key_paging">볼륨 키로 넘기기</string>
     <string name="settings_keep_screen_on">화면 켜짐 유지</string>
     <string name="settings_tap_zone_guide">탭 영역 안내 표시</string>
+    <string name="settings_reading_info">읽기 정보 표시</string>
+    <string name="settings_reading_info_desc">읽는 화면 구석에 작게 보여요</string>
+    <string name="settings_reading_info_page">쪽 번호</string>
+    <string name="settings_reading_info_time">시각</string>
+    <string name="settings_reading_info_battery">배터리</string>
     <string name="settings_section_about">정보</string>
     <string name="about_version">버전 %1$s</string>
     <string name="reader_back">뒤로</string>
@@ -81,6 +86,12 @@
     <string name="reader_mode_status_single">지금은 한쪽 보기예요</string>
     <string name="reader_mode_status_double">지금은 두쪽 보기예요</string>
     <string name="reader_jump_back">%1$d쪽으로 돌아가기</string>
+    <string name="reader_info_page">%1$d/%2$d</string>
+    <string name="reader_info_pages">%1$d–%2$d/%3$d</string>
+    <string name="reader_info_page_a11y">%1$d쪽, 전체 %2$d쪽</string>
+    <string name="reader_info_pages_a11y">%1$d~%2$d쪽, 전체 %3$d쪽</string>
+    <string name="reader_info_battery">%1$d%%</string>
+    <string name="reader_info_battery_a11y">배터리 %1$d%%</string>
     <string name="settings_section_update">업데이트</string>
     <string name="update_check">업데이트 확인</string>
     <string name="update_auto">자동으로 업데이트 확인</string>
