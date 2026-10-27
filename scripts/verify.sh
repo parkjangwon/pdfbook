@@ -493,6 +493,22 @@ case "$FEATURE" in
     "$ADB" shell input tap "$tap_x" "$2"
     sleep 1
     shot image-adjust-on
+    # Dark theme capture.
+    "$ADB" shell cmd uimode night yes
+    sleep 2
+    shot image-adjust-on-dark
+    "$ADB" shell cmd uimode night no
+    sleep 1
+    # 320dp width with the 2.0x font scale.
+    "$ADB" shell wm size 320x640
+    "$ADB" shell wm density 160
+    "$ADB" shell settings put system font_scale 2.0
+    sleep 3
+    shot image-adjust-a11y
+    "$ADB" shell settings put system font_scale 1.0
+    "$ADB" shell wm size reset
+    "$ADB" shell wm density reset
+    sleep 2
     "$ADB" shell input keyevent KEYCODE_BACK
     expect_id settings_reading_screen
     "$ADB" shell input keyevent KEYCODE_BACK
