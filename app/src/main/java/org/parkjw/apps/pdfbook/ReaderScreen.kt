@@ -64,6 +64,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -150,7 +151,6 @@ fun ReaderScreen(
     displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
 ) {
-    ReaderBrightnessEffect(followSystemBrightness, brightnessPercent)
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
         val previous = view.keepScreenOn
@@ -237,6 +237,9 @@ private fun ReaderScreenContent(
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
 ) {
+    // Slider drags preview the window brightness without a DataStore write; only release persists.
+    var brightnessPreview by remember(brightnessPercent) { mutableIntStateOf(brightnessPercent) }
+    ReaderBrightnessEffect(followSystemBrightness, brightnessPreview)
     var bookmarkSheetVisible by rememberSaveable { mutableStateOf(initialBookmarkSheetVisible) }
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
@@ -811,6 +814,13 @@ private fun ReaderScreenContent(
                         Row(Modifier.fillMaxSize()) {
                             tapZoneSpans(direction, sideFraction).forEach { span ->
                                 val interactionSource = remember { MutableInteractionSource() }
+                                val zoneLabel = stringResource(
+                                    when (span.zone) {
+                                        TapZone.Previous -> R.string.reader_zone_previous_a11y
+                                        TapZone.Menu -> R.string.reader_zone_menu_a11y
+                                        TapZone.Next -> R.string.reader_zone_next_a11y
+                                    },
+                                )
                                 val onTap = {
                                     if (span.zone == TapZone.Menu) {
                                         overlayVisible = !overlayVisible
@@ -827,11 +837,13 @@ private fun ReaderScreenContent(
                                         // dialog releases focus.
                                         .focusProperties { canFocus = activePage }
                                         .testTag("reader_zone_" + span.zone.name)
+                                        .semantics { contentDescription = zoneLabel }
                                         .then(
                                             if (zoomed || span.zone.acceptsDoubleTapAtBaseScale) {
                                                 Modifier.combinedClickable(
                                                     interactionSource = interactionSource,
                                                     indication = null,
+                                                    role = Role.Button,
                                                     onClick = onTap,
                                                     onDoubleClick = { toggleZoom() },
                                                 )
@@ -839,6 +851,7 @@ private fun ReaderScreenContent(
                                                 Modifier.clickable(
                                                     interactionSource = interactionSource,
                                                     indication = null,
+                                                    role = Role.Button,
                                                     onClick = onTap,
                                                 )
                                             },
@@ -921,11 +934,7 @@ private fun ReaderScreenContent(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { widthSheetVisible = false },
-                    ),
+                    .pointerInput(Unit) { detectTapGestures { widthSheetVisible = false } },
             )
             TapZoneWidthSheet(
                 percent = sidePercent,
@@ -953,16 +962,13 @@ private fun ReaderScreenContent(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { brightnessSheetVisible = false },
-                    ),
+                    .pointerInput(Unit) { detectTapGestures { brightnessSheetVisible = false } },
             )
             ReaderBrightnessSheet(
                 followSystem = followSystemBrightness,
                 percent = brightnessPercent,
                 onFollowSystemChange = onFollowSystemBrightnessChange,
+                onPercentPreview = { brightnessPreview = it },
                 onPercentChange = onBrightnessChange,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -1085,11 +1091,7 @@ private fun ReaderScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(ReaderScrim)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { goToPageVisible = false },
-                    ),
+                    .pointerInput(Unit) { detectTapGestures { goToPageVisible = false } },
                 contentAlignment = Alignment.Center,
             ) {
                 GoToPageDialog(
@@ -1299,11 +1301,7 @@ private fun ReaderOverlayBottom(
             .fillMaxWidth()
             .testTag("reader_overlay_bottom")
             .background(ReaderOverlay)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {},
-            )
+            .pointerInput(Unit) { detectTapGestures { } }
             .safeDrawingBottomBarPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
