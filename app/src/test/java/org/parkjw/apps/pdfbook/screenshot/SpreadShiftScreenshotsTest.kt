@@ -5,22 +5,25 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.parkjw.apps.pdfbook.BookInfo
+import org.parkjw.apps.pdfbook.BookListEntry
+import org.parkjw.apps.pdfbook.BookListUi
 import org.parkjw.apps.pdfbook.PageBitmaps
+import org.parkjw.apps.pdfbook.ReaderBookmarks
 import org.parkjw.apps.pdfbook.ReaderScreen
+import org.parkjw.apps.pdfbook.ReaderVolumes
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.spreadIndexOf
@@ -29,6 +32,7 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
+@OptIn(ExperimentalRoborazziApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [37])
@@ -69,9 +73,14 @@ class SpreadShiftScreenshotsTest {
         capture("reader-spread-shift-menu-single-360.png", shift = false, twoPage = false)
 
     @Test
-    @Config(qualifiers = "ko-w320dp-h920dp-xxhdpi")
+    @Config(qualifiers = "ko-w320dp-h920dp-xxhdpi", fontScale = 2f)
     fun compact320Font2() =
-        capture("reader-spread-shift-menu-320-font2.png", shift = true, fontScale = 2f)
+        capture("reader-spread-shift-menu-320-font2.png", shift = true)
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun compactOnLtr() =
+        capture("reader-spread-shift-menu-360-on-ltr.png", shift = true, direction = ReadingDirection.LTR)
 
     @Test
     @Config(qualifiers = FOLDABLE_QUALIFIERS)
@@ -82,7 +91,7 @@ class SpreadShiftScreenshotsTest {
         shift: Boolean,
         twoPage: Boolean = true,
         displayMode: DisplayMode = DisplayMode.Default,
-        fontScale: Float = 1f,
+        direction: ReadingDirection = ReadingDirection.RTL,
     ) {
         val pageCount = 30
         val pageSpreads = spreads(
@@ -94,29 +103,26 @@ class SpreadShiftScreenshotsTest {
         val index = spreadIndexOf(pageSpreads, 12)
         composeRule.setContent {
             ScreenshotTheme(dark = false, systemBarsColor = ReaderBackground) {
-                val base = LocalDensity.current
-                CompositionLocalProvider(
-                    LocalDensity provides Density(density = base.density, fontScale = fontScale),
-                ) {
-                    ReaderScreen(
-                        renderer = NumberedPageBitmaps(pageCount),
-                        pagerState = rememberPagerState(initialPage = index, pageCount = { pageSpreads.size }),
-                        spreads = pageSpreads,
-                        title = "바닷가 마을 이야기",
-                        pageCount = pageCount,
-                        currentPage = 12,
-                        twoPage = twoPage,
-                        onBack = {},
-                        onDirectionChange = {},
-                        direction = ReadingDirection.RTL,
-                        overlayVisible = true,
-                        showTapZoneGuide = false,
-                        displayMode = displayMode,
-                        spreadShift = shift,
-                        onSpreadShiftChange = {},
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+                ReaderScreen(
+                    renderer = NumberedPageBitmaps(pageCount),
+                    pagerState = rememberPagerState(initialPage = index, pageCount = { pageSpreads.size }),
+                    spreads = pageSpreads,
+                    title = "바닷가 마을 이야기",
+                    pageCount = pageCount,
+                    currentPage = 12,
+                    twoPage = twoPage,
+                    onBack = {},
+                    onDirectionChange = {},
+                    direction = direction,
+                    overlayVisible = true,
+                    showTapZoneGuide = false,
+                    displayMode = displayMode,
+                    volumes = volumes,
+                    bookmarks = bookmarks,
+                    spreadShift = shift,
+                    onSpreadShiftChange = {},
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
         composeRule.waitForIdle()
@@ -125,6 +131,21 @@ class SpreadShiftScreenshotsTest {
         composeRule.mainClock.autoAdvance = false
         captureScreenRoboImage(file)
     }
+
+    private val volumes = ReaderVolumes(
+        bookList = BookListUi(
+            folderName = "pdfbook-verify",
+            entries = listOf(
+                BookListEntry(
+                    book = BookInfo(uri = "content://test/book-01.pdf", name = "바닷가 마을 이야기 01.pdf", size = 1),
+                    isCurrent = true,
+                    percent = 40,
+                ),
+            ),
+        ),
+    )
+
+    private val bookmarks = ReaderBookmarks(pages = listOf(12)) {}
 
     private class NumberedPageBitmaps(override val pageCount: Int) : PageBitmaps {
         override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
