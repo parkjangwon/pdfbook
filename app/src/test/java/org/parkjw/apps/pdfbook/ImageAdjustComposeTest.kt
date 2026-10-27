@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -88,6 +89,9 @@ class ImageAdjustComposeTest {
         val store = store()
         runBlocking { store.saveAdjust(bookKey(book.uri, book.size), ImageAdjust(contrast = 30)) }
         settings(store, book)
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("켜짐").fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText("켜짐").assertIsDisplayed()
     }
 
