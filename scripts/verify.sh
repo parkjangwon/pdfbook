@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom display-mode"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom display-mode spread-shift"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -466,6 +466,40 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
     shot display-mode-invert
+    ;;
+  spread-shift)
+    open_book
+    show_overlay
+    tap_id reader_more_button
+    expect_id reader_more_status
+    wait_node resource-id reader_more_spread_shift 1 >/dev/null \
+      && die "Shift row must stay hidden in single-page view (last dump: $OUT/ui.xml)"
+    shot spread-shift-single-page
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_library
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    two_page='Two-page view|두쪽 보기'
+    for _ in 1 2 3; do
+      wait_node text "$two_page" 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    tap_node text "$two_page"
+    tap_node text 'Always double|항상 두쪽'
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_book
+    show_overlay
+    tap_id reader_more_button
+    expect_id reader_more_status
+    expect_id reader_more_spread_shift
+    shot spread-shift-menu-off
+    tap_id reader_more_spread_shift
+    expect_id reader_more_spread_shift
+    shot spread-shift-menu-on
     ;;
 esac
 
