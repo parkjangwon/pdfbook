@@ -43,9 +43,11 @@ class TwoPageCurlMixedHeightScreenshotsTest {
     @Test
     @Config(qualifiers = FOLDED_QUALIFIERS)
     fun mixedHeightPairLandsEachPageOnItsOwnRect() {
+        // Heights scaled from [6,7] -> [8,9] of 장원's book (1337 / 1333 / 1330 px): the turning
+        // page, the revealed page and the back face are each a few pixels apart.
         val currentLeft = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFFB07A2A.toInt(), height = 851)
         val currentRight = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFF3D5A80.toInt(), height = 853)
-        val targetLeft = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFF2E7D32.toInt(), height = 849)
+        val targetLeft = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFF2E7D32.toInt(), height = 846)
         val targetRight = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFFD9534F.toInt(), height = 849)
 
         var progress by mutableStateOf(0.5f)
