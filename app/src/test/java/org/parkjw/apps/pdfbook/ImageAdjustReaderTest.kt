@@ -37,6 +37,13 @@ class ImageAdjustReaderTest {
     }
 
     @Test
+    fun partialGrayscaleKeepsSomeColour() {
+        // Red 255 at 50%: (165.6, 38.1, 38.1) per the luma mix, measured on the page.
+        val (r, g, b) = corner(DisplayMode.Default, ImageAdjust(grayscale = 50), page = 0xFFFF0000.toInt())
+        assertTrue("r=$r g=$g b=$b", abs(r - 166) <= 4 && abs(g - 38) <= 4 && abs(b - 38) <= 4)
+    }
+
+    @Test
     fun defaultAdjustmentLeavesThePageUntouched() {
         val (r, g, b) = corner(DisplayMode.Default, ImageAdjust.Default, page = 0xFFFF0000.toInt())
         assertTrue("r=$r g=$g b=$b", r > 247 && g < 8 && b < 8)

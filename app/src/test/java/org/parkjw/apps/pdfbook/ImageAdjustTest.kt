@@ -51,19 +51,35 @@ class ImageAdjustTest {
     }
 
     @Test
-    fun grayscaleUsesRec709LumaAtFullStrength() {
+    fun grayscaleUsesLumaPerChannelAtFullStrength() {
         val matrix = grayscaleMatrix(100)
         val red = apply(matrix, floatArrayOf(255f, 0f, 0f))
         assertEquals(76.245f, red[0], 1e-3f)
         assertEquals(76.245f, red[1], 1e-3f)
         assertEquals(76.245f, red[2], 1e-3f)
+        val green = apply(matrix, floatArrayOf(0f, 255f, 0f))
+        assertEquals(149.685f, green[0], 1e-3f)
+        assertEquals(149.685f, green[1], 1e-3f)
+        assertEquals(149.685f, green[2], 1e-3f)
+        val blue = apply(matrix, floatArrayOf(0f, 0f, 255f))
+        assertEquals(29.07f, blue[0], 1e-3f)
+        assertEquals(29.07f, blue[1], 1e-3f)
+        assertEquals(29.07f, blue[2], 1e-3f)
     }
 
     @Test
-    fun grayscaleIsAPartialMix() {
-        val matrix = grayscaleMatrix(50)
-        val out = apply(matrix, floatArrayOf(255f, 0f, 0f))
-        assertEquals(255f * 0.5f + 76.245f * 0.5f, out[0], 1e-3f)
+    fun grayscaleLeavesThePageUntouchedAtZero() {
+        val out = apply(grayscaleMatrix(0), floatArrayOf(255f, 0f, 0f))
+        assertArrayEquals(floatArrayOf(255f, 0f, 0f), out, 1e-4f)
+    }
+
+    @Test
+    fun grayscaleIsAPartialMixOnEveryChannel() {
+        // Red 255 at 50%: lerp(channel, luma 76.245, 0.5) = (165.62, 38.12, 38.12).
+        val out = apply(grayscaleMatrix(50), floatArrayOf(255f, 0f, 0f))
+        assertEquals(165.6225f, out[0], 1e-3f)
+        assertEquals(38.1225f, out[1], 1e-3f)
+        assertEquals(38.1225f, out[2], 1e-3f)
     }
 
     @Test

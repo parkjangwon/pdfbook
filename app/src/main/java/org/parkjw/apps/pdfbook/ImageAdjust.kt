@@ -90,13 +90,14 @@ internal fun brightnessContrastMatrix(brightness: Int, contrast: Int): FloatArra
 
 internal fun grayscaleMatrix(grayscale: Int): FloatArray {
     val g = grayscale.coerceIn(0, 100) / 100f
-    val red = 1f - g + g * IMAGE_LUMA_RED
-    val green = g * IMAGE_LUMA_GREEN
-    val blue = g * IMAGE_LUMA_BLUE
+    val lumaR = g * IMAGE_LUMA_RED
+    val lumaG = g * IMAGE_LUMA_GREEN
+    val lumaB = g * IMAGE_LUMA_BLUE
+    val keep = 1f - g
     return floatArrayOf(
-        red, green, blue, 0f, 0f,
-        red, green, blue, 0f, 0f,
-        red, green, blue, 0f, 0f,
+        keep + lumaR, lumaG, lumaB, 0f, 0f,
+        lumaR, keep + lumaG, lumaB, 0f, 0f,
+        lumaR, lumaG, keep + lumaB, 0f, 0f,
         0f, 0f, 0f, 1f, 0f,
     )
 }
