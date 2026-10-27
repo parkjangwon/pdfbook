@@ -71,8 +71,8 @@ class PageCurlSettingsTest {
         composeRule.onNodeWithText("책장 넘김").assertIsDisplayed()
         composeRule.onNodeWithText(
             "한쪽·두쪽 보기 모두 책처럼 넘겨요. 확대 중이거나 다음 쪽을 준비 중이면 슬라이드로 넘어가요. " +
-                "두쪽 보기에서 표지나 마지막 쪽처럼 한 쪽만 보이는 펼침도, 다음 펼침이 그 한 쪽 안에 다 " +
-                "들어오면 책처럼 넘겨요. 안 들어오거나 접는 부분에 틈이 있으면 슬라이드예요.",
+                "두쪽 보기에서 표지나 마지막 쪽에서 넘길 때는 화면 모양에 따라 책처럼 넘기거나 슬라이드로 넘어가요. " +
+                "두 쪽 펼침에서 표지나 마지막 쪽으로 갈 때는 슬라이드예요.",
         ).assertIsDisplayed()
         composeRule.onNodeWithTag("settings_animation_option_Curl").performClick()
         assertEquals(PageTurnAnimation.Curl, settings.pageTurnAnimation)
@@ -87,16 +87,16 @@ class PageCurlSettingsTest {
         assertEquals("책장 넘김", localized(Locale.KOREAN, R.string.settings_animation_curl))
         assertEquals(
             "한쪽·두쪽 보기 모두 책처럼 넘겨요. 확대 중이거나 다음 쪽을 준비 중이면 슬라이드로 넘어가요. " +
-                "두쪽 보기에서 표지나 마지막 쪽처럼 한 쪽만 보이는 펼침도, 다음 펼침이 그 한 쪽 안에 다 " +
-                "들어오면 책처럼 넘겨요. 안 들어오거나 접는 부분에 틈이 있으면 슬라이드예요.",
+                "두쪽 보기에서 표지나 마지막 쪽에서 넘길 때는 화면 모양에 따라 책처럼 넘기거나 슬라이드로 넘어가요. " +
+                "두 쪽 펼침에서 표지나 마지막 쪽으로 갈 때는 슬라이드예요.",
             localized(Locale.KOREAN, R.string.settings_animation_curl_desc),
         )
         assertEquals("Page curl", localized(Locale.ENGLISH, R.string.settings_animation_curl))
         assertEquals(
             "Turns pages like a book in single- and two-page view. Uses Slide while zoomed in or " +
-                "while the next page is loading. In two-page view, a lone page such as the cover or the " +
-                "last page also curls like a book when the next spread fits inside that page. It slides " +
-                "when the spread does not fit or when there is a gap at the fold.",
+                "while the next page is loading. In two-page view, turning from the cover or a lone " +
+                "last page curls like a book or slides, depending on the screen shape. Turning " +
+                "from a two-page spread onto one always slides.",
             localized(Locale.ENGLISH, R.string.settings_animation_curl_desc),
         )
     }
