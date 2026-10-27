@@ -409,7 +409,8 @@ case "$FEATURE" in
   book-list)
     open_book
     show_overlay
-    tap_id reader_book_list_button
+    tap_id reader_more_button
+    tap_id reader_more_book_list
     expect_id book_list_row
     shot book-list
     ;;
