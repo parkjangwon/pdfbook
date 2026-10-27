@@ -496,6 +496,7 @@ private fun ReaderScreenContent(
             val slotW = slot.width
             val slotH = slot.height
             val nextSpread = currentSpreads.getOrNull(target).orEmpty()
+            val fromSpread = currentSpreads.getOrNull(from).orEmpty()
             val off = animationsOff(animatorScale)
             val cached = isSpreadCached(renderer, nextSpread, slotW, slotH)
             val mode = resolvePageTurn(
@@ -505,6 +506,8 @@ private fun ReaderScreenContent(
                 nextPageCached = cached,
                 animationsOff = off,
                 endNoticeOnly = false,
+                fromSpreadPages = fromSpread.size,
+                toSpreadPages = nextSpread.size,
             )
             if (mode != ResolvedPageTurn.Curl) {
                 when (mode) {
@@ -516,7 +519,6 @@ private fun ReaderScreenContent(
                 }
                 return@launch
             }
-            val fromSpread = currentSpreads.getOrNull(from).orEmpty()
             val front = cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
             val back = cachedSpreadBitmaps(renderer, nextSpread, slotW, slotH)
             if (front == null || back == null) {
