@@ -73,6 +73,16 @@ internal fun readerTopBarMode(widthDp: Int): ReaderTopBarMode = when {
     else -> ReaderTopBarMode.Expanded
 }
 
+internal fun readerMoreMenuOffset(
+    anchorBounds: IntRect,
+    popupWidth: Int,
+    marginPx: Int,
+    barPaddingPx: Int,
+): IntOffset = IntOffset(
+    x = anchorBounds.right + barPaddingPx - popupWidth - marginPx,
+    y = anchorBounds.bottom + barPaddingPx + barPaddingPx,
+)
+
 @Composable
 internal fun ReaderOverlayTop(
     title: String,
@@ -208,7 +218,8 @@ internal fun ReaderOverlayTop(
                 )
             }
         }
-        if (mode != ReaderTopBarMode.Expanded) {
+        val moreHasItems = mode == ReaderTopBarMode.Compact || onOpenBookList != null || showPageMode
+        if (mode != ReaderTopBarMode.Expanded && moreHasItems) {
             IconButton(
                 onClick = { moreExpanded = true },
                 colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
@@ -259,9 +270,12 @@ private fun ReaderMoreMenu(
                 popupContentSize: IntSize,
             ): IntOffset {
                 val margin = with(density) { 8.dp.roundToPx() }
-                return IntOffset(
-                    x = anchorBounds.right - popupContentSize.width - margin,
-                    y = anchorBounds.bottom,
+                val barPadding = with(density) { 4.dp.roundToPx() }
+                return readerMoreMenuOffset(
+                    anchorBounds = anchorBounds,
+                    popupWidth = popupContentSize.width,
+                    marginPx = margin,
+                    barPaddingPx = barPadding,
                 )
             }
         }
@@ -280,7 +294,8 @@ private fun ReaderMoreMenu(
                     .background(ReaderOverlay)
                     .border(1.dp, ReaderTrack, CardCorner)
                     .semantics { testTagsAsResourceId = true }
-                    .testTag("reader_more_menu"),
+                    .testTag("reader_more_menu")
+                    .padding(vertical = 8.dp),
             ) {
                 if (onOpenBookList != null) {
                     ReaderMenuRow(

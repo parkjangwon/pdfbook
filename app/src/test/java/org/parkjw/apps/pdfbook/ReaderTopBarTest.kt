@@ -140,6 +140,13 @@ class ReaderTopBarTest {
     }
 
     @Test
+    fun mediumWithoutMenuItemsHidesMore() {
+        setBar(412, bookList = false, showPageMode = false)
+        composeRule.onNodeWithTag("reader_more_button").assertDoesNotExist()
+        composeRule.onNodeWithTag("reader_title", useUnmergedTree = true).assertWidthIsAtLeast(120.dp)
+    }
+
+    @Test
     fun mediumMenuHoldsBookListAndStatusButNoDirection() {
         setBar(412)
         openMenu()
