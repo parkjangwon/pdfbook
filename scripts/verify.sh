@@ -493,6 +493,15 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
+    # Turn to an inner spread: at the cover the pair cannot change.
+    for _ in $(seq 1 12); do
+      dump_ui
+      find_node resource-id reader_page_12 >/dev/null && break
+      tap_id reader_zone_Next
+      sleep 1
+    done
+    expect_id reader_page_12
+    expect_id reader_page_13
     show_overlay
     tap_id reader_more_button
     expect_id reader_more_status
@@ -501,10 +510,38 @@ case "$FEATURE" in
     page_before="$(node_text reader_progress || true)"
     tap_id reader_more_spread_shift
     dump_ui
+    expect_id reader_page_11
+    expect_id reader_page_12
+    wait_node resource-id reader_page_13 1 >/dev/null \
+      && die "Shift must pair 11 and 12, not keep 13 (last dump: $OUT/ui.xml)"
     [ -z "$page_before" ] || [ "$(node_text reader_progress || true)" = "$page_before" ] \
       || die "Shift must keep the page being read ($page_before -> $(node_text reader_progress || true))."
-    expect_id reader_more_spread_shift
     shot spread-shift-menu-on
+    tap_id reader_more_spread_shift
+    dump_ui
+    expect_id reader_page_12
+    expect_id reader_page_13
+    wait_node resource-id reader_page_11 1 >/dev/null \
+      && die "Toggling back must pair 12 and 13 again (last dump: $OUT/ui.xml)"
+    [ -z "$page_before" ] || [ "$(node_text reader_progress || true)" = "$page_before" ] \
+      || die "Toggling back must keep the page being read ($page_before -> $(node_text reader_progress || true))."
+    shot spread-shift-menu-back
+    # Put the reading settings back so a rerun starts where this one did.
+    "$ADB" shell input keyevent KEYCODE_BACK
+    tap_id reader_back
+    open_library
+    tap_id library_settings
+    expect_id settings_screen
+    tap_id settings_reading_entry
+    expect_id settings_reading_screen
+    for _ in 1 2 3; do
+      wait_node text "$two_page" 2 >/dev/null && break
+      "$ADB" shell input swipe 540 1600 540 900 300
+    done
+    tap_node text "$two_page"
+    tap_node text 'Auto|자동'
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell input keyevent KEYCODE_BACK
     ;;
 esac
 
