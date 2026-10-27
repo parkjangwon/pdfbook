@@ -5,6 +5,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlin.math.PI
+import kotlin.math.sin
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -34,6 +36,32 @@ class SingleSpreadCurlTest {
         assertEquals(Rect(0f, 508f, 1080f, 2036f), pageRect)
         curl.underlay.forEach { page ->
             assertTrue("${page.dest} must be inside $pageRect", pageRect.containsWithin(page.dest))
+        }
+    }
+
+    @Test
+    fun theFoldRunsOnThePageRectNotThePane() {
+        val curl = build(COVER, listOf(2, 3), ReadingDirection.LTR, CurlSide.Right)!!
+        val rect = curl.frontRect!!
+        val width = rect.width
+        val height = rect.height
+        // Page-local corner point: (w(1-2p), h - 0.18h sin(pi p)); the overlay only offsets it
+        // by the page rect origin, so the painted tip lands inside the page.
+        val shape = CurlShape()
+        for (p in listOf(0.5f, 0.95f)) {
+            updateCurlShape(width, height, p, CurlSide.Right, shape)
+            assertEquals(
+                "tip x at $p",
+                (width * (1f - 2f * p)).toDouble(),
+                shape.tipX.toDouble(),
+                0.01,
+            )
+            assertEquals(
+                "tip y at $p",
+                (height - 0.18f * height * sin(PI.toFloat() * p)).toDouble(),
+                shape.tipY.toDouble(),
+                0.01,
+            )
         }
     }
 
