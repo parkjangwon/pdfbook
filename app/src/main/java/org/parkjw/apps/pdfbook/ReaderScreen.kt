@@ -65,7 +65,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -108,6 +111,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
 import kotlin.math.abs
@@ -145,11 +149,14 @@ fun ReaderScreen(
     onFollowSystemBrightnessChange: (Boolean) -> Unit = {},
     onBrightnessChange: (Int) -> Unit = {},
     brightnessSheetVisible: Boolean = false,
+    bookmarkSheetVisible: Boolean = false,
     posture: FoldPosture = FoldPosture.Flat,
     autoCrop: Boolean = false,
     onAutoCropChange: (Boolean) -> Unit = {},
+    bookmarks: ReaderBookmarks? = null,
     pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
     fullScreenReading: Boolean = true,
+    displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
 ) {
     ReaderBrightnessEffect(followSystemBrightness, brightnessPercent)
@@ -159,7 +166,10 @@ fun ReaderScreen(
         view.keepScreenOn = keepScreenOn
         onDispose { view.keepScreenOn = previous }
     }
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Ltr,
+        LocalDisplayMode provides displayMode,
+    ) {
         ReaderScreenContent(
             renderer = renderer,
             pagerState = pagerState,
@@ -190,9 +200,11 @@ fun ReaderScreen(
             onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
             onBrightnessChange = onBrightnessChange,
             initialBrightnessSheetVisible = brightnessSheetVisible,
+            initialBookmarkSheetVisible = bookmarkSheetVisible,
             posture = posture,
             autoCrop = autoCrop,
             onAutoCropChange = onAutoCropChange,
+            bookmarks = bookmarks,
             pageTurnAnimation = pageTurnAnimation,
             fullScreenReading = fullScreenReading,
         )
@@ -230,13 +242,16 @@ private fun ReaderScreenContent(
     onFollowSystemBrightnessChange: (Boolean) -> Unit,
     onBrightnessChange: (Int) -> Unit,
     initialBrightnessSheetVisible: Boolean,
+    initialBookmarkSheetVisible: Boolean,
     posture: FoldPosture,
     autoCrop: Boolean,
     onAutoCropChange: (Boolean) -> Unit,
+    bookmarks: ReaderBookmarks?,
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
 ) {
     SideEffect { renderer.setAutoCrop(autoCrop) }
+    var bookmarkSheetVisible by rememberSaveable { mutableStateOf(initialBookmarkSheetVisible) }
     var bookListVisible by rememberSaveable { mutableStateOf(initialBookListVisible) }
     val currentSpreads by rememberUpdatedState(spreads)
     val rtl = direction == ReadingDirection.RTL
@@ -289,7 +304,9 @@ private fun ReaderScreenContent(
     var seekTarget by remember(renderer) { mutableIntStateOf(0) }
     var goToPageVisible by remember { mutableStateOf(false) }
     val sheetOpen = widthSheetVisible || goToPageVisible || brightnessSheetVisible ||
-        cropSheetVisible || (bookListVisible && volumes.bookList != null)
+        cropSheetVisible ||
+        (bookListVisible && volumes.bookList != null) ||
+        (bookmarkSheetVisible && bookmarks != null)
     val jumpBackShown = jumpBackVisible(jumpBack, endNotice, sheetOpen)
 
     var curlFront by remember { mutableStateOf<Bitmap?>(null) }
@@ -861,6 +878,9 @@ private fun ReaderScreenContent(
                     } else {
                         null
                     }
+                    val displayMode = LocalDisplayMode.current
+                    val curlFilter = remember(displayMode) { displayMode.colorFilter() }
+                    val curlLook = remember(displayMode) { displayMode.curlLook() }
                     PageCurlOverlay(
                         front = frontBmp,
                         back = backBmp,
@@ -870,6 +890,12 @@ private fun ReaderScreenContent(
                         contentCrop = frontCrop?.takeIf { !it.isNone }?.let {
                             Rect(it.left, it.top, 1f - it.right, 1f - it.bottom)
                         },
+                        colorFilter = curlFilter,
+                        flapColor = curlLook.flapColor,
+                        shadowColor = curlLook.shadowColor,
+                        shadowAlpha = curlLook.shadowAlpha,
+                        shadowMidAlpha = curlLook.shadowMidAlpha,
+                        foldHighlightColor = curlLook.foldHighlightColor,
                     )
                 }
             }
@@ -972,6 +998,18 @@ private fun ReaderScreenContent(
                 onDone = { cropSheetVisible = false },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        } else if (bookmarkSheetVisible && bookmarks != null) {
+            BackHandler { bookmarkSheetVisible = false }
+            BookmarkSheet(
+                pages = bookmarks.pages,
+                onPick = { page ->
+                    bookmarkSheetVisible = false
+                    jumpBack = null
+                    scrollTo(spreadIndexOf(currentSpreads, page))
+                },
+                onDelete = bookmarks.onToggle,
+                onDismiss = { bookmarkSheetVisible = false },
+            )
         } else if (bookListVisible && volumes.bookList != null) {
             BackHandler { bookListVisible = false }
             BookListSheet(
@@ -985,6 +1023,7 @@ private fun ReaderScreenContent(
                 onDismiss = { bookListVisible = false },
             )
         } else if (overlayVisible) {
+            val currentSpread = currentSpreads.getOrElse(spreadIndexOf(currentSpreads, currentPage)) { listOf(currentPage) }
             ReaderOverlayTop(
                 title = title,
                 twoPage = twoPage,
@@ -993,6 +1032,8 @@ private fun ReaderScreenContent(
                 onDirectionChange = onDirectionChange,
                 showPageMode = tabletop == null,
                 onOpenBookList = volumes.bookList?.let { { bookListVisible = true } },
+                bookmarked = bookmarks?.let { spreadBookmarked(it.pages, currentSpread) },
+                onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .then(
@@ -1027,6 +1068,7 @@ private fun ReaderScreenContent(
                         zoom = ZoomState()
                         cropSheetVisible = true
                     },
+                    onOpenBookmarks = bookmarks?.let { { bookmarkSheetVisible = true } },
                     onPreviousBook = volumes.onPrevious,
                     onNextBook = volumes.onNext,
                     autoCrop = autoCrop,
@@ -1333,6 +1375,8 @@ private fun ReaderOverlayTop(
     showPageMode: Boolean = true,
     modifier: Modifier = Modifier,
     onOpenBookList: (() -> Unit)? = null,
+    bookmarked: Boolean? = null,
+    onToggleBookmark: () -> Unit = {},
 ) {
     Row(
         modifier
@@ -1367,6 +1411,26 @@ private fun ReaderOverlayTop(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (bookmarked != null) {
+            IconButton(
+                onClick = onToggleBookmark,
+                colors = pdfBookIconButtonColors(contentColor = ReaderOnOverlay),
+                modifier = Modifier
+                    .testTag("reader_bookmark_toggle")
+                    .semantics {
+                        role = Role.Checkbox
+                        toggleableState = ToggleableState(bookmarked)
+                    },
+            ) {
+                Icon(
+                    painter = painterResource(if (bookmarked) R.drawable.ic_bookmark_on else R.drawable.ic_bookmark),
+                    contentDescription = stringResource(
+                        if (bookmarked) R.string.reader_bookmark_remove else R.string.reader_bookmark_add,
+                    ),
+                    tint = ReaderOnOverlay,
+                )
+            }
+        }
         if (onOpenBookList != null) {
             IconButton(
                 onClick = onOpenBookList,
@@ -1431,6 +1495,7 @@ private fun ReaderOverlayBottom(
     onOpenBrightness: () -> Unit,
     onOpenAutoCrop: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenBookmarks: (() -> Unit)? = null,
     onPreviousBook: (() -> Unit)? = null,
     onNextBook: (() -> Unit)? = null,
     autoCrop: Boolean = false,
@@ -1495,29 +1560,44 @@ private fun ReaderOverlayBottom(
         // Under the slider (above page number): keeps |< slider >| mirrored pair intact;
         // tap-zone entry stays above the slider as before.
         ReaderToolRow(
-            items = listOf(
-                ReaderToolItem.Action(
-                    tool = ReaderTool.Brightness,
-                    iconRes = R.drawable.ic_brightness,
-                    label = stringResource(R.string.reader_brightness),
-                    testTag = "reader_brightness",
-                    onClick = onOpenBrightness,
-                ),
-                ReaderToolItem.Action(
-                    tool = ReaderTool.AutoCrop,
-                    iconRes = if (autoCrop) R.drawable.ic_crop_on else R.drawable.ic_crop,
-                    label = stringResource(R.string.reader_auto_crop_label),
-                    testTag = "reader_auto_crop",
-                    onClick = onOpenAutoCrop,
-                    stateDescription = stringResource(
-                        if (autoCrop) {
-                            R.string.reader_crop_state_on
-                        } else {
-                            R.string.reader_crop_state_off
-                        },
+            items = buildList {
+                add(
+                    ReaderToolItem.Action(
+                        tool = ReaderTool.Brightness,
+                        iconRes = R.drawable.ic_brightness,
+                        label = stringResource(R.string.reader_brightness),
+                        testTag = "reader_brightness",
+                        onClick = onOpenBrightness,
                     ),
-                ),
-            ),
+                )
+                add(
+                    ReaderToolItem.Action(
+                        tool = ReaderTool.AutoCrop,
+                        iconRes = if (autoCrop) R.drawable.ic_crop_on else R.drawable.ic_crop,
+                        label = stringResource(R.string.reader_auto_crop_label),
+                        testTag = "reader_auto_crop",
+                        onClick = onOpenAutoCrop,
+                        stateDescription = stringResource(
+                            if (autoCrop) {
+                                R.string.reader_crop_state_on
+                            } else {
+                                R.string.reader_crop_state_off
+                            },
+                        ),
+                    ),
+                )
+                if (onOpenBookmarks != null) {
+                    add(
+                        ReaderToolItem.Action(
+                            tool = ReaderTool.Bookmarks,
+                            iconRes = R.drawable.ic_bookmark_list,
+                            label = stringResource(R.string.reader_bookmark_list),
+                            testTag = "reader_bookmark_list_button",
+                            onClick = onOpenBookmarks,
+                        ),
+                    )
+                }
+            },
         )
         val goToPageLabel = stringResource(R.string.go_to_page_title)
         Text(
@@ -1604,6 +1684,8 @@ internal fun PageBitmap(
             if (next != null && next != value) value = next
         }
     }
+    val displayMode = LocalDisplayMode.current
+    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val bmp = bitmap
         val pageCrop = crop
@@ -1620,6 +1702,7 @@ internal fun PageBitmap(
                     crop = pageCrop,
                     alignment = alignment,
                     scale = sharedScale,
+                    colorFilter = colorFilter,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -1628,6 +1711,7 @@ internal fun PageBitmap(
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     alignment = alignment,
+                    colorFilter = colorFilter,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -1688,6 +1772,7 @@ private fun CroppedPage(
     crop: CropMargins,
     alignment: Alignment,
     scale: Float? = null,
+    colorFilter: ColorFilter? = null,
     modifier: Modifier = Modifier,
 ) {
     Canvas(modifier) {
@@ -1714,6 +1799,7 @@ private fun CroppedPage(
             srcSize = IntSize(sourceWidth, sourceHeight),
             dstOffset = IntOffset(offsetX, offsetY),
             dstSize = IntSize(drawWidth, drawHeight),
+            colorFilter = colorFilter,
         )
     }
 }
