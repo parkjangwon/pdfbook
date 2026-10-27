@@ -14,7 +14,7 @@ import struct
 import sys
 import zlib
 
-MAX_PAGE = 299
+MAX_PAGE = 30  # scripts/verify.sh renders a 30-page book
 
 
 def read_png(path):
@@ -87,10 +87,19 @@ def page_color(page):
     return (round(r * 255), round(g * 255), round(b * 255))
 
 
+def normalized(pixel):
+    peak = max(pixel)
+    return tuple(channel / peak for channel in pixel) if peak else (0.0, 0.0, 0.0)
+
+
 def nearest_page(pixel):
+    # The reader overlay dims the pages, which scales the channels; comparing
+    # them after dividing by the peak channel keeps the hue readable.
+    seen = normalized(pixel)
     best, best_distance = None, None
     for page in range(1, MAX_PAGE + 1):
-        distance = sum((a - b) ** 2 for a, b in zip(pixel, page_color(page)))
+        candidate = normalized(page_color(page))
+        distance = sum((a - b) ** 2 for a, b in zip(seen, candidate))
         if best_distance is None or distance < best_distance:
             best, best_distance = page, distance
     return best, best_distance ** 0.5
@@ -105,7 +114,7 @@ def main():
     for x0, x1, y0, y1 in halves:
         pixel = dominant_color(width, height, bpp, rows, x0, x1, y0, y1)
         page, distance = nearest_page(pixel)
-        if distance > 30:
+        if distance > 0.08:
             raise SystemExit(f"no page colour at x{x0}-{x1}: #{pixel.hex()}")
         pages.append(page)
     print(*pages)
