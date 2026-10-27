@@ -68,6 +68,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -117,6 +118,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.ui.safeDrawingBottomBarPadding
 import org.parkjw.apps.pdfbook.ui.safeDrawingTopBarPadding
@@ -142,6 +144,7 @@ fun ReaderScreen(
     showTapZoneGuide: Boolean = true,
     tapZoneSidePercent: Int = DEFAULT_TAP_ZONE_SIDE_PERCENT,
     onTapZoneSidePercentChange: (Int) -> Unit = {},
+    oneFingerZoom: Boolean = false,
     tapZoneWidthSheetVisible: Boolean = false,
     volumes: ReaderVolumes = ReaderVolumes(),
     bookListVisible: Boolean = false,
@@ -192,6 +195,7 @@ fun ReaderScreen(
             showTapZoneGuide = showTapZoneGuide,
             tapZoneSidePercent = tapZoneSidePercent,
             onTapZoneSidePercentChange = onTapZoneSidePercentChange,
+            oneFingerZoom = oneFingerZoom,
             initialTapZoneWidthSheetVisible = tapZoneWidthSheetVisible,
             volumes = volumes,
             initialBookListVisible = bookListVisible,
@@ -234,6 +238,7 @@ private fun ReaderScreenContent(
     showTapZoneGuide: Boolean,
     tapZoneSidePercent: Int,
     onTapZoneSidePercentChange: (Int) -> Unit,
+    oneFingerZoom: Boolean,
     initialTapZoneWidthSheetVisible: Boolean,
     volumes: ReaderVolumes,
     initialBookListVisible: Boolean,
@@ -273,6 +278,7 @@ private fun ReaderScreenContent(
     }
     val sideFraction = tapZoneSideFraction(sidePercent)
     var zoom by remember { mutableStateOf(ZoomState()) }
+    var oneFingerZoomBase by remember { mutableStateOf<ZoomState?>(null) }
     val zoomRef = rememberUpdatedState(zoom)
     val zoomed = !zoom.allowsPageTurn
     val keepZoomRef = rememberUpdatedState(keepZoom)
@@ -726,6 +732,7 @@ private fun ReaderScreenContent(
                                             pagerHeight,
                                         )
                                     },
+                                    isHolding = { oneFingerZoomBase != null },
                                 )
                             }
                             .pointerInput(lastActive, direction, curlGestures, instantSwipes) {
@@ -734,6 +741,7 @@ private fun ReaderScreenContent(
                                     direction = direction,
                                     isZoomed = { !zoomRef.value.allowsPageTurn },
                                     onSwipe = { if (pagerState.targetPage == pageIndex) nextAtEnd() },
+                                    isHolding = { oneFingerZoomBase != null },
                                 )
                             }
                             .pointerInput(activePage, instantSwipes, direction, pagerWidth) {
@@ -761,6 +769,7 @@ private fun ReaderScreenContent(
                                         }
                                     },
                                     onSwipePastEnd = { nextAtEnd() },
+                                    isHolding = { oneFingerZoomBase != null },
                                 )
                             }
                             .pointerInput(activePage, curlGestures, direction, pagerWidth, prerenderWidth, prerenderHeight) {
@@ -940,7 +949,48 @@ private fun ReaderScreenContent(
                                         .testTag("reader_zone_" + span.zone.name)
                                         .semantics { contentDescription = zoneLabel }
                                         .then(
-                                            if (zoomed || span.zone.acceptsDoubleTapAtBaseScale) {
+                                            if (oneFingerZoom &&
+                                                (zoomed || span.zone.acceptsDoubleTapAtBaseScale)
+                                            ) {
+                                                Modifier
+                                                    .semantics {
+                                                        role = Role.Button
+                                                        onClick {
+                                                            onTap()
+                                                            true
+                                                        }
+                                                    }
+                                                    .pointerInput(oneFingerZoom, span, pagerWidth, pagerHeight) {
+                                                        detectOneFingerZoomTapZone(
+                                                            onTap = onTap,
+                                                            onDoubleTap = { toggleZoom() },
+                                                            onHoldStart = { x, y ->
+                                                                oneFingerZoomBase = zoom
+                                                                zoom = oneFingerZoomHoldStart(
+                                                                    zoom,
+                                                                    span.start * pagerWidth + x,
+                                                                    y,
+                                                                    pagerWidth,
+                                                                    pagerHeight,
+                                                                )
+                                                            },
+                                                            onHoldPan = { dx, dy ->
+                                                                zoom = zoom.applyPan(
+                                                                    dx,
+                                                                    dy,
+                                                                    pagerWidth,
+                                                                    pagerHeight,
+                                                                )
+                                                            },
+                                                            onHoldEnd = {
+                                                                oneFingerZoomBase?.let { zoom = it }
+                                                                oneFingerZoomBase = null
+                                                            },
+                                                        )
+                                                    }
+                                            } else if (zoomed ||
+                                                span.zone.acceptsDoubleTapAtBaseScale
+                                            ) {
                                                 Modifier.combinedClickable(
                                                     interactionSource = interactionSource,
                                                     indication = null,
@@ -1984,6 +2034,7 @@ private suspend fun PointerInputScope.detectCurlSwipe(
     onSwipePastEnd: () -> Unit,
     onSlideFollow: ((from: Int, target: Int, progress: Float, forward: Boolean) -> Unit)? = null,
     fling: Boolean = false,
+    isHolding: () -> Boolean = { false },
 ) {
     val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
@@ -2021,6 +2072,8 @@ private suspend fun PointerInputScope.detectCurlSwipe(
                 return@awaitEachGesture
             }
             val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+            // A one-finger zoom hold owns the drag; release must not turn the page.
+            if (isHolding() && change.isConsumed && !drag) return@awaitEachGesture
             last = change.position
             // Only moving samples: a still release sample would bend the fit to zero.
             if (change.pressed) velocityTracker.addPosition(change.uptimeMillis, change.position)
@@ -2077,26 +2130,108 @@ private suspend fun PointerInputScope.detectSwipePastEnd(
     direction: ReadingDirection,
     isZoomed: () -> Boolean,
     onSwipe: () -> Unit,
+    isHolding: () -> Boolean = { false },
 ) {
     val threshold = END_SWIPE_THRESHOLD.toPx()
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         var multiTouch = false
+        var consumed = false
         var last = down.position
         do {
             val event = awaitPointerEvent()
             if (event.changes.count { it.pressed } > 1) multiTouch = true
-            event.changes.firstOrNull { it.id == down.id }?.let { last = it.position }
+            event.changes.firstOrNull { it.id == down.id }?.let {
+                if (isHolding() && it.isConsumed) consumed = true
+                last = it.position
+            }
         } while (event.changes.any { it.pressed })
-        if (multiTouch || isZoomed()) return@awaitEachGesture
+        if (multiTouch || consumed || isZoomed()) return@awaitEachGesture
         val delta = last - down.position
         if (isSwipeTowardNext(delta.x, delta.y, threshold, direction)) onSwipe()
+    }
+}
+
+/**
+ * Tap / double-tap / double-tap-and-hold for a zone when one-finger zoom is on.
+ * The hold consumes its moves and release so swipe, page turn and pinch pan stay out of it.
+ */
+private suspend fun PointerInputScope.detectOneFingerZoomTapZone(
+    onTap: () -> Unit,
+    onDoubleTap: () -> Unit,
+    onHoldStart: (x: Float, y: Float) -> Unit,
+    onHoldPan: (dx: Float, dy: Float) -> Unit,
+    onHoldEnd: () -> Unit,
+) {
+    awaitEachGesture {
+        val first = awaitFirstDown(requireUnconsumed = false)
+        var pointerId = first.id
+        val detector = OneFingerZoomDetector(
+            doubleTapMillis = viewConfiguration.doubleTapTimeoutMillis,
+            holdMillis = viewConfiguration.longPressTimeoutMillis,
+            touchSlop = viewConfiguration.touchSlop,
+        )
+
+        fun dispatch(commands: List<OneFingerZoomCommand>) {
+            commands.forEach { command ->
+                when (command) {
+                    OneFingerZoomCommand.Tap -> onTap()
+                    OneFingerZoomCommand.DoubleTap -> onDoubleTap()
+                    is OneFingerZoomCommand.HoldStart -> onHoldStart(command.x, command.y)
+                    is OneFingerZoomCommand.HoldPan -> onHoldPan(command.dx, command.dy)
+                    OneFingerZoomCommand.HoldEnd -> onHoldEnd()
+                }
+            }
+        }
+
+        dispatch(detector.down(first.position.x, first.position.y))
+        while (detector.phase != OneFingerZoomPhase.Idle) {
+            val timeout = detector.timeoutMillis()
+            var advanced = false
+            val expired = withTimeoutOrNull(timeout ?: Long.MAX_VALUE) {
+                while (!advanced) {
+                    val event = awaitPointerEvent()
+                    if (event.changes.count { it.pressed } > 1) {
+                        dispatch(detector.cancel())
+                        advanced = true
+                        continue
+                    }
+                    val current = event.changes.firstOrNull { it.id == pointerId }
+                    val secondDown = if (detector.phase == OneFingerZoomPhase.AwaitSecondDown) {
+                        event.changes.firstOrNull { it.pressed && !it.previousPressed }
+                    } else {
+                        null
+                    }
+                    when {
+                        secondDown != null -> {
+                            pointerId = secondDown.id
+                            dispatch(detector.down(secondDown.position.x, secondDown.position.y))
+                            advanced = true
+                        }
+                        current != null && current.pressed -> {
+                            val before = detector.phase
+                            dispatch(detector.move(current.position.x, current.position.y))
+                            if (detector.phase == OneFingerZoomPhase.Holding) current.consume()
+                            advanced = detector.phase != before
+                        }
+                        current != null -> {
+                            if (detector.phase == OneFingerZoomPhase.Holding) current.consume()
+                            dispatch(detector.up(current.position.x, current.position.y))
+                            advanced = true
+                        }
+                    }
+                }
+                false
+            } ?: true
+            if (expired) dispatch(detector.timeout())
+        }
     }
 }
 
 private suspend fun PointerInputScope.detectReaderZoomGestures(
     isZoomed: () -> Boolean,
     onGesture: (centroid: Offset, zoomChange: Float, pan: Offset) -> Unit,
+    isHolding: () -> Boolean = { false },
 ) {
     val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
@@ -2120,7 +2255,8 @@ private suspend fun PointerInputScope.detectReaderZoomGestures(
                         if (it.positionChanged()) it.consume()
                     }
                 }
-                pressed == 1 && isZoomed() -> {
+                pressed == 1 && isZoomed() &&
+                    (!isHolding() || event.changes.none { it.isConsumed }) -> {
                     val pan = event.calculatePan()
                     panDistance += pan.getDistance()
                     if (!panPastSlop && panDistance >= touchSlop) {
