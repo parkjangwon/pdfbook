@@ -1,11 +1,16 @@
 package org.parkjw.apps.pdfbook
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.provider.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -16,6 +21,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +35,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.parkjw.apps.pdfbook.screenshot.SolidPageBitmaps
+import org.parkjw.apps.pdfbook.settings.PageTurnAnimation
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.settings.TwoPageMode
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
@@ -44,6 +51,7 @@ class SpreadShiftRouteTest {
     val tmp = TemporaryFolder()
 
     private var open by mutableStateOf(true)
+    private val app: Context = ApplicationProvider.getApplicationContext()
 
     @Test
     fun savedShiftOpensTheShiftedPair() {
@@ -117,6 +125,9 @@ class SpreadShiftRouteTest {
         composeRule.mainClock.advanceTimeBy(80)
         composeRule.onNodeWithTag("reader_more_spread_shift").performClick()
         composeRule.mainClock.advanceTimeBy(80)
+        // The slide is still running: the row stays off and the pair has not re-paired.
+        composeRule.onNodeWithTag("reader_more_spread_shift").assertIsOff()
+        composeRule.onNodeWithTag("reader_page_11").assertDoesNotExist()
         assertEquals(0, runBlocking { store.state(bookKey(BOOK.uri, BOOK.size))?.spreadShift })
 
         composeRule.mainClock.autoAdvance = true
@@ -125,6 +136,40 @@ class SpreadShiftRouteTest {
         assertPair(13, 14)
         awaitSaved(store, shift = 1)
         assertEquals(14, savedPage(store))
+    }
+
+    @Test
+    fun tapDuringACurlAppliesOnlyAfterItSettles() {
+        Settings.Global.putFloat(app.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        val store = storeAt(page = 12, shift = 0)
+        setReader(
+            store,
+            initialPage = 12,
+            renderer = CachingBitmaps(PAGE_COUNT),
+            pageTurnAnimation = PageTurnAnimation.Curl,
+        )
+
+        openMenu()
+        composeRule.mainClock.autoAdvance = false
+        clickZone("reader_zone_Next")
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        composeRule.onNodeWithTag("reader_more_spread_shift").performClick()
+        composeRule.mainClock.advanceTimeBy(100)
+        // The curl already scrolled the pager to [14·15] but is still animating: the shift
+        // must wait for curlActive, not just pager scrolling, or this turns into [13·14].
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        composeRule.onNodeWithTag("reader_more_spread_shift").assertIsOff()
+        composeRule.onNodeWithTag("reader_page_14").assertIsDisplayed()
+        composeRule.onNodeWithTag("reader_page_15").assertIsDisplayed()
+        composeRule.onNodeWithTag("reader_page_13").assertDoesNotExist()
+
+        composeRule.mainClock.autoAdvance = true
+        awaitPage(13)
+        assertPair(13, 14)
+        awaitSaved(store, shift = 1)
+        assertEquals(14, savedPage(store))
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
     }
 
     @Test
@@ -157,7 +202,12 @@ class SpreadShiftRouteTest {
         composeRule.onNodeWithTag("reader_progress").assertTextEquals("12 / 30")
     }
 
-    private fun setReader(store: BookStore, initialPage: Int) {
+    private fun setReader(
+        store: BookStore,
+        initialPage: Int,
+        renderer: PageBitmaps = SolidPageBitmaps(PAGE_COUNT, 0xFFF7F2E8.toInt(), 0xFF3D5A80.toInt()),
+        pageTurnAnimation: PageTurnAnimation = PageTurnAnimation.Slide,
+    ) {
         composeRule.setContent {
             PdfBookTheme(themeMode = ThemeMode.Light) {
                 if (open) {
@@ -169,7 +219,8 @@ class SpreadShiftRouteTest {
                         onBack = {},
                         twoPageMode = TwoPageMode.AlwaysDouble,
                         coverAlone = true,
-                        rendererOverride = SolidPageBitmaps(PAGE_COUNT, 0xFFF7F2E8.toInt(), 0xFF3D5A80.toInt()),
+                        pageTurnAnimation = pageTurnAnimation,
+                        rendererOverride = renderer,
                     )
                 }
             }
@@ -237,6 +288,29 @@ class SpreadShiftRouteTest {
             produceFile = { file },
         )
         return BookStore(dataStore)
+    }
+
+    /**
+     * Synthetic pages that satisfy [PageBitmaps.cached], so a Curl turn can be driven in
+     * Robolectric. The bitmaps are small and identical; only the turn mode and the shift
+     * deferral matter here, not the curl pixels (#167 owns those).
+     */
+    private class CachingBitmaps(override val pageCount: Int) : PageBitmaps {
+        private val bitmaps = HashMap<Triple<Int, Int, Int>, Bitmap>()
+
+        override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? =
+            cached(page, maxWidth, maxHeight)
+
+        override fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
+            if (page < 1 || page > pageCount || maxWidth <= 0 || maxHeight <= 0) return null
+            return synchronized(bitmaps) {
+                bitmaps.getOrPut(Triple(page, maxWidth, maxHeight)) {
+                    Bitmap.createBitmap(240, 360, Bitmap.Config.ARGB_8888).apply {
+                        Canvas(this).drawColor(0xFFF7F2E8.toInt())
+                    }
+                }
+            }
+        }
     }
 
     private companion object {
