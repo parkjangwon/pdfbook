@@ -300,8 +300,15 @@ open_library() {
 }
 
 open_book() {
+  # Optional title pattern: opens that library row instead of the first book.
+  local title="${1:-}"
   open_library
-  tap_id library_book
+  if [ -n "$title" ]; then
+    wait_node text "$title" 20 >/dev/null || die "Book '$title' not in the library (last dump: $OUT/ui.xml)"
+    tap_node text "$title"
+  else
+    tap_id library_book
+  fi
   local found
   for _ in $(seq 1 20); do
     dump_ui
@@ -572,6 +579,8 @@ case "$FEATURE" in
     fit_width='너비 맞춤|Fit width'
     fit_height='높이 맞춤|Fit height'
     two_page='두쪽 보기|Two-page view'
+    turn_animation='넘김 애니메이션|Page turn animation'
+    curl_animation='책장 넘김|Page curl'
 
     # 1. No book read yet: the row is disabled, light and dark.
     reading_settings
@@ -707,6 +716,46 @@ case "$FEATURE" in
     "$ADB" shell settings put system user_rotation 0
     "$ADB" shell settings put system accelerometer_rotation 1
     sleep 2
+
+    # 10. Mixed page sizes with the curl preference: a turn from a fitting page onto an
+    #     overflowing one falls back to Slide and lands at the start corner; the backward
+    #     turn onto the overflowing page lands at its end corner.
+    mixed_tmp="$(mktemp -d)"
+    python3 "$ROOT/scripts/make-test-pdf.py" "$mixed_tmp/$BOOK_TITLE 03.pdf" --pages 6 \
+      --title "$BOOK_TITLE 03" --mixed
+    "$ADB" push "$mixed_tmp/$BOOK_TITLE 03.pdf" "$DEVICE_DIR/" >/dev/null
+    rm -rf "$mixed_tmp"
+    "$ADB" shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \
+      -d "file://$DEVICE_DIR" >/dev/null 2>&1 || true
+    sleep 2
+    # Read it once so the per-book fit row targets it, then width fit and page curl.
+    open_book "$BOOK_TITLE 03"
+    reading_settings
+    scroll_to_text "$page_fit" || die "Page fit row not found (last dump: $OUT/ui.xml)"
+    tap_node text "$page_fit"
+    wait_node text "$fit_width" 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
+    tap_node text "$fit_width"
+    sleep 1
+    scroll_to_text "$turn_animation" || die "Page turn row not found (last dump: $OUT/ui.xml)"
+    tap_node text "$turn_animation"
+    wait_node text "$curl_animation" 20 >/dev/null || die "Page turn dialog did not open (last dump: $OUT/ui.xml)"
+    tap_node text "$curl_animation"
+    leave_settings
+    open_book "$BOOK_TITLE 03"
+    sleep 1
+    # Page 1 is tall (overflows), page 2 is square (fits): two next taps reach page 2.
+    tap_id reader_zone_Next
+    tap_id reader_zone_Next
+    sleep 1
+    shot page-fit-mixed-fitting-page
+    tap_id reader_zone_Next
+    sleep 1
+    shot page-fit-mixed-forward-start
+    tap_id reader_zone_Previous
+    sleep 1
+    tap_id reader_zone_Previous
+    sleep 1
+    shot page-fit-mixed-backward-end
     ;;
   spread-shift)
     open_book
