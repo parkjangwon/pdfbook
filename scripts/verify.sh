@@ -253,14 +253,12 @@ prepare_book() {
   local tmp
   tmp="$(mktemp -d)"
   python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 01.pdf" --pages 30 --title "$BOOK_TITLE 01"
-  python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 02.pdf" --pages 8 --title "$BOOK_TITLE 02"
-  # Mixed page sizes for the page fit turns; never opened, so it sorts after 01 and 02.
-  python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 03.pdf" --pages 6 \
-    --title "$BOOK_TITLE 03" --mixed
+  # Mixed page sizes for the page fit turns: a tall page alternating with a square one.
+  python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 02.pdf" --pages 8 \
+    --title "$BOOK_TITLE 02" --mixed
   "$ADB" shell rm -rf "$DEVICE_DIR"
   "$ADB" shell mkdir -p "$DEVICE_DIR"
-  "$ADB" push "$tmp/$BOOK_TITLE 01.pdf" "$tmp/$BOOK_TITLE 02.pdf" \
-    "$tmp/$BOOK_TITLE 03.pdf" "$DEVICE_DIR/" >/dev/null
+  "$ADB" push "$tmp/$BOOK_TITLE 01.pdf" "$tmp/$BOOK_TITLE 02.pdf" "$DEVICE_DIR/" >/dev/null
   "$ADB" shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file://$DEVICE_DIR" >/dev/null 2>&1 || true
   rm -rf "$tmp"
 }
@@ -727,7 +725,7 @@ case "$FEATURE" in
     #     turn onto the overflowing page lands at its end corner.
     # Read it once so the per-book fit row targets it, then width fit and page curl.
     leave_settings
-    open_book "$BOOK_TITLE 03"
+    open_book "$BOOK_TITLE 02"
     reading_settings
     scroll_to_text "$page_fit" || die "Page fit row not found (last dump: $OUT/ui.xml)"
     tap_node text "$page_fit"
@@ -739,7 +737,7 @@ case "$FEATURE" in
     wait_node text "$curl_animation" 20 >/dev/null || die "Page turn dialog did not open (last dump: $OUT/ui.xml)"
     tap_node text "$curl_animation"
     leave_settings
-    open_book "$BOOK_TITLE 03"
+    open_book "$BOOK_TITLE 02"
     sleep 1
     # Page 1 is tall (overflows), page 2 is square (fits): two next taps reach page 2.
     tap_id reader_zone_Next
