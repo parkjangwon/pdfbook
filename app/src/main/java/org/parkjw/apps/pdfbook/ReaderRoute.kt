@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -82,8 +83,10 @@ fun ReaderRoute(
     val key = bookKey(book.uri, book.size)
     var loaded by remember(key) { mutableStateOf(false) }
     var saved by remember(key) { mutableStateOf<BookState?>(null) }
+    var initialAdjust by remember(key) { mutableStateOf<ImageAdjust?>(null) }
     LaunchedEffect(key) {
         saved = store.state(key)
+        initialAdjust = store.adjust(key)
         loaded = true
     }
     if (!loaded) return
@@ -92,6 +95,8 @@ fun ReaderRoute(
 
     val context = LocalContext.current
     val uri = remember(key) { Uri.parse(book.uri) }
+    val imageAdjust by remember(key) { store.adjustFlow(key) }
+        .collectAsState(initialAdjust ?: ImageAdjust.Default)
     val openResult by produceState<PdfOpenResult>(
         initialValue = rendererOverride?.let { PdfOpenResult.Ready(it) } ?: PdfOpenResult.Loading,
         uri,
@@ -179,48 +184,50 @@ fun ReaderRoute(
                         ReaderBookmarks(pages) { page -> bookmarkScope.launch { store.toggleBookmark(key, page) } }
                     }
                 }
-                ReaderScreen(
-                    renderer = renderer,
-                    pagerState = pagerState,
-                    spreads = spreadList,
-                    title = titleOf(book.name),
-                    pageCount = renderer.pageCount,
-                    currentPage = anchorPage,
-                    twoPage = twoPage,
-                    posture = posture,
-                    onBack = onBack,
-                    onDirectionChange = { direction = it },
-                    direction = direction,
-                    volumeDelta = volumeDelta,
-                    showTapZoneGuide = showTapZoneGuide,
-                    tapZoneSidePercent = tapZoneSidePercent,
-                    onTapZoneSidePercentChange = onTapZoneSidePercentChange,
-                    oneFingerZoom = oneFingerZoom,
-                    volumes = volumes,
-                    showTitleToast = showTitleToast,
-                    onTitleToastShown = onTitleToastShown,
-                    keepZoom = keepZoom,
-                    autoCrop = autoCrop,
-                    onAutoCropChange = { autoCrop = it },
-                    followSystemBrightness = followSystemBrightness,
-                    brightnessPercent = brightnessPercent,
-                    onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
-                    onBrightnessChange = onBrightnessChange,
-                    bookmarks = readerBookmarks,
-                    pageTurnAnimation = pageTurnAnimation,
-                    fullScreenReading = fullScreenReading,
-                    displayMode = displayMode,
-                    keepScreenOn = keepScreenOn,
-                    spreadShift = spreadShift,
-                    onSpreadShiftChange = { spreadShift = it },
-                    onRestorePage = { page ->
-                        anchorPage = page
-                        anchorSync = ReadingAnchor(
-                            page = page,
-                            pendingIndex = spreadIndexOf(spreadList, page),
-                        )
-                    },
-                )
+                CompositionLocalProvider(LocalImageAdjust provides imageAdjust) {
+                    ReaderScreen(
+                        renderer = renderer,
+                        pagerState = pagerState,
+                        spreads = spreadList,
+                        title = titleOf(book.name),
+                        pageCount = renderer.pageCount,
+                        currentPage = anchorPage,
+                        twoPage = twoPage,
+                        posture = posture,
+                        onBack = onBack,
+                        onDirectionChange = { direction = it },
+                        direction = direction,
+                        volumeDelta = volumeDelta,
+                        showTapZoneGuide = showTapZoneGuide,
+                        tapZoneSidePercent = tapZoneSidePercent,
+                        onTapZoneSidePercentChange = onTapZoneSidePercentChange,
+                        oneFingerZoom = oneFingerZoom,
+                        volumes = volumes,
+                        showTitleToast = showTitleToast,
+                        onTitleToastShown = onTitleToastShown,
+                        keepZoom = keepZoom,
+                        autoCrop = autoCrop,
+                        onAutoCropChange = { autoCrop = it },
+                        followSystemBrightness = followSystemBrightness,
+                        brightnessPercent = brightnessPercent,
+                        onFollowSystemBrightnessChange = onFollowSystemBrightnessChange,
+                        onBrightnessChange = onBrightnessChange,
+                        bookmarks = readerBookmarks,
+                        pageTurnAnimation = pageTurnAnimation,
+                        fullScreenReading = fullScreenReading,
+                        displayMode = displayMode,
+                        keepScreenOn = keepScreenOn,
+                        spreadShift = spreadShift,
+                        onSpreadShiftChange = { spreadShift = it },
+                        onRestorePage = { page ->
+                            anchorPage = page
+                            anchorSync = ReadingAnchor(
+                                page = page,
+                                pendingIndex = spreadIndexOf(spreadList, page),
+                            )
+                        },
+                    )
+                }
             }
         }
     }

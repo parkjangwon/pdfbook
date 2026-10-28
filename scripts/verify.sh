@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode spread-shift"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode image-adjust spread-shift"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -493,6 +493,156 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
     shot display-mode-invert
+    ;;
+  image-adjust)
+    image_adjust='Image adjustments|이미지 보정'
+    page_color='Page color|페이지 색'
+    scroll_image_adjust_row() {
+      found=""
+      for _ in 1 2 3 4 5 6; do
+        if found="$(wait_node text "$image_adjust" 2)"; then return 0; fi
+        "$ADB" shell input swipe 540 1500 540 1150 300
+      done
+      return 1
+    }
+    open_reading_settings() {
+      tap_id library_settings
+      expect_id settings_screen
+      tap_id settings_reading_entry
+      expect_id settings_reading_screen
+    }
+    open_image_adjust() {
+      open_reading_settings
+      scroll_image_adjust_row || die "image adjustment row not found"
+      set -- $found
+      "$ADB" shell input tap "$1" "$2"
+      expect_id image_adjust_screen
+      sleep 2
+    }
+    # C7: same emulator, same ten page turns, adjustment off then on. The CI
+    # emulator disables animations, so the pager does not own swipes; the tap
+    # zone turns the page in both measurements.
+    measure_page_turns() {
+      local name="$1"
+      "$ADB" shell dumpsys gfxinfo "$PKG" reset >/dev/null 2>&1
+      for _ in $(seq 1 10); do tap_id reader_zone_Next; done
+      sleep 1
+      "$ADB" shell dumpsys gfxinfo "$PKG" >"$OUT/page-turn-$name.txt"
+      local frames
+      frames="$(sed -n 's/^Total frames rendered: \([0-9]*\).*/\1/p' "$OUT/page-turn-$name.txt" | head -1)"
+      [ "${frames:-0}" -gt 0 ] || die "page-turn $name rendered no frames (last dump: $OUT/ui.xml)"
+      {
+        echo "## adjustment $name"
+        grep -E 'Total frames rendered|Janky frames|50th percentile|90th percentile' "$OUT/page-turn-$name.txt" \
+          | sed 's/^ *//' | head -4
+      } >>"$OUT/page-turn-gfxinfo.txt"
+      echo "verify: page turns ($name) measured"
+    }
+    # No book has been read yet after pm clear: the row is disabled.
+    open_library
+    open_reading_settings
+    scroll_image_adjust_row || die "image adjustment row not found"
+    shot image-adjust-no-book-row
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell input keyevent KEYCODE_BACK
+    # The row targets the last read book, so open one first.
+    open_book
+    measure_page_turns off
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_library
+    open_reading_settings
+    scroll_image_adjust_row || die "image adjustment row not found"
+    shot image-adjust-off-row
+    set -- $found
+    "$ADB" shell input tap "$1" "$2"
+    expect_id image_adjust_screen
+    sleep 2
+    shot image-adjust-off
+    # Tap the contrast slider at 3/4 of its width: a positive value.
+    found="$(wait_node resource-id image_adjust_contrast)" || die "contrast slider not found"
+    set -- $found
+    tap_x=$(( $3 + ($5 - $3) * 3 / 4 ))
+    "$ADB" shell input tap "$tap_x" "$2"
+    sleep 1
+    # Grayscale at 50%: a partial value must keep some colour, not turn the page gray.
+    found="$(wait_node resource-id image_adjust_grayscale)" || die "grayscale slider not found"
+    set -- $found
+    tap_x=$(( $3 + ($5 - $3) / 2 ))
+    "$ADB" shell input tap "$tap_x" "$2"
+    sleep 1
+    shot image-adjust-on
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_reading_screen
+    shot image-adjust-on-row
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_book
+    shot image-adjust-reader
+    measure_page_turns on
+    with_page_color() {
+      local label="$1" name="$2"
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_reading_settings
+      local color_found=""
+      for _ in 1 2 3; do
+        if color_found="$(wait_node text "$page_color" 2)"; then break; fi
+        "$ADB" shell input swipe 540 1600 540 900 300
+      done
+      tap_node text "$page_color"
+      tap_node text "$label"
+      "$ADB" shell input keyevent KEYCODE_BACK
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_book
+      shot "$name"
+    }
+    with_page_color 'Inverted|색 반전' image-adjust-reader-invert
+    with_page_color 'Sepia|세피아' image-adjust-reader-sepia
+    # Reopen the screen last: the window resizes below must not feed navigation.
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_library
+    open_image_adjust
+    "$ADB" shell cmd uimode night yes
+    sleep 2
+    shot image-adjust-on-dark
+    "$ADB" shell cmd uimode night no
+    sleep 1
+    # 320dp width with the 2.0x font scale; taller so the sliders and 원래대로 all fit.
+    "$ADB" shell wm size 320x1400
+    "$ADB" shell wm density 160
+    "$ADB" shell settings put system font_scale 2.0
+    sleep 3
+    shot image-adjust-a11y
+    # The settings row itself at 320dp / font 2.0: the title and the ellipsized book line.
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_reading_screen
+    found=""
+    for _ in 1 2 3 4 5 6; do
+      found="$(wait_node text "$image_adjust" 2)" && break
+      "$ADB" shell input swipe 160 1200 160 900 300
+    done
+    [ -n "$found" ] || die "image adjustment row not found at 320dp (last dump: $OUT/ui.xml)"
+    shot image-adjust-row-a11y
+    # Unfolded (>=600dp), default font scale: the 149-unfolded mockup.
+    "$ADB" shell settings put system font_scale 1.0
+    "$ADB" shell wm size 700x1000
+    sleep 3
+    found=""
+    for _ in 1 2 3 4 5 6; do
+      found="$(wait_node text "$image_adjust" 2)" && break
+      "$ADB" shell input swipe 350 850 350 550 300
+    done
+    [ -n "$found" ] || die "image adjustment row not found at 700dp (last dump: $OUT/ui.xml)"
+    set -- $found
+    "$ADB" shell input tap "$1" "$2"
+    expect_id image_adjust_screen
+    sleep 2
+    shot image-adjust-unfolded
+    # Last feature in the run: the emulator is discarded, so a failed restore
+    # (adb sometimes drops during a resize) must not fail the captured evidence.
+    "$ADB" shell settings put system font_scale 1.0 || true
+    "$ADB" shell wm size reset || true
+    "$ADB" shell wm density reset || true
     ;;
   spread-shift)
     open_book

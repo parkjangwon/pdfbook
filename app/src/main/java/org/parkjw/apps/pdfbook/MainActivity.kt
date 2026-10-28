@@ -633,6 +633,10 @@ private fun App(
             }
         }
     }
+    val lastBook = findLastBookTarget(resumeFolders, resumeListings, states)?.let { target ->
+        resumeListings[target.folderUri]?.books?.firstOrNull { it.uri == target.bookUri }
+    }
+    val lastBookPage = lastBook?.let { states[bookKey(it.uri, it.size)]?.page ?: 1 } ?: 1
     val togglePeek = {
         HiddenPeek.set(!HiddenPeek.enabled.value)
     }
@@ -664,6 +668,9 @@ private fun App(
             onUpdateAction = onUpdateAction,
             hiddenCount = hiddenItems.size,
             onOpenHiddenItems = { showHiddenItems = true },
+            bookStore = store,
+            lastBook = lastBook,
+            lastBookPage = lastBookPage,
         )
         showLostForUri != null -> FolderPickScreen(
             illustration = R.drawable.es_permission_lost,
