@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import java.io.Closeable
 import kotlin.math.roundToInt
 import org.parkjw.apps.pdfbook.settings.DisplayMode
+import org.parkjw.apps.pdfbook.settings.GroupDivider
 import org.parkjw.apps.pdfbook.settings.SettingsGroup
 import org.parkjw.apps.pdfbook.settings.SettingsSection
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
@@ -146,7 +147,7 @@ internal fun ImageAdjustScreen(
                         SettingsGroup {
                             AdjustSliderRow(
                                 title = stringResource(R.string.image_adjust_brightness),
-                                valueText = signedPercent(adjust.brightness),
+                                valueText = signedValue(adjust.brightness),
                                 value = adjust.brightness.toFloat(),
                                 valueRange = -ImageAdjust.BRIGHTNESS_RANGE.toFloat()..ImageAdjust.BRIGHTNESS_RANGE.toFloat(),
                                 testTag = IMAGE_ADJUST_BRIGHTNESS_TAG,
@@ -157,9 +158,10 @@ internal fun ImageAdjustScreen(
                                     onAdjustCommit(adjust.copy(brightness = (v / 5f).roundToInt() * 5))
                                 },
                             )
+                            GroupDivider()
                             AdjustSliderRow(
                                 title = stringResource(R.string.image_adjust_contrast),
-                                valueText = signedPercent(adjust.contrast),
+                                valueText = signedValue(adjust.contrast),
                                 value = adjust.contrast.toFloat(),
                                 valueRange = -ImageAdjust.CONTRAST_RANGE.toFloat()..ImageAdjust.CONTRAST_RANGE.toFloat(),
                                 testTag = IMAGE_ADJUST_CONTRAST_TAG,
@@ -170,6 +172,7 @@ internal fun ImageAdjustScreen(
                                     onAdjustCommit(adjust.copy(contrast = (v / 5f).roundToInt() * 5))
                                 },
                             )
+                            GroupDivider()
                             AdjustSliderRow(
                                 title = stringResource(R.string.image_adjust_gamma),
                                 valueText = stringResource(R.string.image_adjust_value_gamma, adjust.gamma),
@@ -187,6 +190,7 @@ internal fun ImageAdjustScreen(
                                     onAdjustCommit(adjust.copy(gamma = (v * 20f).roundToInt() / 20f))
                                 },
                             )
+                            GroupDivider()
                             AdjustSliderRow(
                                 title = stringResource(R.string.image_adjust_grayscale),
                                 valueText = stringResource(R.string.image_adjust_value_percent, adjust.grayscale),
@@ -352,7 +356,11 @@ private fun AdjustSliderRow(
     onValueChangeFinished: (Float) -> Unit = {},
 ) {
     val ink = MaterialTheme.colorScheme
-    Column(modifier = Modifier.padding(horizontal = PdfBookSpacing.md, vertical = PdfBookSpacing.xs)) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = PdfBookSpacing.md)
+            .padding(top = PdfBookSpacing.sm, bottom = PdfBookSpacing.xs),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -367,7 +375,7 @@ private fun AdjustSliderRow(
             )
             Text(
                 text = valueText,
-                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = PdfBookNumeric.fontFamily),
+                style = PdfBookNumeric,
                 color = if (enabled) ink.onSurfaceVariant else MaterialTheme.extendedColors.muted,
             )
         }
@@ -378,33 +386,38 @@ private fun AdjustSliderRow(
                 color = ink.onSurfaceVariant,
             )
         }
-        var latest by remember { mutableStateOf(value) }
-        PdfBookReaderSlider(
-            value = value,
-            onValueChange = {
-                latest = it
-                onValueChange(it)
-            },
-            onValueChangeFinished = { onValueChangeFinished(latest) },
-            valueRange = valueRange,
-            colors = SliderDefaults.colors(
-                thumbColor = ink.primary,
-                activeTrackColor = ink.primary,
-                inactiveTrackColor = ink.surfaceVariant,
-                disabledThumbColor = MaterialTheme.extendedColors.muted,
-                disabledActiveTrackColor = MaterialTheme.extendedColors.muted,
-                disabledInactiveTrackColor = ink.surfaceVariant,
-            ),
-            enabled = enabled,
-            trackModifier = Modifier.height(48.dp),
+        var latest by remember(value) { mutableStateOf(value) }
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 48.dp)
                 .testTag(testTag)
                 .semantics {
                     contentDescription = title
                     stateDescription = valueText
                 },
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            PdfBookReaderSlider(
+                value = value,
+                onValueChange = {
+                    latest = it
+                    onValueChange(it)
+                },
+                onValueChangeFinished = { onValueChangeFinished(latest) },
+                valueRange = valueRange,
+                colors = SliderDefaults.colors(
+                    thumbColor = ink.primary,
+                    activeTrackColor = ink.primary,
+                    inactiveTrackColor = ink.surfaceVariant,
+                    disabledThumbColor = MaterialTheme.extendedColors.muted,
+                    disabledActiveTrackColor = MaterialTheme.extendedColors.muted,
+                    disabledInactiveTrackColor = ink.surfaceVariant,
+                ),
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -445,4 +458,4 @@ private fun ResetRow(enabled: Boolean, onReset: () -> Unit) {
     }
 }
 
-private fun signedPercent(value: Int): String = if (value > 0) "+$value%" else "$value%"
+private fun signedValue(value: Int): String = if (value > 0) "+$value" else "$value"
