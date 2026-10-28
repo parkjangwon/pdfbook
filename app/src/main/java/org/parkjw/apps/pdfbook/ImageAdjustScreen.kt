@@ -391,11 +391,7 @@ private fun AdjustSliderRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .testTag(testTag)
-                .semantics {
-                    contentDescription = title
-                    stateDescription = valueText
-                },
+                .testTag("${testTag}_touch"),
             contentAlignment = Alignment.Center,
         ) {
             PdfBookReaderSlider(
@@ -415,7 +411,13 @@ private fun AdjustSliderRow(
                     disabledInactiveTrackColor = ink.surfaceVariant,
                 ),
                 enabled = enabled,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(testTag)
+                    .semantics {
+                        contentDescription = title
+                        stateDescription = valueText
+                    },
             )
         }
     }

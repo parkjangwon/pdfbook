@@ -16,8 +16,6 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onChildren
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -84,8 +82,6 @@ class ImageAdjustComposeTest {
         }
     }
 
-    private fun sliderNode(tag: String) = composeRule.onNodeWithTag(tag).onChildren().onFirst()
-
     @Test
     fun rowSitsInReadingSettingsWithOffAndTheLastBook() {
         settings(store(), book)
@@ -121,7 +117,7 @@ class ImageAdjustComposeTest {
         composeRule.onNodeWithTag("settings_image_adjust_row").performClick()
         composeRule.onNodeWithTag(IMAGE_ADJUST_SCREEN_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("이미지 보정").assertIsDisplayed()
-        sliderNode(IMAGE_ADJUST_GAMMA_TAG).assertIsEnabled()
+        composeRule.onNodeWithTag(IMAGE_ADJUST_GAMMA_TAG).assertIsEnabled()
     }
 
     @Test
@@ -142,10 +138,10 @@ class ImageAdjustComposeTest {
                 )
             }
         }
-        sliderNode(IMAGE_ADJUST_CONTRAST_TAG).performSemanticsAction(SemanticsActions.SetProgress) { it(30f) }
+        composeRule.onNodeWithTag(IMAGE_ADJUST_CONTRAST_TAG).performSemanticsAction(SemanticsActions.SetProgress) { it(30f) }
         composeRule.runOnIdle { assertEquals(30, adjust.contrast) }
 
-        sliderNode(IMAGE_ADJUST_GRAYSCALE_TAG).performSemanticsAction(SemanticsActions.SetProgress) { it(60f) }
+        composeRule.onNodeWithTag(IMAGE_ADJUST_GRAYSCALE_TAG).performSemanticsAction(SemanticsActions.SetProgress) { it(60f) }
         composeRule.runOnIdle { assertEquals(60, adjust.grayscale) }
         composeRule.onNodeWithTag(IMAGE_ADJUST_RESET_TAG).performScrollTo().assertIsEnabled().performClick()
         composeRule.runOnIdle { assertEquals(ImageAdjust.Default, adjust) }
@@ -169,9 +165,9 @@ class ImageAdjustComposeTest {
                 )
             }
         }
-        sliderNode(IMAGE_ADJUST_GAMMA_TAG).assertIsNotEnabled()
+        composeRule.onNodeWithTag(IMAGE_ADJUST_GAMMA_TAG).assertIsNotEnabled()
         composeRule.onNodeWithText("Android 16 이상에서 쓸 수 있어요").assertIsDisplayed()
-        sliderNode(IMAGE_ADJUST_BRIGHTNESS_TAG).assertIsEnabled()
+        composeRule.onNodeWithTag(IMAGE_ADJUST_BRIGHTNESS_TAG).assertIsEnabled()
     }
 
     @Test
@@ -197,7 +193,7 @@ class ImageAdjustComposeTest {
             IMAGE_ADJUST_GAMMA_TAG,
             IMAGE_ADJUST_GRAYSCALE_TAG,
         )) {
-            val touch = composeRule.onNodeWithTag(tag).performScrollTo().fetchSemanticsNode().touchBoundsInRoot
+            val touch = composeRule.onNodeWithTag("${tag}_touch").performScrollTo().fetchSemanticsNode().touchBoundsInRoot
             assertTrue("$tag touch height ${touch.height}", touch.height >= 48f)
         }
     }
@@ -219,7 +215,7 @@ class ImageAdjustComposeTest {
                 )
             }
         }
-        val px = composeRule.onNodeWithTag(IMAGE_ADJUST_BRIGHTNESS_TAG).performScrollTo().captureToImage().toPixelMap()
+        val px = composeRule.onNodeWithTag("${IMAGE_ADJUST_BRIGHTNESS_TAG}_touch").performScrollTo().captureToImage().toPixelMap()
         val thumb = px[px.width / 2, px.height / 2]
         // Default brightness 0 puts the thumb at the middle, so a column at 1/8 is active track.
         var trackPixels = 0
@@ -251,11 +247,11 @@ class ImageAdjustComposeTest {
                 )
             }
         }
-        sliderNode(IMAGE_ADJUST_CONTRAST_TAG).performSemanticsAction(SemanticsActions.SetProgress) { it(30f) }
+        composeRule.onNodeWithTag(IMAGE_ADJUST_CONTRAST_TAG).performSemanticsAction(SemanticsActions.SetProgress) { it(30f) }
         composeRule.onNodeWithText("+30").assertIsDisplayed()
         composeRule.onNodeWithTag(IMAGE_ADJUST_CONTRAST_TAG)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "+30"))
-        sliderNode(IMAGE_ADJUST_BRIGHTNESS_TAG).performSemanticsAction(SemanticsActions.SetProgress) { it(-25f) }
+        composeRule.onNodeWithTag(IMAGE_ADJUST_BRIGHTNESS_TAG).performSemanticsAction(SemanticsActions.SetProgress) { it(-25f) }
         composeRule.onNodeWithText("-25").assertIsDisplayed()
         // Grayscale keeps its percent sign; gamma keeps two decimals.
         composeRule.onNodeWithText("0%").assertIsDisplayed()
@@ -281,7 +277,7 @@ class ImageAdjustComposeTest {
                 )
             }
         }
-        val px = composeRule.onNodeWithTag(IMAGE_ADJUST_GAMMA_TAG).performScrollTo().captureToImage().toPixelMap()
+        val px = composeRule.onNodeWithTag("${IMAGE_ADJUST_GAMMA_TAG}_touch").performScrollTo().captureToImage().toPixelMap()
         var live = 0
         var mutedPixels = 0
         for (x in 0 until px.width) {
