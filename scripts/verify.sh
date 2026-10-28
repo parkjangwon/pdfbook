@@ -653,6 +653,8 @@ case "$FEATURE" in
     sleep 3
     open_book
     sleep 1
+    # Page 1 is the cover alone; one turn shows a real two-page spread in the fallback.
+    tap_id reader_zone_Next
     shot page-fit-two-page-fallback
     "$ADB" shell settings put system user_rotation 0
     sleep 3
