@@ -728,6 +728,10 @@ case "$FEATURE" in
     "$ADB" shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \
       -d "file://$DEVICE_DIR" >/dev/null 2>&1 || true
     sleep 2
+    # Restart so the library list picks up the new file.
+    "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
+    "$ADB" shell am start -W -n "$ACTIVITY" >/dev/null 2>&1
+    sleep 2
     # Read it once so the per-book fit row targets it, then width fit and page curl.
     open_book "$BOOK_TITLE 03"
     reading_settings
