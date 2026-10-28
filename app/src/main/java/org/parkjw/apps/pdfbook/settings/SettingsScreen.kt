@@ -788,24 +788,27 @@ private fun PageFitPreview(fit: PageFit, direction: ReadingDirection) {
     val accent = MaterialTheme.colorScheme.primary
     Canvas(Modifier.size(40.dp, 56.dp)) {
         val hairline = 1.dp.toPx()
+        val stroke = Stroke(hairline)
         drawRoundRect(
             color = frame,
             topLeft = Offset(hairline / 2f, hairline / 2f),
             size = Size(size.width - hairline, size.height - hairline),
             cornerRadius = CornerRadius(4.dp.toPx()),
-            style = Stroke(hairline),
+            style = stroke,
         )
         // Screen fit is inset on every side; width fills the frame's width and height its height.
         val inset = 5.dp.toPx()
-        val pageLeft = if (fit == PageFit.Height) inset else hairline
-        val pageTop = if (fit == PageFit.Width) inset else hairline
-        val pageRight = if (fit == PageFit.Height) size.width - inset else size.width - hairline
-        val pageBottom = if (fit == PageFit.Width) size.height - inset else size.height - hairline
+        val insetHorizontally = fit == PageFit.Height || fit == PageFit.Screen
+        val insetVertically = fit == PageFit.Width || fit == PageFit.Screen
+        val pageLeft = if (insetHorizontally) inset else hairline
+        val pageTop = if (insetVertically) inset else hairline
+        val pageRight = if (insetHorizontally) size.width - inset else size.width - hairline
+        val pageBottom = if (insetVertically) size.height - inset else size.height - hairline
         drawRect(
             color = page,
             topLeft = Offset(pageLeft, pageTop),
             size = Size(pageRight - pageLeft, pageBottom - pageTop),
-            style = Stroke(hairline),
+            style = stroke,
         )
         // Only a fit that can overflow carries the reading start corner, on the page corner.
         if (fit != PageFit.Screen) {

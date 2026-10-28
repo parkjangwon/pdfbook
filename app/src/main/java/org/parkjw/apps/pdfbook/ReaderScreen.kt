@@ -344,11 +344,28 @@ private fun ReaderScreenContent(
         fitContentSize.width.toFloat(),
         fitContentSize.height.toFloat(),
     )
+    // A turn must not curl when either of its two pages overflows: the curl back sheet would
+    // draw the overflowing page shrunk and then jump to its anchor corner.
+    fun fitPageOverflows(page: Int?): Boolean {
+        if (fitMode == PageFit.Screen || page == null) return false
+        val content = fitContentFor(page)
+        if (content == IntSize.Zero) return false
+        return pageFitOverflows(
+            fitMode,
+            pageViewport.width,
+            pageViewport.height,
+            content.width.toFloat(),
+            content.height.toFloat(),
+        )
+    }
     val fitAppliesRef = rememberUpdatedState(fitApplies)
     val fitContentSizeRef = rememberUpdatedState(fitContentSize)
     val fitModeRef = rememberUpdatedState(fitMode)
     // A backward turn opens the previous page at its end position; forward turns use the start.
-    var anchorAtEnd by remember { mutableStateOf(false) }
+    // Null means no explicit turn yet: a pager swipe is then decided by the settled page change.
+    var anchorAtEnd by remember { mutableStateOf<Boolean?>(null) }
+    // Last resolved turn mode, exposed on the reader semantics for the UI tests.
+    var lastTurnMode by remember { mutableStateOf<String?>(null) }
     // The page whose start/end anchor was already applied at its exact size; a later crop report
     // may change the size without snapping a position the reader has already panned to.
     var fitAnchorAppliedFor by remember { mutableStateOf<Int?>(null) }
@@ -464,10 +481,12 @@ private fun ReaderScreenContent(
             return@LaunchedEffect
         }
         val scale = if (keepZoom) zoom.scale.coerceAtLeast(MinZoomScale) else MinZoomScale
+        val atEnd = anchorAtEnd
+            ?: (fitAnchorAppliedFor?.let { pagerState.settledPage < it } ?: false)
         zoom = pageFitAnchorState(
             fit = fitMode,
             direction = directionRef.value,
-            atEnd = anchorAtEnd,
+            atEnd = atEnd,
             scale = scale,
             viewportWidth = pageViewport.width,
             viewportHeight = pageViewport.height,
@@ -475,7 +494,7 @@ private fun ReaderScreenContent(
             contentHeight = fitContentSize.height.toFloat(),
         )
         fitAnchorAppliedFor = pagerState.settledPage
-        anchorAtEnd = false
+        anchorAtEnd = null
     }
 
     LaunchedEffect(jumpBack, jumpBackShown) {
@@ -631,7 +650,6 @@ private fun ReaderScreenContent(
                 return
             }
         }
-        if (fit != PageFit.Screen) anchorAtEnd = delta < 0
         curlJob?.cancel()
         curlJob = scope.launch {
             val interrupted = curlEffect
@@ -643,9 +661,12 @@ private fun ReaderScreenContent(
             }
             val target = pagerTargetIndex(from, delta, pagerState.pageCount)
             if (target == from) {
+                // Nothing to turn to: the anchor must stay untouched for the next real turn.
+                anchorAtEnd = null
                 if (isTurnPastEnd(from, delta, pagerState.pageCount)) nextAtEnd()
                 return@launch
             }
+            anchorAtEnd = delta < 0
             jumpBack = null
             val forward = delta > 0
             val side = curlSide(directionRef.value, forward)
@@ -656,16 +677,19 @@ private fun ReaderScreenContent(
             val fromSpread = currentSpreads.getOrNull(from).orEmpty()
             val off = animationsOff(animatorScale)
             val cached = isSpreadCached(renderer, nextSpread, cacheW, cacheH)
+            // The target decides too: a turn onto an overflowing page is a Slide even from a fit page.
+            val targetOverflows = fitPageOverflows(nextSpread.firstOrNull())
             val mode = resolvePageTurn(
                 preference = pageTurnAnimation,
                 twoPage = twoPage,
-                zoomed = zoomRef.value.allowsPageTurn.not() || fitAppliesRef.value,
+                zoomed = zoomRef.value.allowsPageTurn.not() || fitAppliesRef.value || targetOverflows,
                 nextPageCached = cached,
                 animationsOff = off,
                 endNoticeOnly = false,
                 fromSpreadPages = fromSpread.size,
                 toSpreadPages = nextSpread.size,
             )
+            lastTurnMode = mode.name
             if (mode != ResolvedPageTurn.Curl) {
                 // Field-report diagnostics: why the turn did not curl. Geometry and mode only,
                 // never page content, file names or numbers.
@@ -805,7 +829,10 @@ private fun ReaderScreenContent(
         modifier = modifier
             .fillMaxSize()
             .testTag("reader_screen")
-            .semantics { this[ReaderZoomKey] = zoom }
+            .semantics {
+                this[ReaderZoomKey] = zoom
+                this[ReaderTurnKey] = lastTurnMode ?: ""
+            }
             .onSizeChanged { viewport = Size(it.width.toFloat(), it.height.toFloat()) }
             .background(ReaderBackground),
     ) {
@@ -878,7 +905,8 @@ private fun ReaderScreenContent(
                         pageFitAnchorState(
                             fit = fitMode,
                             direction = direction,
-                            atEnd = anchorAtEnd,
+                            atEnd = anchorAtEnd
+                                ?: (fitAnchorAppliedFor?.let { pageIndex < it } ?: false),
                             scale = if (keepZoom && activePage) {
                                 zoom.scale.coerceAtLeast(MinZoomScale)
                             } else {
@@ -945,6 +973,7 @@ private fun ReaderScreenContent(
                                         if (!forward) endNotice = null
                                         if (completes) {
                                             if (targetIndex != from) {
+                                                anchorAtEnd = targetIndex < from
                                                 scope.launch { pagerState.scrollToPage(targetIndex) }
                                             } else if (forward &&
                                                 isTurnPastEnd(from, 1, pagerState.pageCount)
@@ -966,6 +995,15 @@ private fun ReaderScreenContent(
                                     pageCount = { pagerState.pageCount },
                                     onDragStart = { targetIndex, forward ->
                                         if (!forward) endNotice = null
+                                        // Either page overflowing: no curl, the pager follows the
+                                        // finger and settles with Slide (as while zoomed).
+                                        if (fitAppliesRef.value || fitPageOverflows(
+                                                currentSpreads.getOrNull(targetIndex)?.firstOrNull(),
+                                            )
+                                        ) {
+                                            lastTurnMode = ResolvedPageTurn.Slide.name
+                                            return@detectCurlSwipe false
+                                        }
                                         val from = pagerState.targetPage
                                         val fromSpread = currentSpreads.getOrNull(from).orEmpty()
                                         val toSpread = currentSpreads.getOrNull(targetIndex).orEmpty()
@@ -1034,6 +1072,7 @@ private fun ReaderScreenContent(
                                             }
                                             if (completes) {
                                                 if (targetIndex != from) {
+                                                    anchorAtEnd = targetIndex < from
                                                     settlePage(targetIndex, ResolvedPageTurn.Slide)
                                                 } else if (forward &&
                                                     isTurnPastEnd(from, 1, pagerState.pageCount)
@@ -1060,9 +1099,13 @@ private fun ReaderScreenContent(
                                                 completes &&
                                                 targetIndex != from
                                             ) {
+                                                anchorAtEnd = targetIndex < from
                                                 settlePage(targetIndex, ResolvedPageTurn.Slide)
                                             }
                                             return@detectCurlSwipe
+                                        }
+                                        if (completes && targetIndex != from) {
+                                            anchorAtEnd = targetIndex < from
                                         }
                                         startCurl(
                                             fromIndex = from,
@@ -2566,3 +2609,4 @@ private suspend fun PointerInputScope.detectReaderZoomGestures(
 }
 
 val ReaderZoomKey = SemanticsPropertyKey<ZoomState>("ReaderZoom")
+val ReaderTurnKey = SemanticsPropertyKey<String>("ReaderTurn")
