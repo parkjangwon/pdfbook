@@ -519,18 +519,18 @@ case "$FEATURE" in
       expect_id image_adjust_screen
       sleep 2
     }
-    # C7: same emulator, same ten swipes, adjustment off then on. A swipe keeps
-    # drawing while the pager drags, so the frame cost shows even when the
-    # emulator's system animations are disabled.
+    # C7: same emulator, same ten page turns, adjustment off then on. The CI
+    # emulator disables animations, so the pager does not own swipes; the tap
+    # zone turns the page in both measurements.
     measure_page_turns() {
       local name="$1"
       "$ADB" shell dumpsys gfxinfo "$PKG" reset >/dev/null 2>&1
-      for _ in $(seq 1 10); do
-        "$ADB" shell input swipe 900 1200 200 1200 200
-        sleep 0.3
-      done
+      for _ in $(seq 1 10); do tap_id reader_zone_Next; done
       sleep 1
       "$ADB" shell dumpsys gfxinfo "$PKG" >"$OUT/page-turn-$name.txt"
+      local frames
+      frames="$(sed -n 's/^Total frames rendered: \([0-9]*\).*/\1/p' "$OUT/page-turn-$name.txt" | head -1)"
+      [ "${frames:-0}" -gt 0 ] || die "page-turn $name rendered no frames (last dump: $OUT/ui.xml)"
       {
         echo "## adjustment $name"
         grep -E 'Total frames rendered|Janky frames|50th percentile|90th percentile' "$OUT/page-turn-$name.txt" \
