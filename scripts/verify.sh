@@ -725,6 +725,7 @@ case "$FEATURE" in
     #     overflowing one falls back to Slide and lands at the start corner; the backward
     #     turn onto the overflowing page lands at its end corner.
     # Read it once so the per-book fit row targets it, then width fit and page curl.
+    leave_settings
     open_book "$BOOK_TITLE 03"
     reading_settings
     scroll_to_text "$page_fit" || die "Page fit row not found (last dump: $OUT/ui.xml)"
