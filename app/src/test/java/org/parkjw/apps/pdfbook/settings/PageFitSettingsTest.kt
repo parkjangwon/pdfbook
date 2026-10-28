@@ -96,6 +96,7 @@ class PageFitSettingsTest {
     fun dialogScrollsAt320dpAndFontScale2() {
         // The dialog composes in its own window, so the scale has to come from the configuration.
         RuntimeEnvironment.setFontScale(2f)
+        val title = "등대지기의 편지 2권"
         composeRule.setContent {
             PdfBookTheme(themeMode = ThemeMode.Light) {
                 SettingsScreen(
@@ -103,7 +104,7 @@ class PageFitSettingsTest {
                     onSettingsChange = {},
                     versionName = "0.8.0",
                     initialSubScreen = SettingsSubScreen.Reading,
-                    pageFitBookTitle = "등대지기의 편지 2권",
+                    pageFitBookTitle = title,
                 )
             }
         }
@@ -122,10 +123,12 @@ class PageFitSettingsTest {
         assertEquals(Int.MAX_VALUE, layout.layoutInput.maxLines)
         assertEquals(TextOverflow.Clip, layout.layoutInput.overflow)
         assertEquals(
-            app.getString(R.string.settings_image_adjust_book, "등대지기의 편지 2권"),
+            app.getString(R.string.settings_image_adjust_book, title),
             layout.layoutInput.text.text,
         )
         // One 12sp line is ~16px at mdpi, so this also proves the configuration font scale arrived.
+        // Robolectric measures every glyph 1px wide, so the wrap itself cannot be asserted here;
+        // capture 16 of the emulator run shows the two lines.
         assertTrue(layout.size.height > 28)
     }
 
