@@ -1001,6 +1001,8 @@ private fun ReaderScreenContent(
                                                 currentSpreads.getOrNull(targetIndex)?.firstOrNull(),
                                             )
                                         ) {
+                                            // The follow below measures the drag against the pager width.
+                                            curlDragWidth.floatValue = pagerWidth
                                             lastTurnMode = ResolvedPageTurn.Slide.name
                                             return@detectCurlSwipe false
                                         }
@@ -1066,21 +1068,17 @@ private fun ReaderScreenContent(
                                     onRelease = { progress, from, targetIndex, side, startedCurl, forward, completes ->
                                         if (!forward) endNotice = null
                                         if (!startedCurl) {
-                                            // Uncached: finger-follow via pager, then settle.
-                                            if (pagerState.targetPage != from) {
-                                                return@detectCurlSwipe
-                                            }
-                                            if (completes) {
-                                                if (targetIndex != from) {
-                                                    anchorAtEnd = targetIndex < from
-                                                    settlePage(targetIndex, ResolvedPageTurn.Slide)
-                                                } else if (forward &&
-                                                    isTurnPastEnd(from, 1, pagerState.pageCount)
-                                                ) {
-                                                    nextAtEnd()
-                                                }
-                                            } else if (targetIndex != from) {
-                                                settlePage(from, ResolvedPageTurn.Slide)
+                                            // Finger-follow via the pager, then settle here: this
+                                            // gesture is ours, the pager never owns it.
+                                            if (completes && targetIndex == from && forward &&
+                                                isTurnPastEnd(from, 1, pagerState.pageCount)
+                                            ) {
+                                                nextAtEnd()
+                                            } else {
+                                                val landing =
+                                                    if (completes && targetIndex != from) targetIndex else from
+                                                if (landing != from) anchorAtEnd = landing < from
+                                                settlePage(landing, ResolvedPageTurn.Slide)
                                             }
                                             return@detectCurlSwipe
                                         }
