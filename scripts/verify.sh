@@ -308,7 +308,8 @@ open_book() {
   local title="${1:-}"
   open_library
   if [ -n "$title" ]; then
-    wait_node text "$title" 20 >/dev/null || die "Book '$title' not in the library (last dump: $OUT/ui.xml)"
+    # The library grid is lazy, so a third book can sit below the fold.
+    scroll_to_text "$title" 6 || die "Book '$title' not in the library (last dump: $OUT/ui.xml)"
     tap_node text "$title"
   else
     tap_id library_book
