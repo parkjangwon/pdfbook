@@ -254,9 +254,13 @@ prepare_book() {
   tmp="$(mktemp -d)"
   python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 01.pdf" --pages 30 --title "$BOOK_TITLE 01"
   python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 02.pdf" --pages 8 --title "$BOOK_TITLE 02"
+  # Mixed page sizes for the page fit turns; never opened, so it sorts after 01 and 02.
+  python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 03.pdf" --pages 6 \
+    --title "$BOOK_TITLE 03" --mixed
   "$ADB" shell rm -rf "$DEVICE_DIR"
   "$ADB" shell mkdir -p "$DEVICE_DIR"
-  "$ADB" push "$tmp/$BOOK_TITLE 01.pdf" "$tmp/$BOOK_TITLE 02.pdf" "$DEVICE_DIR/" >/dev/null
+  "$ADB" push "$tmp/$BOOK_TITLE 01.pdf" "$tmp/$BOOK_TITLE 02.pdf" \
+    "$tmp/$BOOK_TITLE 03.pdf" "$DEVICE_DIR/" >/dev/null
   "$ADB" shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file://$DEVICE_DIR" >/dev/null 2>&1 || true
   rm -rf "$tmp"
 }
@@ -720,18 +724,6 @@ case "$FEATURE" in
     # 10. Mixed page sizes with the curl preference: a turn from a fitting page onto an
     #     overflowing one falls back to Slide and lands at the start corner; the backward
     #     turn onto the overflowing page lands at its end corner.
-    mixed_tmp="$(mktemp -d)"
-    python3 "$ROOT/scripts/make-test-pdf.py" "$mixed_tmp/$BOOK_TITLE 03.pdf" --pages 6 \
-      --title "$BOOK_TITLE 03" --mixed
-    "$ADB" push "$mixed_tmp/$BOOK_TITLE 03.pdf" "$DEVICE_DIR/" >/dev/null
-    rm -rf "$mixed_tmp"
-    "$ADB" shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \
-      -d "file://$DEVICE_DIR" >/dev/null 2>&1 || true
-    sleep 2
-    # Restart so the library list picks up the new file.
-    "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
-    "$ADB" shell am start -W -n "$ACTIVITY" >/dev/null 2>&1
-    sleep 2
     # Read it once so the per-book fit row targets it, then width fit and page curl.
     open_book "$BOOK_TITLE 03"
     reading_settings
