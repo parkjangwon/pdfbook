@@ -53,6 +53,17 @@
     <string name="settings_two_page_single">항상 한쪽</string>
     <string name="settings_two_page_double">항상 두쪽</string>
     <string name="settings_cover_alone">표지 단독 표시</string>
+    <string name="settings_page_fit">쪽 맞춤</string>
+    <string name="settings_image_adjust_book">마지막 읽던 책: %1$s</string>
+    <string name="settings_page_fit_no_book">먼저 책을 열어 주세요</string>
+    <string name="page_fit_screen">화면 맞춤</string>
+    <string name="page_fit_screen_desc">쪽 전체가 화면 안에 들어와요.</string>
+    <string name="page_fit_width">너비 맞춤</string>
+    <string name="page_fit_width_desc">쪽 너비를 화면에 맞춰요. 넘치는 아래쪽은 이어서 봐요.</string>
+    <string name="page_fit_height">높이 맞춤</string>
+    <string name="page_fit_height_desc">쪽 높이를 화면에 맞춰요. 넘치는 옆쪽은 이어서 봐요.</string>
+    <string name="page_fit_note_rtl">넘치면 책 방향대로 오른쪽 위부터 보여 줘요. 한쪽 보기에서만 적용되고, 두쪽 보기에서는 화면 맞춤으로 보여요.</string>
+    <string name="page_fit_note_ltr">넘치면 책 방향대로 왼쪽 위부터 보여 줘요. 한쪽 보기에서만 적용되고, 두쪽 보기에서는 화면 맞춤으로 보여요.</string>
     <string name="settings_page_turn_animation">넘김 애니메이션</string>
     <string name="settings_animation_slide">슬라이드</string>
     <string name="settings_animation_none">없음</string>

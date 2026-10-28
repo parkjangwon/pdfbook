@@ -169,6 +169,7 @@ fun ReaderScreen(
     fullScreenReading: Boolean = true,
     displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
+    pageFit: PageFit = PageFit.Screen,
     spreadShift: Boolean = false,
     onSpreadShiftChange: (Boolean) -> Unit = {},
     onRestorePage: (Int) -> Unit = {},
@@ -221,6 +222,7 @@ fun ReaderScreen(
             bookmarks = bookmarks,
             pageTurnAnimation = pageTurnAnimation,
             fullScreenReading = fullScreenReading,
+            pageFit = pageFit,
             spreadShift = spreadShift,
             onSpreadShiftChange = onSpreadShiftChange,
             onRestorePage = onRestorePage,
@@ -267,6 +269,7 @@ private fun ReaderScreenContent(
     bookmarks: ReaderBookmarks?,
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
+    pageFit: PageFit = PageFit.Screen,
     spreadShift: Boolean,
     onSpreadShiftChange: (Boolean) -> Unit,
     onRestorePage: (Int) -> Unit,
@@ -296,6 +299,76 @@ private fun ReaderScreenContent(
     val keepZoomRef = rememberUpdatedState(keepZoom)
     val directionRef = rememberUpdatedState(direction)
     var viewport by remember { mutableStateOf(Size.Zero) }
+    // Page fit only shrinks a page into the pane it is drawn on; a book-posture single page is
+    // drawn into one half of the window, so it keeps Fit screen (see pageRenderSlot).
+    val fitMode = effectivePageFit(pageFit, twoPage || posture is FoldPosture.Book)
+    var pageViewport by remember { mutableStateOf(Size.Zero) }
+    // Drawn size (screen px at scale 1) per page, reported by the page composables. Keyed by the
+    // current geometry so a rotation or fit change cannot reuse a stale bitmap size.
+    val pageFitSizes = remember(fitMode, pageViewport) { mutableStateMapOf<Int, IntSize>() }
+    val settledPageNumber = currentSpreads.getOrNull(pagerState.settledPage)?.firstOrNull()
+
+    fun fitContentFor(page: Int?): IntSize {
+        if (fitMode == PageFit.Screen || page == null) return IntSize.Zero
+        if (pageViewport.width <= 0f || pageViewport.height <= 0f) return IntSize.Zero
+        pageFitSizes[page]?.let { return it }
+        // The pager composes the neighbours, so the target page is usually cached before a turn:
+        // read its size synchronously instead of waiting for this page's own composition report.
+        val (renderW, renderH) = pageFitRenderSize(
+            fitMode,
+            pageViewport.width.roundToInt().coerceAtLeast(1),
+            pageViewport.height.roundToInt().coerceAtLeast(1),
+        )
+        val bmp = renderer.cached(page, renderW, renderH)?.takeUnless { it.isRecycled } ?: return IntSize.Zero
+        val crop = renderer.cropMargins(page)?.takeUnless { it.isNone }
+        val contentWidth = if (crop != null) bmp.width * (1f - crop.left - crop.right) else bmp.width.toFloat()
+        val contentHeight = if (crop != null) bmp.height * (1f - crop.top - crop.bottom) else bmp.height.toFloat()
+        val (drawnWidth, drawnHeight) = pageFitDrawnSize(
+            fitMode,
+            pageViewport.width,
+            pageViewport.height,
+            contentWidth,
+            contentHeight,
+        )
+        return IntSize(
+            drawnWidth.roundToInt().coerceAtLeast(1),
+            drawnHeight.roundToInt().coerceAtLeast(1),
+        )
+    }
+
+    val fitContentSize = fitContentFor(settledPageNumber)
+    val fitApplies = fitMode != PageFit.Screen && pageFitOverflows(
+        fitMode,
+        pageViewport.width,
+        pageViewport.height,
+        fitContentSize.width.toFloat(),
+        fitContentSize.height.toFloat(),
+    )
+    // A turn must not curl when either of its two pages overflows: the curl back sheet would
+    // draw the overflowing page shrunk and then jump to its anchor corner.
+    fun fitPageOverflows(page: Int?): Boolean {
+        if (fitMode == PageFit.Screen || page == null) return false
+        val content = fitContentFor(page)
+        if (content == IntSize.Zero) return false
+        return pageFitOverflows(
+            fitMode,
+            pageViewport.width,
+            pageViewport.height,
+            content.width.toFloat(),
+            content.height.toFloat(),
+        )
+    }
+    val fitAppliesRef = rememberUpdatedState(fitApplies)
+    val fitContentSizeRef = rememberUpdatedState(fitContentSize)
+    val fitModeRef = rememberUpdatedState(fitMode)
+    // A backward turn opens the previous page at its end position; forward turns use the start.
+    // Null means no explicit turn yet: a pager swipe is then decided by the settled page change.
+    var anchorAtEnd by remember { mutableStateOf<Boolean?>(null) }
+    // Last resolved turn mode, exposed on the reader semantics for the UI tests.
+    var lastTurnMode by remember { mutableStateOf<String?>(null) }
+    // The page whose start/end anchor was already applied at its exact size; a later crop report
+    // may change the size without snapping a position the reader has already panned to.
+    var fitAnchorAppliedFor by remember { mutableStateOf<Int?>(null) }
     val context = LocalContext.current
     fun readAnimatorScale(): Float = Settings.Global.getFloat(
         context.contentResolver,
@@ -319,7 +392,7 @@ private fun ReaderScreenContent(
     val animOff = animationsOff(animatorScale)
     val instantSwipes = animOff || pageTurnAnimation == PageTurnAnimation.None
     val curlGestures =
-        pageTurnAnimation == PageTurnAnimation.Curl && !zoomed && !animOff
+        pageTurnAnimation == PageTurnAnimation.Curl && !zoomed && !animOff && !fitApplies
 
     var endNotice by remember { mutableStateOf(initialEndNotice) }
     var endNoticeToken by remember { mutableIntStateOf(0) }
@@ -389,9 +462,39 @@ private fun ReaderScreenContent(
         jumpBack = jb.copy(shownAt = spreadIndexOf(spreads, currentPage))
     }
 
-    LaunchedEffect(pagerState.settledPage) {
-        zoom = zoom.afterPageTurn(keepZoomRef.value, directionRef.value, viewport.width, viewport.height)
+    LaunchedEffect(pagerState.settledPage, fitMode) {
+        if (fitMode == PageFit.Screen) {
+            zoom = zoom.afterPageTurn(keepZoomRef.value, directionRef.value, viewport.width, viewport.height)
+        }
         if (jumpBackHiddenBySettle(jumpBack, pagerState.settledPage)) jumpBack = null
+    }
+
+    LaunchedEffect(fitMode, pageViewport, direction) { fitAnchorAppliedFor = null }
+
+    // A fit page starts at its reading-direction top corner; a backward turn lands at the end.
+    // Runs as soon as the page's drawn size is known, from the cache or its own report, so the
+    // incoming page is already positioned when it settles instead of jumping from the centre.
+    LaunchedEffect(fitMode, pagerState.settledPage, fitContentSize, pageViewport, keepZoom, fitAnchorAppliedFor) {
+        if (fitMode == PageFit.Screen) return@LaunchedEffect
+        if (fitAnchorAppliedFor == pagerState.settledPage) return@LaunchedEffect
+        if (fitContentSize == IntSize.Zero || pageViewport.width <= 0f || pageViewport.height <= 0f) {
+            return@LaunchedEffect
+        }
+        val scale = if (keepZoom) zoom.scale.coerceAtLeast(MinZoomScale) else MinZoomScale
+        val atEnd = anchorAtEnd
+            ?: (fitAnchorAppliedFor?.let { pagerState.settledPage < it } ?: false)
+        zoom = pageFitAnchorState(
+            fit = fitMode,
+            direction = directionRef.value,
+            atEnd = atEnd,
+            scale = scale,
+            viewportWidth = pageViewport.width,
+            viewportHeight = pageViewport.height,
+            contentWidth = fitContentSize.width.toFloat(),
+            contentHeight = fitContentSize.height.toFloat(),
+        )
+        fitAnchorAppliedFor = pagerState.settledPage
+        anchorAtEnd = null
     }
 
     LaunchedEffect(jumpBack, jumpBackShown) {
@@ -530,6 +633,23 @@ private fun ReaderScreenContent(
 
     fun goTo(delta: Int) {
         if (delta < 0) endNotice = null
+        val fit = fitModeRef.value
+        if (fitAppliesRef.value && zoomRef.value.allowsPageTurn) {
+            val content = fitContentSizeRef.value
+            val next = zoomRef.value.scrollWithinPage(
+                fit = fit,
+                direction = directionRef.value,
+                viewportWidth = pageViewport.width,
+                viewportHeight = pageViewport.height,
+                contentWidth = content.width.toFloat(),
+                contentHeight = content.height.toFloat(),
+                forward = delta > 0,
+            )
+            if (next != zoomRef.value) {
+                zoom = next
+                return
+            }
+        }
         curlJob?.cancel()
         curlJob = scope.launch {
             val interrupted = curlEffect
@@ -541,29 +661,35 @@ private fun ReaderScreenContent(
             }
             val target = pagerTargetIndex(from, delta, pagerState.pageCount)
             if (target == from) {
+                // Nothing to turn to: the anchor must stay untouched for the next real turn.
+                anchorAtEnd = null
                 if (isTurnPastEnd(from, delta, pagerState.pageCount)) nextAtEnd()
                 return@launch
             }
+            anchorAtEnd = delta < 0
             jumpBack = null
             val forward = delta > 0
             val side = curlSide(directionRef.value, forward)
             val slot = renderSlot
-            val slotW = slot.width
-            val slotH = slot.height
+            // Pages are rendered and cached at the fit render size, not the slot size.
+            val (cacheW, cacheH) = pageFitRenderSize(fit, slot.width, slot.height)
             val nextSpread = currentSpreads.getOrNull(target).orEmpty()
             val fromSpread = currentSpreads.getOrNull(from).orEmpty()
             val off = animationsOff(animatorScale)
-            val cached = isSpreadCached(renderer, nextSpread, slotW, slotH)
+            val cached = isSpreadCached(renderer, nextSpread, cacheW, cacheH)
+            // The target decides too: a turn onto an overflowing page is a Slide even from a fit page.
+            val targetOverflows = fitPageOverflows(nextSpread.firstOrNull())
             val mode = resolvePageTurn(
                 preference = pageTurnAnimation,
                 twoPage = twoPage,
-                zoomed = zoomRef.value.allowsPageTurn.not(),
+                zoomed = zoomRef.value.allowsPageTurn.not() || fitAppliesRef.value || targetOverflows,
                 nextPageCached = cached,
                 animationsOff = off,
                 endNoticeOnly = false,
                 fromSpreadPages = fromSpread.size,
                 toSpreadPages = nextSpread.size,
             )
+            lastTurnMode = mode.name
             if (mode != ResolvedPageTurn.Curl) {
                 // Field-report diagnostics: why the turn did not curl. Geometry and mode only,
                 // never page content, file names or numbers.
@@ -601,8 +727,8 @@ private fun ReaderScreenContent(
                 runCurl(from, target, side, two.front, two.back, twoPage = two)
                 return@launch
             }
-            val front = cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
-            val back = cachedSpreadBitmaps(renderer, nextSpread, slotW, slotH)
+            val front = cachedSpreadBitmaps(renderer, fromSpread, cacheW, cacheH)
+            val back = cachedSpreadBitmaps(renderer, nextSpread, cacheW, cacheH)
             if (front == null || back == null) {
                 Log.i(TURN_LOG_TAG, "single-sheet curl fallback=CacheMiss")
                 if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
@@ -619,6 +745,7 @@ private fun ReaderScreenContent(
     }
 
     fun scrollTo(index: Int) {
+        anchorAtEnd = false
         curlJob?.cancel()
         clearCurlOverlay()
         if (pagerState.targetPage != index) {
@@ -668,7 +795,28 @@ private fun ReaderScreenContent(
     }
 
     fun toggleZoom() {
-        zoom = zoom.toggleDoubleTap()
+        val content = if (fitMode == PageFit.Screen) IntSize.Zero else fitContentSize
+        zoom = zoom.toggleDoubleTap(
+            viewportWidth = pageViewport.width,
+            viewportHeight = pageViewport.height,
+            contentWidth = if (content != IntSize.Zero) content.width.toFloat() else pageViewport.width,
+            contentHeight = if (content != IntSize.Zero) content.height.toFloat() else pageViewport.height,
+        )
+    }
+
+    fun resetZoom() {
+        zoom = if (fitApplies && fitContentSize != IntSize.Zero) {
+            pageFitStartState(
+                fit = fitMode,
+                direction = directionRef.value,
+                viewportWidth = pageViewport.width,
+                viewportHeight = pageViewport.height,
+                contentWidth = fitContentSize.width.toFloat(),
+                contentHeight = fitContentSize.height.toFloat(),
+            )
+        } else {
+            ZoomState()
+        }
     }
 
     val density = LocalDensity.current
@@ -681,7 +829,10 @@ private fun ReaderScreenContent(
         modifier = modifier
             .fillMaxSize()
             .testTag("reader_screen")
-            .semantics { this[ReaderZoomKey] = zoom }
+            .semantics {
+                this[ReaderZoomKey] = zoom
+                this[ReaderTurnKey] = lastTurnMode ?: ""
+            }
             .onSizeChanged { viewport = Size(it.width.toFloat(), it.height.toFloat()) }
             .background(ReaderBackground),
     ) {
@@ -694,17 +845,23 @@ private fun ReaderScreenContent(
             val pagerHeight = (pageArea?.height ?: window.height).toFloat()
             val slot = pageRenderSlot(window, posture, direction, twoPage)
             val curlBounds = curlOverlayBounds(window, posture, direction, twoPage)
-            val prerenderWidth = slot.width
-            val prerenderHeight = slot.height
+            val fitRender = fitMode != PageFit.Screen
+            val (prerenderWidth, prerenderHeight) = pageFitRenderSize(fitMode, slot.width, slot.height)
             renderSlot = slot
-            LaunchedEffect(renderer, pagerState.settledPage, currentSpreads, prerenderWidth, prerenderHeight) {
+            pageViewport = Size(pagerWidth, pagerHeight)
+            LaunchedEffect(renderer, pagerState.settledPage, currentSpreads, prerenderWidth, prerenderHeight, fitRender) {
                 renderer.prerender(
                     spreadRequests(
                         currentSpreads.getOrNull(pagerState.settledPage).orEmpty(),
                         prerenderWidth,
                         prerenderHeight,
                     ),
-                    prerenderTargets(currentSpreads, pagerState.settledPage, prerenderWidth, prerenderHeight),
+                    // A fit bitmap is several screens tall; keep the cache to the current page.
+                    if (fitRender) {
+                        emptyList()
+                    } else {
+                        prerenderTargets(currentSpreads, pagerState.settledPage, prerenderWidth, prerenderHeight)
+                    },
                 )
             }
             Box(
@@ -725,7 +882,8 @@ private fun ReaderScreenContent(
                     state = pagerState,
                     reverseLayout = rtl,
                     // Curl / None / animator-off own the swipe; pager slide only for Slide+animations.
-                    userScrollEnabled = !zoomed && !curlGestures && !instantSwipes && !curlActive,
+                    // A fit page owns the drag itself (pan only, never a page turn).
+                    userScrollEnabled = !zoomed && !curlGestures && !instantSwipes && !curlActive && !fitApplies,
                     modifier = Modifier.fillMaxSize(),
                     beyondViewportPageCount = 1,
                 ) { pageIndex ->
@@ -733,14 +891,47 @@ private fun ReaderScreenContent(
                     val layout = spreadLayout(spread, direction)
                     val activePage = pageIndex == pagerState.settledPage
                     val lastActive = activePage && pageIndex == currentSpreads.lastIndex
+                    val pageNumber = spread.firstOrNull()
+                    val fitPageContent = if (fitMode == PageFit.Screen) {
+                        IntSize.Zero
+                    } else {
+                        fitContentFor(pageNumber)
+                    }
+                    // The landing corner is computed before the page settles, so an incoming page
+                    // is already at its start (or end) while it slides in, not only afterwards.
+                    val pageLanding = if (fitPageContent != IntSize.Zero &&
+                        pageViewport.width > 0f && pageViewport.height > 0f
+                    ) {
+                        pageFitAnchorState(
+                            fit = fitMode,
+                            direction = direction,
+                            atEnd = anchorAtEnd
+                                ?: (fitAnchorAppliedFor?.let { pageIndex < it } ?: false),
+                            scale = if (keepZoom && activePage) {
+                                zoom.scale.coerceAtLeast(MinZoomScale)
+                            } else {
+                                MinZoomScale
+                            },
+                            viewportWidth = pageViewport.width,
+                            viewportHeight = pageViewport.height,
+                            contentWidth = fitPageContent.width.toFloat(),
+                            contentHeight = fitPageContent.height.toFloat(),
+                        )
+                    } else {
+                        null
+                    }
+                    val anchorPending = fitMode != PageFit.Screen && fitAnchorAppliedFor != pageIndex
                     Box(
                         Modifier
                             .fillMaxSize()
                             .pointerInput(pagerWidth, pagerHeight, activePage) {
                                 if (!activePage) return@pointerInput
                                 detectReaderZoomGestures(
-                                    isZoomed = { !zoom.allowsPageTurn },
+                                    isZoomed = { fitAppliesRef.value || !zoom.allowsPageTurn },
                                     onGesture = { centroid, zoomChange, pan ->
+                                        val fitPage = fitModeRef.value != PageFit.Screen &&
+                                            fitContentSizeRef.value != IntSize.Zero
+                                        val content = fitContentSizeRef.value
                                         zoom = zoom.applyGesture(
                                             zoomChange,
                                             centroid.x,
@@ -749,13 +940,16 @@ private fun ReaderScreenContent(
                                             pan.y,
                                             pagerWidth,
                                             pagerHeight,
+                                            contentWidth = if (fitPage) content.width.toFloat() else pagerWidth,
+                                            contentHeight = if (fitPage) content.height.toFloat() else pagerHeight,
+                                            allowPanAtBaseScale = fitPage,
                                         )
                                     },
                                     isHolding = { oneFingerZoomBase != null },
                                 )
                             }
-                            .pointerInput(lastActive, direction, curlGestures, instantSwipes) {
-                                if (!lastActive || curlGestures || instantSwipes) return@pointerInput
+                            .pointerInput(lastActive, direction, curlGestures, instantSwipes, fitApplies) {
+                                if (!lastActive || curlGestures || instantSwipes || fitApplies) return@pointerInput
                                 detectSwipePastEnd(
                                     direction = direction,
                                     isZoomed = { !zoomRef.value.allowsPageTurn },
@@ -763,8 +957,8 @@ private fun ReaderScreenContent(
                                     isHolding = { oneFingerZoomBase != null },
                                 )
                             }
-                            .pointerInput(activePage, instantSwipes, direction, pagerWidth) {
-                                if (!activePage || !instantSwipes || zoomed) return@pointerInput
+                            .pointerInput(activePage, instantSwipes, direction, pagerWidth, fitApplies) {
+                                if (!activePage || !instantSwipes || zoomed || fitApplies) return@pointerInput
                                 detectCurlSwipe(
                                     direction = direction,
                                     width = { pagerWidth },
@@ -779,6 +973,7 @@ private fun ReaderScreenContent(
                                         if (!forward) endNotice = null
                                         if (completes) {
                                             if (targetIndex != from) {
+                                                anchorAtEnd = targetIndex < from
                                                 scope.launch { pagerState.scrollToPage(targetIndex) }
                                             } else if (forward &&
                                                 isTurnPastEnd(from, 1, pagerState.pageCount)
@@ -800,6 +995,17 @@ private fun ReaderScreenContent(
                                     pageCount = { pagerState.pageCount },
                                     onDragStart = { targetIndex, forward ->
                                         if (!forward) endNotice = null
+                                        // Either page overflowing: no curl, the pager follows the
+                                        // finger and settles with Slide (as while zoomed).
+                                        if (fitAppliesRef.value || fitPageOverflows(
+                                                currentSpreads.getOrNull(targetIndex)?.firstOrNull(),
+                                            )
+                                        ) {
+                                            // The follow below measures the drag against the pager width.
+                                            curlDragWidth.floatValue = pagerWidth
+                                            lastTurnMode = ResolvedPageTurn.Slide.name
+                                            return@detectCurlSwipe false
+                                        }
                                         val from = pagerState.targetPage
                                         val fromSpread = currentSpreads.getOrNull(from).orEmpty()
                                         val toSpread = currentSpreads.getOrNull(targetIndex).orEmpty()
@@ -825,12 +1031,15 @@ private fun ReaderScreenContent(
                                         // Two-page: progress is drag / spread width (2w).
                                         curlDragWidth.floatValue =
                                             two?.layout?.spread?.width ?: pagerWidth
-                                        val slotW = renderSlot.width
-                                        val slotH = renderSlot.height
+                                        val (cacheW, cacheH) = pageFitRenderSize(
+                                            fitModeRef.value,
+                                            renderSlot.width,
+                                            renderSlot.height,
+                                        )
                                         val fromBmp = two?.front
-                                            ?: cachedSpreadBitmaps(renderer, fromSpread, slotW, slotH)
+                                            ?: cachedSpreadBitmaps(renderer, fromSpread, cacheW, cacheH)
                                         val toBmp = two?.back
-                                            ?: cachedSpreadBitmaps(renderer, toSpread, slotW, slotH)
+                                            ?: cachedSpreadBitmaps(renderer, toSpread, cacheW, cacheH)
                                         if (fromBmp == null || toBmp == null) {
                                             false
                                         } else {
@@ -859,20 +1068,17 @@ private fun ReaderScreenContent(
                                     onRelease = { progress, from, targetIndex, side, startedCurl, forward, completes ->
                                         if (!forward) endNotice = null
                                         if (!startedCurl) {
-                                            // Uncached: finger-follow via pager, then settle.
-                                            if (pagerState.targetPage != from) {
-                                                return@detectCurlSwipe
-                                            }
-                                            if (completes) {
-                                                if (targetIndex != from) {
-                                                    settlePage(targetIndex, ResolvedPageTurn.Slide)
-                                                } else if (forward &&
-                                                    isTurnPastEnd(from, 1, pagerState.pageCount)
-                                                ) {
-                                                    nextAtEnd()
-                                                }
-                                            } else if (targetIndex != from) {
-                                                settlePage(from, ResolvedPageTurn.Slide)
+                                            // Finger-follow via the pager, then settle here: this
+                                            // gesture is ours, the pager never owns it.
+                                            if (completes && targetIndex == from && forward &&
+                                                isTurnPastEnd(from, 1, pagerState.pageCount)
+                                            ) {
+                                                nextAtEnd()
+                                            } else {
+                                                val landing =
+                                                    if (completes && targetIndex != from) targetIndex else from
+                                                if (landing != from) anchorAtEnd = landing < from
+                                                settlePage(landing, ResolvedPageTurn.Slide)
                                             }
                                             return@detectCurlSwipe
                                         }
@@ -891,9 +1097,13 @@ private fun ReaderScreenContent(
                                                 completes &&
                                                 targetIndex != from
                                             ) {
+                                                anchorAtEnd = targetIndex < from
                                                 settlePage(targetIndex, ResolvedPageTurn.Slide)
                                             }
                                             return@detectCurlSwipe
+                                        }
+                                        if (completes && targetIndex != from) {
+                                            anchorAtEnd = targetIndex < from
                                         }
                                         startCurl(
                                             fromIndex = from,
@@ -923,10 +1133,14 @@ private fun ReaderScreenContent(
                                 .clipToBounds()
                                 .graphicsLayer {
                                     if (activePage) {
-                                        scaleX = zoom.scale
-                                        scaleY = zoom.scale
-                                        translationX = zoom.offsetX
-                                        translationY = zoom.offsetY
+                                        val drawn = if (anchorPending && pageLanding != null) pageLanding else zoom
+                                        scaleX = drawn.scale
+                                        scaleY = drawn.scale
+                                        translationX = drawn.offsetX
+                                        translationY = drawn.offsetY
+                                    } else if (pageLanding != null) {
+                                        translationX = pageLanding.offsetX
+                                        translationY = pageLanding.offsetY
                                     }
                                 },
                         ) {
@@ -938,6 +1152,12 @@ private fun ReaderScreenContent(
                                 window = IntSize(constraints.maxWidth, constraints.maxHeight),
                                 tagged = activePage,
                                 autoCrop = autoCrop,
+                                fit = fitMode,
+                                onBitmapSize = if (fitMode == PageFit.Screen) {
+                                    null
+                                } else {
+                                    { size -> pageNumber?.let { pageFitSizes[it] = size } }
+                                },
                             )
                         }
                         Row(Modifier.fillMaxSize()) {
@@ -985,20 +1205,31 @@ private fun ReaderScreenContent(
                                                             onDoubleTap = { toggleZoom() },
                                                             onHoldStart = { x, y ->
                                                                 oneFingerZoomBase = zoom
+                                                                val content = fitContentSizeRef.value
+                                                                val fitPage = fitModeRef.value != PageFit.Screen &&
+                                                                    content != IntSize.Zero
                                                                 zoom = oneFingerZoomHoldStart(
                                                                     zoom,
                                                                     span.start * pagerWidth + x,
                                                                     y,
                                                                     pagerWidth,
                                                                     pagerHeight,
+                                                                    contentWidth = if (fitPage) content.width.toFloat() else pagerWidth,
+                                                                    contentHeight = if (fitPage) content.height.toFloat() else pagerHeight,
                                                                 )
                                                             },
                                                             onHoldPan = { dx, dy ->
+                                                                val content = fitContentSizeRef.value
+                                                                val fitPage = fitModeRef.value != PageFit.Screen &&
+                                                                    content != IntSize.Zero
                                                                 zoom = zoom.applyPan(
                                                                     dx,
                                                                     dy,
                                                                     pagerWidth,
                                                                     pagerHeight,
+                                                                    contentWidth = if (fitPage) content.width.toFloat() else pagerWidth,
+                                                                    contentHeight = if (fitPage) content.height.toFloat() else pagerHeight,
+                                                                    allowPanAtBaseScale = fitPage,
                                                                 )
                                                             },
                                                             onHoldEnd = {
@@ -1269,12 +1500,12 @@ private fun ReaderScreenContent(
                     onOpenGoToPage = { goToPageVisible = true },
                     showTapZoneEntry = !zoomed,
                     onAdjustTapZones = {
-                        zoom = ZoomState()
+                        resetZoom()
                         widthSheetVisible = true
                     },
                     onOpenBrightness = { brightnessSheetVisible = true },
                     onOpenAutoCrop = {
-                        zoom = ZoomState()
+                        resetZoom()
                         cropSheetVisible = true
                     },
                     onOpenBookmarks = bookmarks?.let { { bookmarkSheetVisible = true } },
@@ -1517,6 +1748,8 @@ private fun SpreadPageLayout(
     window: IntSize,
     tagged: Boolean,
     autoCrop: Boolean,
+    fit: PageFit = PageFit.Screen,
+    onBitmapSize: ((IntSize) -> Unit)? = null,
 ) {
     val book = posture as? FoldPosture.Book
     if (book != null) {
@@ -1597,6 +1830,7 @@ private fun SpreadPageLayout(
         modifier = Modifier.fillMaxSize(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val (renderWidth, renderHeight) = pageFitRenderSize(fit, pageSlotWidth, pageSlotHeight)
         layout.forEachIndexed { index, page ->
             val pageAlignment = when {
                 layout.size == 1 -> Alignment.Center
@@ -1606,8 +1840,8 @@ private fun SpreadPageLayout(
             PageBitmap(
                 renderer = renderer,
                 page = page,
-                maxWidth = pageSlotWidth,
-                maxHeight = pageSlotHeight,
+                maxWidth = renderWidth,
+                maxHeight = renderHeight,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
@@ -1618,6 +1852,10 @@ private fun SpreadPageLayout(
                 autoCrop = autoCrop,
                 sharedScale = sharedScale,
                 onMetrics = { if (metrics[page] != it) metrics[page] = it },
+                fit = fit,
+                viewportWidth = pageSlotWidth,
+                viewportHeight = pageSlotHeight,
+                onBitmapSize = onBitmapSize,
             )
         }
     }
@@ -1903,6 +2141,10 @@ internal fun PageBitmap(
     autoCrop: Boolean = false,
     sharedScale: Float? = null,
     onMetrics: ((SpreadPageMetrics) -> Unit)? = null,
+    fit: PageFit = PageFit.Screen,
+    viewportWidth: Int = maxWidth,
+    viewportHeight: Int = maxHeight,
+    onBitmapSize: ((IntSize) -> Unit)? = null,
 ) {
     var bitmap by remember(renderer, page, maxWidth, maxHeight, autoCrop) {
         mutableStateOf(renderer.cached(page, maxWidth, maxHeight))
@@ -1938,7 +2180,56 @@ internal fun PageBitmap(
         val bmp = bitmap
         val pageCrop = crop
         if (bmp != null && !bmp.isRecycled) {
+            val cropMargins = pageCrop?.takeUnless { it.isNone }
+            val contentWidth = if (cropMargins != null) {
+                bmp.width * (1f - cropMargins.left - cropMargins.right)
+            } else {
+                bmp.width.toFloat()
+            }
+            val contentHeight = if (cropMargins != null) {
+                bmp.height * (1f - cropMargins.top - cropMargins.bottom)
+            } else {
+                bmp.height.toFloat()
+            }
+            if (onBitmapSize != null && fit != PageFit.Screen) {
+                val (drawnWidth, drawnHeight) = pageFitDrawnSize(
+                    fit,
+                    viewportWidth.toFloat(),
+                    viewportHeight.toFloat(),
+                    contentWidth,
+                    contentHeight,
+                )
+                SideEffect {
+                    onBitmapSize(
+                        IntSize(
+                            drawnWidth.roundToInt().coerceAtLeast(1),
+                            drawnHeight.roundToInt().coerceAtLeast(1),
+                        ),
+                    )
+                }
+            }
+            // A fit bitmap is rendered at its native size; ContentScale.Fit shrinks it back into
+            // the pane, so the page is scaled up again to draw one bitmap pixel per screen pixel.
+            // The cropped size decides which axis has to fill the viewport.
+            val fitScale = remember(bmp, fit, viewportWidth, viewportHeight, pageCrop) {
+                pageFitBaseScale(
+                    fit,
+                    viewportWidth.toFloat(),
+                    viewportHeight.toFloat(),
+                    contentWidth,
+                    contentHeight,
+                )
+            }
             val imageBitmap = remember(bmp) { bmp.asImageBitmap() }
+            // Fit screen keeps the old draw path: no extra layer at scale 1.
+            val fitScaleModifier = if (fitScale == 1f) {
+                Modifier
+            } else {
+                Modifier.graphicsLayer {
+                    scaleX = fitScale
+                    scaleY = fitScale
+                }
+            }
             if (pageCrop != null && !pageCrop.isNone) {
                 SideEffect {
                     onMetrics?.invoke(SpreadPageMetrics(bmp.width, bmp.height, pageCrop))
@@ -1951,7 +2242,9 @@ internal fun PageBitmap(
                     alignment = alignment,
                     scale = sharedScale,
                     colorFilter = colorFilter,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(fitScaleModifier),
                 )
             } else {
                 Image(
@@ -1960,7 +2253,9 @@ internal fun PageBitmap(
                     contentScale = ContentScale.Fit,
                     alignment = alignment,
                     colorFilter = colorFilter,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(fitScaleModifier),
                 )
             }
         }
@@ -2312,3 +2607,4 @@ private suspend fun PointerInputScope.detectReaderZoomGestures(
 }
 
 val ReaderZoomKey = SemanticsPropertyKey<ZoomState>("ReaderZoom")
+val ReaderTurnKey = SemanticsPropertyKey<String>("ReaderTurn")

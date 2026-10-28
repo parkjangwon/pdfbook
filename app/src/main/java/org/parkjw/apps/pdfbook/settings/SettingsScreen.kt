@@ -2,6 +2,7 @@ package org.parkjw.apps.pdfbook.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -42,7 +44,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -52,6 +58,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.parkjw.apps.pdfbook.PageFit
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReadingDirection
 import org.parkjw.apps.pdfbook.TapZoneWidthSheet
@@ -84,6 +91,7 @@ private enum class SettingsChoice {
     Animation,
     Display,
     Orientation,
+    PageFit,
 }
 
 @Composable
@@ -106,6 +114,11 @@ fun SettingsScreen(
     initiallyShowDisplayChoice: Boolean = false,
     // Test hook: opens the animation choice dialog on first composition.
     initiallyShowAnimationChoice: Boolean = false,
+    // Page fit applies to the last read book; null disables the row.
+    pageFitBookTitle: String? = null,
+    pageFit: PageFit = PageFit.Screen,
+    pageFitDirection: ReadingDirection = ReadingDirection.RTL,
+    onPageFitChange: (PageFit) -> Unit = {},
 ) {
     var subScreen by rememberSaveable { mutableStateOf(initialSubScreen.name) }
     var showStartChoice by rememberSaveable { mutableStateOf(initiallyShowStartChoice) }
@@ -118,6 +131,10 @@ fun SettingsScreen(
             initiallyShowTapWidthSheet = initiallyShowTapWidthSheet,
             initiallyShowDisplayChoice = initiallyShowDisplayChoice,
             initiallyShowAnimationChoice = initiallyShowAnimationChoice,
+            pageFitBookTitle = pageFitBookTitle,
+            pageFit = pageFit,
+            pageFitDirection = pageFitDirection,
+            onPageFitChange = onPageFitChange,
             modifier = modifier,
         )
         SettingsSubScreen.OpenSource.name -> OpenSourceLicensesScreen(
@@ -350,6 +367,10 @@ private fun ReadingSettingsScreen(
     initiallyShowTapWidthSheet: Boolean,
     initiallyShowDisplayChoice: Boolean,
     initiallyShowAnimationChoice: Boolean = false,
+    pageFitBookTitle: String? = null,
+    pageFit: PageFit = PageFit.Screen,
+    pageFitDirection: ReadingDirection = ReadingDirection.RTL,
+    onPageFitChange: (PageFit) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
@@ -393,6 +414,23 @@ private fun ReadingSettingsScreen(
     val displayDescriptions = mapOf(
         DisplayMode.Invert to stringResource(R.string.settings_display_invert_desc),
         DisplayMode.Sepia to stringResource(R.string.settings_display_sepia_desc),
+    )
+    val fitOptions = listOf(
+        PageFit.Screen to stringResource(R.string.page_fit_screen),
+        PageFit.Width to stringResource(R.string.page_fit_width),
+        PageFit.Height to stringResource(R.string.page_fit_height),
+    )
+    val fitDescriptions = mapOf(
+        PageFit.Screen to stringResource(R.string.page_fit_screen_desc),
+        PageFit.Width to stringResource(R.string.page_fit_width_desc),
+        PageFit.Height to stringResource(R.string.page_fit_height_desc),
+    )
+    val fitNote = stringResource(
+        if (pageFitDirection == ReadingDirection.RTL) {
+            R.string.page_fit_note_rtl
+        } else {
+            R.string.page_fit_note_ltr
+        },
     )
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -443,6 +481,16 @@ private fun ReadingSettingsScreen(
                     title = stringResource(R.string.settings_cover_alone),
                     checked = settings.coverAlone,
                     onCheckedChange = { checked -> onSettingsChange { it.copy(coverAlone = checked) } },
+                )
+                GroupDivider()
+                SecurityValueRow(
+                    label = stringResource(R.string.settings_page_fit),
+                    value = fitOptions.first { it.first == pageFit }.second,
+                    supporting = pageFitBookTitle?.let {
+                        stringResource(R.string.settings_image_adjust_book, it)
+                    } ?: stringResource(R.string.settings_page_fit_no_book),
+                    enabled = pageFitBookTitle != null,
+                    onClick = { choice = SettingsChoice.PageFit.name },
                 )
                 GroupDivider()
                 SecurityValueRow(
@@ -589,6 +637,23 @@ private fun ReadingSettingsScreen(
             },
             onDismiss = { choice = null },
         )
+        SettingsChoice.PageFit.name -> SettingsChoiceDialog(
+            title = stringResource(R.string.settings_page_fit),
+            subtitle = pageFitBookTitle?.let {
+                stringResource(R.string.settings_image_adjust_book, it)
+            },
+            options = fitOptions,
+            selected = pageFit,
+            descriptions = fitDescriptions,
+            note = fitNote,
+            optionTestTagPrefix = "settings_page_fit_option_",
+            trailing = { value -> PageFitPreview(fit = value, direction = pageFitDirection) },
+            onSelect = { value ->
+                onPageFitChange(value)
+                choice = null
+            },
+            onDismiss = { choice = null },
+        )
     }
     if (showTapWidthSheet) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -620,12 +685,32 @@ private fun <T> SettingsChoiceDialog(
     onDismiss: () -> Unit,
     descriptions: Map<T, String> = emptyMap(),
     optionTestTagPrefix: String? = null,
+    subtitle: String? = null,
+    note: String? = null,
+    trailing: (@Composable (T) -> Unit)? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = {
+            Column(Modifier.fillMaxWidth()) {
+                Text(title)
+                if (subtitle != null) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("settings_dialog_subtitle"),
+                    )
+                }
+            }
+        },
         text = {
-            Column(Modifier.fillMaxWidth().selectableGroup()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .selectableGroup()
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 options.forEach { (value, label) ->
                     ListItem(
                         headlineContent = {
@@ -651,6 +736,11 @@ private fun <T> SettingsChoiceDialog(
                                 colors = pdfBookRadioButtonColors(),
                             )
                         },
+                        trailingContent = if (trailing != null) {
+                            { trailing(value) }
+                        } else {
+                            null
+                        },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -668,6 +758,18 @@ private fun <T> SettingsChoiceDialog(
                             ),
                     )
                 }
+                if (note != null) {
+                    HorizontalDivider(
+                        color = MaterialTheme.extendedColors.hairline,
+                        modifier = Modifier.padding(top = PdfBookSpacing.md),
+                    )
+                    Text(
+                        note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = PdfBookSpacing.sm),
+                    )
+                }
             }
         },
         confirmButton = {
@@ -676,6 +778,49 @@ private fun <T> SettingsChoiceDialog(
             }
         },
     )
+}
+
+/** Decorative option picture: a phone frame, the page, and the reading start corner. */
+@Composable
+private fun PageFitPreview(fit: PageFit, direction: ReadingDirection) {
+    val frame = MaterialTheme.extendedColors.hairlineStrong
+    val page = MaterialTheme.colorScheme.onSurfaceVariant
+    val accent = MaterialTheme.colorScheme.primary
+    Canvas(Modifier.size(40.dp, 56.dp)) {
+        val hairline = 1.dp.toPx()
+        val stroke = Stroke(hairline)
+        drawRoundRect(
+            color = frame,
+            topLeft = Offset(hairline / 2f, hairline / 2f),
+            size = Size(size.width - hairline, size.height - hairline),
+            cornerRadius = CornerRadius(4.dp.toPx()),
+            style = stroke,
+        )
+        // Screen fit is inset on every side; width fills the frame's width and height its height.
+        val inset = 5.dp.toPx()
+        val insetHorizontally = fit == PageFit.Height || fit == PageFit.Screen
+        val insetVertically = fit == PageFit.Width || fit == PageFit.Screen
+        val pageLeft = if (insetHorizontally) inset else hairline
+        val pageTop = if (insetVertically) inset else hairline
+        val pageRight = if (insetHorizontally) size.width - inset else size.width - hairline
+        val pageBottom = if (insetVertically) size.height - inset else size.height - hairline
+        drawRect(
+            color = page,
+            topLeft = Offset(pageLeft, pageTop),
+            size = Size(pageRight - pageLeft, pageBottom - pageTop),
+            style = stroke,
+        )
+        // Only a fit that can overflow carries the reading start corner, on the page corner.
+        if (fit != PageFit.Screen) {
+            val arm = 6.dp.toPx()
+            val cornerX = if (direction == ReadingDirection.RTL) pageRight else pageLeft
+            val cornerY = pageTop
+            val towardCenter = if (direction == ReadingDirection.RTL) -1f else 1f
+            val accentStroke = 2.dp.toPx()
+            drawLine(accent, Offset(cornerX, cornerY), Offset(cornerX + towardCenter * arm, cornerY), accentStroke)
+            drawLine(accent, Offset(cornerX, cornerY), Offset(cornerX, cornerY + arm), accentStroke)
+        }
+    }
 }
 
 @Composable

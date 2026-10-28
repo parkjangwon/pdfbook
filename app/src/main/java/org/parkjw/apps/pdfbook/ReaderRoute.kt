@@ -137,6 +137,7 @@ fun ReaderRoute(
             }
             LaunchedEffect(initialDirection) { direction = initialDirection }
             var autoCrop by rememberSaveable(key) { mutableStateOf(saved?.autoCrop == true) }
+            val pageFit by remember(store, key) { store.fit(key) }.collectAsState(PageFit.Screen)
             if (!hasReadableSpreads(spreadList)) {
                 Box(Modifier.fillMaxSize())
             } else {
@@ -211,6 +212,7 @@ fun ReaderRoute(
                     fullScreenReading = fullScreenReading,
                     displayMode = displayMode,
                     keepScreenOn = keepScreenOn,
+                    pageFit = pageFit,
                     spreadShift = spreadShift,
                     onSpreadShiftChange = { spreadShift = it },
                     onRestorePage = { page ->

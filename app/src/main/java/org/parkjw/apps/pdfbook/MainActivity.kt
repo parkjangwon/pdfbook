@@ -38,6 +38,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.folders.AddKind
 import org.parkjw.apps.pdfbook.lock.AppLockProcess
@@ -653,18 +654,34 @@ private fun App(
             onBack = { showHiddenItems = false },
             onUnhide = { item -> scope.launch { hiddenRepo.unhide(item.kind, item.id) } },
         )
-        showSettings -> SettingsScreen(
-            settings = settings,
-            onSettingsChange = onSettingsChange,
-            appLockMode = lockConfig.mode,
-            onOpenAppLock = { showAppLock = true },
-            versionName = remember(context) { context.installedVersionName() },
-            versionCode = remember(context) { context.installedVersionCode() },
-            updateState = updateState,
-            onUpdateAction = onUpdateAction,
-            hiddenCount = hiddenItems.size,
-            onOpenHiddenItems = { showHiddenItems = true },
-        )
+        showSettings -> {
+            val lastBook = findLastBookTarget(resumeFolders, resumeListings, states)?.let { target ->
+                resumeListings[target.folderUri]?.books?.firstOrNull { it.uri == target.bookUri }
+            }
+            val lastBookKey = lastBook?.let { bookKey(it.uri, it.size) }
+            val pageFit by remember(lastBookKey) {
+                lastBookKey?.let { store.fit(it) } ?: flowOf(PageFit.Screen)
+            }.collectAsState(PageFit.Screen)
+            SettingsScreen(
+                settings = settings,
+                onSettingsChange = onSettingsChange,
+                appLockMode = lockConfig.mode,
+                onOpenAppLock = { showAppLock = true },
+                versionName = remember(context) { context.installedVersionName() },
+                versionCode = remember(context) { context.installedVersionCode() },
+                updateState = updateState,
+                onUpdateAction = onUpdateAction,
+                hiddenCount = hiddenItems.size,
+                onOpenHiddenItems = { showHiddenItems = true },
+                pageFitBookTitle = lastBook?.let { titleOf(it.name) },
+                pageFit = pageFit,
+                pageFitDirection = lastBookKey?.let { states[it]?.direction }
+                    ?: settings.defaultReadingDirection,
+                onPageFitChange = { fit ->
+                    lastBookKey?.let { key -> scope.launch { store.saveFit(key, fit) } }
+                },
+            )
+        }
         showLostForUri != null -> FolderPickScreen(
             illustration = R.drawable.es_permission_lost,
             title = stringResource(R.string.es_permission_lost_title),

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode spread-shift"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode page-fit spread-shift"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -83,6 +83,13 @@ cleanup() {
     timeout 20 "$ADB" exec-out screencap -p >"$OUT/failure.png" 2>/dev/null || true
     [ -f "$OUT/ui.xml" ] && mv "$OUT/ui.xml" "$OUT/failure.xml"
     timeout 20 "$ADB" logcat -d -v threadtime >"$OUT/logcat.txt" 2>/dev/null || true
+    # A failed feature must not leave the device rotated, at 320dp/font 2 or in dark
+    # mode: verify.sh all runs the next feature right after this one.
+    "$ADB" shell settings put system accelerometer_rotation 1 >/dev/null 2>&1 || true
+    "$ADB" shell settings put system user_rotation 0 >/dev/null 2>&1 || true
+    "$ADB" shell wm density reset >/dev/null 2>&1 || true
+    "$ADB" shell settings put system font_scale 1.0 >/dev/null 2>&1 || true
+    "$ADB" shell cmd uimode night no >/dev/null 2>&1 || true
   fi
   if [ "$STARTED_EMULATOR" = 1 ]; then
     timeout 20 "$ADB" emu kill >/dev/null 2>&1 || true
@@ -246,7 +253,9 @@ prepare_book() {
   local tmp
   tmp="$(mktemp -d)"
   python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 01.pdf" --pages 30 --title "$BOOK_TITLE 01"
-  python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 02.pdf" --pages 8 --title "$BOOK_TITLE 02"
+  # Mixed page sizes for the page fit turns: a tall page alternating with a square one.
+  python3 "$ROOT/scripts/make-test-pdf.py" "$tmp/$BOOK_TITLE 02.pdf" --pages 8 \
+    --title "$BOOK_TITLE 02" --mixed
   "$ADB" shell rm -rf "$DEVICE_DIR"
   "$ADB" shell mkdir -p "$DEVICE_DIR"
   "$ADB" push "$tmp/$BOOK_TITLE 01.pdf" "$tmp/$BOOK_TITLE 02.pdf" "$DEVICE_DIR/" >/dev/null
@@ -293,8 +302,16 @@ open_library() {
 }
 
 open_book() {
+  # Optional title pattern: opens that library row instead of the first book.
+  local title="${1:-}"
   open_library
-  tap_id library_book
+  if [ -n "$title" ]; then
+    # The library grid is lazy, so a third book can sit below the fold.
+    scroll_to_text "$title" 6 || die "Book '$title' not in the library (last dump: $OUT/ui.xml)"
+    tap_node text "$title"
+  else
+    tap_id library_book
+  fi
   local found
   for _ in $(seq 1 20); do
     dump_ui
@@ -319,6 +336,72 @@ show_overlay() {
     tap_id reader_zone_Menu
   fi
   expect_id reader_overlay_bottom
+}
+
+# Scrolls up within the current screen, using the dumped window bounds so it also
+# works in landscape where the fixed portrait coordinates are off-screen.
+swipe_up() {
+  local coords
+  coords="$(python3 - "$OUT/ui.xml" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except (ET.ParseError, FileNotFoundError):
+    sys.exit(1)
+x1, y1, x2, y2 = map(int, re.findall(r"\d+", root.get("bounds", "")))
+cx = (x1 + x2) // 2
+height = y2 - y1
+print(cx, y2 - height // 5, y1 + height // 5)
+PY
+)" || return 1
+  set -- $coords
+  "$ADB" shell input swipe "$1" "$2" "$1" "$3" 300
+}
+
+# Scrolls the current screen until a node with this text is visible, then stops.
+scroll_to_text() {
+  local pattern="$1" tries="${2:-6}"
+  for _ in $(seq 1 "$tries"); do
+    dump_ui
+    if find_node text "$pattern" >/dev/null; then
+      return 0
+    fi
+    swipe_up
+    sleep 1
+  done
+  return 1
+}
+
+# Reading settings from a deterministic start: restart, then library -> settings -> reading.
+reading_settings() {
+  "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
+  "$ADB" shell am start -W -n "$ACTIVITY" >/dev/null 2>&1
+  sleep 2
+  open_library
+  tap_id library_settings
+  expect_id settings_screen
+  # The reading row is below the fold in landscape and at 320dp / font scale 2.
+  for _ in $(seq 1 6); do
+    dump_ui
+    if find_node resource-id settings_reading_entry >/dev/null; then
+      break
+    fi
+    swipe_up
+    sleep 1
+  done
+  tap_id settings_reading_entry
+  expect_id settings_reading_screen
+}
+
+leave_settings() {
+  # Restart instead of guessing how many Backs the current screen needs; the library is
+  # where every caller expects to be next.
+  "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
+  "$ADB" shell am start -W -n "$ACTIVITY" >/dev/null 2>&1
+  sleep 2
 }
 
 # reader_progress lives in the main window. While the more-menu popup is open,
@@ -493,6 +576,182 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
     shot display-mode-invert
+    ;;
+  page-fit)
+    page_fit='쪽 맞춤|Page fit'
+    fit_width='너비 맞춤|Fit width'
+    fit_height='높이 맞춤|Fit height'
+    two_page='두쪽 보기|Two-page view'
+    turn_animation='넘김 애니메이션|Page turn animation'
+    curl_animation='책장 넘김|Page curl'
+
+    # 1. No book read yet: the row is disabled, light and dark.
+    reading_settings
+    scroll_to_text "$page_fit" || die "Page fit row not found (last dump: $OUT/ui.xml)"
+    shot page-fit-row-disabled
+    "$ADB" shell cmd uimode night yes
+    sleep 3
+    reading_settings
+    scroll_to_text "$page_fit" || true
+    shot page-fit-row-disabled-dark
+    "$ADB" shell cmd uimode night no
+    sleep 3
+
+    # 2. Read a book so the row targets it; one page and fit width, light dialog (RTL).
+    reading_settings
+    leave_settings
+    open_book
+    "$ADB" shell input keyevent KEYCODE_BACK
+    reading_settings
+    tap_node text "$two_page"
+    tap_node text '항상 한쪽|Always single'
+    scroll_to_text "$page_fit" || die "Page fit row not found (last dump: $OUT/ui.xml)"
+    tap_node text "$page_fit"
+    wait_node text "$fit_width" 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
+    shot page-fit-dialog
+    tap_node text "$fit_width"
+    sleep 1
+    shot page-fit-row-width
+
+    # 3. Dark dialog (ui mode recreates the activity, so start the scene again).
+    "$ADB" shell cmd uimode night yes
+    sleep 3
+    reading_settings
+    scroll_to_text "$page_fit" || true
+    tap_node text "$page_fit"
+    wait_node text "$fit_height" 20 >/dev/null || die "Page fit dialog did not open in dark (last dump: $OUT/ui.xml)"
+    shot page-fit-dialog-dark
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell cmd uimode night no
+    sleep 3
+
+    # 4. Width fit, landscape single page: start, one screen down, end, next, previous.
+    leave_settings
+    open_book
+    "$ADB" shell settings put system accelerometer_rotation 0
+    "$ADB" shell settings put system user_rotation 1
+    sleep 4
+    shot page-fit-width-start
+    tap_id reader_zone_Next
+    shot page-fit-width-one-screen-down
+    tap_id reader_zone_Next
+    tap_id reader_zone_Next
+    shot page-fit-width-end
+    tap_id reader_zone_Next
+    shot page-fit-width-next-page-start
+    tap_id reader_zone_Previous
+    shot page-fit-width-previous-page-end
+
+    # 5. Auto-crop plus width fit: the cropped page must still fill the width.
+    show_overlay
+    tap_id reader_auto_crop
+    expect_id reader_crop_sheet
+    tap_id reader_crop_switch
+    tap_id reader_crop_done
+    show_overlay
+    tap_id reader_back
+    open_book
+    sleep 1
+    shot page-fit-crop-width-start
+
+    # 6. Two-page view in landscape falls back to Fit screen.
+    "$ADB" shell settings put system user_rotation 0
+    sleep 3
+    reading_settings
+    tap_node text "$two_page"
+    tap_node text '항상 두쪽|Always double'
+    leave_settings
+    "$ADB" shell settings put system user_rotation 1
+    sleep 3
+    open_book
+    sleep 1
+    # Page 1 is the cover alone; one turn shows a real two-page spread in the fallback.
+    tap_id reader_zone_Next
+    shot page-fit-two-page-fallback
+    "$ADB" shell settings put system user_rotation 0
+    sleep 3
+
+    # 7. Height fit portrait RTL starts at the right edge.
+    reading_settings
+    tap_node text "$two_page"
+    tap_node text '자동|Auto'
+    "$ADB" shell settings put system user_rotation 0
+    sleep 3
+    reading_settings
+    scroll_to_text "$page_fit" || true
+    tap_node text "$page_fit"
+    wait_node text "$fit_height" 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
+    tap_node text "$fit_height"
+    leave_settings
+    open_book
+    sleep 1
+    shot page-fit-height-rtl-start
+
+    # 8. LTR book: height fit starts at the left edge, and the dialog mirrors.
+    show_overlay
+    tap_id reader_direction_toggle
+    tap_id reader_back
+    open_book
+    sleep 1
+    shot page-fit-height-ltr-start
+    "$ADB" shell input keyevent KEYCODE_BACK
+    reading_settings
+    scroll_to_text "$page_fit" || true
+    tap_node text "$page_fit"
+    wait_node text "$fit_height" 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
+    shot page-fit-dialog-ltr
+    "$ADB" shell input keyevent KEYCODE_BACK
+
+    # 9. 320dp width at font scale 2: nothing in the dialog is clipped.
+    "$ADB" shell settings put system font_scale 2.0
+    "$ADB" shell wm density 540
+    sleep 4
+    reading_settings
+    scroll_to_text "$page_fit" 10 || true
+    tap_node text "$page_fit"
+    # At 320dp / font 2 the third option sits below the dialog fold.
+    scroll_to_text "$fit_height" 6 || true
+    wait_node text "$fit_height" 30 >/dev/null || die "Page fit dialog did not open at 320dp/font 2 (last dump: $OUT/ui.xml)"
+    shot page-fit-dialog-320dp-font2
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell wm density reset
+    "$ADB" shell settings put system font_scale 1.0
+    "$ADB" shell settings put system user_rotation 0
+    "$ADB" shell settings put system accelerometer_rotation 1
+    sleep 2
+
+    # 10. Mixed page sizes with the curl preference: a turn from a fitting page onto an
+    #     overflowing one falls back to Slide and lands at the start corner; the backward
+    #     turn onto the overflowing page lands at its end corner.
+    # Read it once so the per-book fit row targets it, then width fit and page curl.
+    leave_settings
+    open_book "$BOOK_TITLE 02"
+    reading_settings
+    scroll_to_text "$page_fit" || die "Page fit row not found (last dump: $OUT/ui.xml)"
+    tap_node text "$page_fit"
+    wait_node text "$fit_width" 20 >/dev/null || die "Page fit dialog did not open (last dump: $OUT/ui.xml)"
+    tap_node text "$fit_width"
+    sleep 1
+    scroll_to_text "$turn_animation" || die "Page turn row not found (last dump: $OUT/ui.xml)"
+    tap_node text "$turn_animation"
+    wait_node text "$curl_animation" 20 >/dev/null || die "Page turn dialog did not open (last dump: $OUT/ui.xml)"
+    tap_node text "$curl_animation"
+    leave_settings
+    open_book "$BOOK_TITLE 02"
+    sleep 1
+    # Page 1 is tall (overflows), page 2 is square (fits): two next taps reach page 2.
+    tap_id reader_zone_Next
+    tap_id reader_zone_Next
+    sleep 1
+    shot page-fit-mixed-fitting-page
+    tap_id reader_zone_Next
+    sleep 1
+    shot page-fit-mixed-forward-start
+    tap_id reader_zone_Previous
+    sleep 1
+    tap_id reader_zone_Previous
+    sleep 1
+    shot page-fit-mixed-backward-end
     ;;
   spread-shift)
     open_book
