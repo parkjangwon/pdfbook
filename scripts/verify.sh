@@ -519,6 +519,25 @@ case "$FEATURE" in
       expect_id image_adjust_screen
       sleep 2
     }
+    # C7: same emulator, same ten swipes, adjustment off then on. A swipe keeps
+    # drawing while the pager drags, so the frame cost shows even when the
+    # emulator's system animations are disabled.
+    measure_page_turns() {
+      local name="$1"
+      "$ADB" shell dumpsys gfxinfo "$PKG" reset >/dev/null 2>&1
+      for _ in $(seq 1 10); do
+        "$ADB" shell input swipe 900 1200 200 1200 200
+        sleep 0.3
+      done
+      sleep 1
+      "$ADB" shell dumpsys gfxinfo "$PKG" >"$OUT/page-turn-$name.txt"
+      {
+        echo "## adjustment $name"
+        grep -E 'Total frames rendered|Janky frames|50th percentile|90th percentile' "$OUT/page-turn-$name.txt" \
+          | sed 's/^ *//' | head -4
+      } >>"$OUT/page-turn-gfxinfo.txt"
+      echo "verify: page turns ($name) measured"
+    }
     # No book has been read yet after pm clear: the row is disabled.
     open_library
     open_reading_settings
@@ -528,6 +547,7 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     # The row targets the last read book, so open one first.
     open_book
+    measure_page_turns off
     "$ADB" shell input keyevent KEYCODE_BACK
     open_library
     open_reading_settings
@@ -559,6 +579,7 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
     shot image-adjust-reader
+    measure_page_turns on
     with_page_color() {
       local label="$1" name="$2"
       "$ADB" shell input keyevent KEYCODE_BACK
@@ -592,6 +613,31 @@ case "$FEATURE" in
     "$ADB" shell settings put system font_scale 2.0
     sleep 3
     shot image-adjust-a11y
+    # The settings row itself at 320dp / font 2.0: the title and the ellipsized book line.
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_reading_screen
+    found=""
+    for _ in 1 2 3 4 5 6; do
+      found="$(wait_node text "$image_adjust" 2)" && break
+      "$ADB" shell input swipe 160 1200 160 900 300
+    done
+    [ -n "$found" ] || die "image adjustment row not found at 320dp (last dump: $OUT/ui.xml)"
+    shot image-adjust-row-a11y
+    # Unfolded (>=600dp), default font scale: the 149-unfolded mockup.
+    "$ADB" shell settings put system font_scale 1.0
+    "$ADB" shell wm size 700x1000
+    sleep 3
+    found=""
+    for _ in 1 2 3 4 5 6; do
+      found="$(wait_node text "$image_adjust" 2)" && break
+      "$ADB" shell input swipe 350 850 350 550 300
+    done
+    [ -n "$found" ] || die "image adjustment row not found at 700dp (last dump: $OUT/ui.xml)"
+    set -- $found
+    "$ADB" shell input tap "$1" "$2"
+    expect_id image_adjust_screen
+    sleep 2
+    shot image-adjust-unfolded
     # Last feature in the run: the emulator is discarded, so a failed restore
     # (adb sometimes drops during a resize) must not fail the captured evidence.
     "$ADB" shell settings put system font_scale 1.0 || true
