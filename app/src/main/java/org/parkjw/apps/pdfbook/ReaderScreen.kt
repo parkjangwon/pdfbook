@@ -115,8 +115,10 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.parkjw.apps.pdfbook.settings.DisplayMode
@@ -167,6 +169,9 @@ fun ReaderScreen(
     fullScreenReading: Boolean = true,
     displayMode: DisplayMode = DisplayMode.Default,
     keepScreenOn: Boolean = true,
+    spreadShift: Boolean = false,
+    onSpreadShiftChange: (Boolean) -> Unit = {},
+    onRestorePage: (Int) -> Unit = {},
 ) {
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
@@ -216,6 +221,9 @@ fun ReaderScreen(
             bookmarks = bookmarks,
             pageTurnAnimation = pageTurnAnimation,
             fullScreenReading = fullScreenReading,
+            spreadShift = spreadShift,
+            onSpreadShiftChange = onSpreadShiftChange,
+            onRestorePage = onRestorePage,
         )
     }
 }
@@ -259,6 +267,9 @@ private fun ReaderScreenContent(
     bookmarks: ReaderBookmarks?,
     pageTurnAnimation: PageTurnAnimation,
     fullScreenReading: Boolean,
+    spreadShift: Boolean,
+    onSpreadShiftChange: (Boolean) -> Unit,
+    onRestorePage: (Int) -> Unit,
 ) {
     SideEffect { renderer.setAutoCrop(autoCrop) }
     // Slider drags preview the window brightness without a DataStore write; only release persists.
@@ -278,6 +289,7 @@ private fun ReaderScreenContent(
     }
     val sideFraction = tapZoneSideFraction(sidePercent)
     var zoom by remember { mutableStateOf(ZoomState()) }
+    var spreadShiftJob by remember { mutableStateOf<Job?>(null) }
     var oneFingerZoomBase by remember { mutableStateOf<ZoomState?>(null) }
     val zoomRef = rememberUpdatedState(zoom)
     val zoomed = !zoom.allowsPageTurn
@@ -371,10 +383,6 @@ private fun ReaderScreenContent(
         is FoldPosture.Book -> "book:${posture.foldBounds}"
         is FoldPosture.Tabletop -> "tabletop:${posture.foldBounds}"
     }
-    LaunchedEffect(postureKey) {
-        zoom = ZoomState()
-    }
-
     // Remap shownAt so a posture/spread remount does not dismiss the pill (ZF-3 / SPEC-4).
     LaunchedEffect(spreads) {
         val jb = jumpBack ?: return@LaunchedEffect
@@ -429,6 +437,13 @@ private fun ReaderScreenContent(
         curlBack = null
         curlTwoPage = null
         curlProgress = 0f
+    }
+
+    LaunchedEffect(postureKey) {
+        zoom = ZoomState()
+        // A fold or unfold during a turn must not keep the old hinge layout up for the rest of
+        // the animation (an unpainted gap column and a short right edge).
+        clearCurlOverlay()
     }
 
     fun beginCurl(effect: CurlEffectState, front: Bitmap, back: Bitmap, twoPage: TwoPageCurl? = null) {
@@ -624,7 +639,10 @@ private fun ReaderScreenContent(
     fun seekFinished() {
         val origin = seekOrigin ?: return
         seekOrigin = null
-        jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)
+        jumpBack = jumpBackAfterSeek(currentSpreads, origin, seekTarget)?.let { jump ->
+            val from = currentSpreads.getOrNull(origin)
+            if (from != null && currentPage in from) jump.copy(page = currentPage) else jump
+        }
     }
 
     fun jumpToPage(page: Int) {
@@ -645,6 +663,7 @@ private fun ReaderScreenContent(
         val current = jumpBack ?: return
         val step = jumpBackStep(currentSpreads, current, pagerState.targetPage)
         jumpBack = step.next
+        onRestorePage(current.page)
         scrollTo(step.targetIndex)
     }
 
@@ -1214,6 +1233,16 @@ private fun ReaderScreenContent(
                 onOpenPageNav = { pageNavVisible = true },
                 bookmarked = bookmarks?.let { spreadBookmarked(it.pages, currentSpread) },
                 onToggleBookmark = { bookmarks?.let { b -> spreadToggleTargets(b.pages, currentSpread).forEach(b.onToggle) } },
+                spreadShift = if (twoPage && tabletop == null) spreadShift else null,
+                onSpreadShiftChange = {
+                    if (spreadShiftJob?.isActive != true) {
+                        spreadShiftJob = scope.launch {
+                            snapshotFlow { pagerState.isScrollInProgress || curlActive }.first { !it }
+                            zoom = ZoomState()
+                            onSpreadShiftChange(!spreadShift)
+                        }
+                    }
+                },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .then(
@@ -1347,8 +1376,12 @@ internal data class TwoPageCurl(
  * The current spread's other page is returned as [TwoPageCurl.still] so the overlay can keep
  * it on screen while the pager is already on the target spread.
  * Each page keeps its own measured rect, so spreads whose pages differ by a few points (a real
- * PDF) curl without the last frame jumping. Null (Slide fallback) when the bitmap cache missed
- * or when the two slots do not meet at the spine (a hinge gap).
+ * PDF) curl without the last frame jumping.
+ * A Book posture with a hinge gap is computed on the virtual spread (halves butted together)
+ * and carries the [CurlHinge], so the overlay cuts the turn at the fold instead of sliding.
+ * Null (Slide fallback) when the bitmap cache missed, when the two slots do not meet at the
+ * spine, or when the sheet and the pages it lands on differ by more than 1px (오대리 rule),
+ * so the last frame cannot jump.
  */
 internal fun buildTwoPageCurl(
     renderer: PageBitmaps,
@@ -1368,16 +1401,19 @@ internal fun buildTwoPageCurl(
     val visualCurrent = spreadLayout(currentSpread, direction)
     val visualTarget = spreadLayout(targetSpread, direction)
     val slots = listOf(canvas.left, canvas.right)
-    // spreadRequests() renders both pages at canvasWidth / 2, so look them up with that key:
-    // the curl slots can differ by one pixel on an odd width and would always miss the cache.
-    val requestWidth = (canvas.size.width / 2).coerceAtLeast(1)
+    // spreadRequests() renders both pages of a spread at slotWidth / 2 x slotHeight, with the
+    // slot from pageRenderSlot(): the window for Flat, the top half for Tabletop, and the
+    // virtual spread for a two-page Book with a hinge gap (so each half matches what
+    // BookHalfPage renders). Look them up with that key.
+    val slot = pageRenderSlot(window, posture, direction, twoPage = true)
+    val requestWidth = (slot.width / 2).coerceAtLeast(1)
     val bitmapsCurrent = visualCurrent.map { page ->
-        renderer.cached(page, requestWidth, canvas.size.height)
+        renderer.cached(page, requestWidth, slot.height)
             ?.takeUnless { it.isRecycled }
             ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
     val bitmapsTarget = visualTarget.map { page ->
-        renderer.cached(page, requestWidth, canvas.size.height)
+        renderer.cached(page, requestWidth, slot.height)
             ?.takeUnless { it.isRecycled }
             ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.CacheMiss)
     }
@@ -1427,6 +1463,7 @@ internal fun buildTwoPageCurl(
                 spineX = spineX,
                 landing = landing,
                 still = still,
+                hinge = canvas.hinge,
             ),
             frontCrop = cropsCurrent[turning].toContentRect(),
             backCrop = cropsTarget[turning].toContentRect(),

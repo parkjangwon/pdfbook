@@ -121,12 +121,19 @@ fun ReaderRoute(
             val renderer = result.renderer
             val posture = rememberFoldPosture()
             val twoPage = rememberTwoPage(twoPageMode, posture)
-            val spreadList = remember(renderer.pageCount, twoPage, coverAlone) {
-                spreads(renderer.pageCount, twoPage = twoPage, coverAlone = coverAlone)
+            var spreadShift by rememberSaveable(key) { mutableStateOf(saved?.spreadShift == 1) }
+            val spreadList = remember(renderer.pageCount, twoPage, coverAlone, spreadShift) {
+                spreads(
+                    renderer.pageCount,
+                    twoPage = twoPage,
+                    coverAlone = coverAlone,
+                    shift = if (spreadShift) 1 else 0,
+                )
             }
             var anchorPage by rememberSaveable(key) {
                 mutableIntStateOf(state.page.coerceIn(1, renderer.pageCount.coerceAtLeast(1)))
             }
+            var anchorSync by remember { mutableStateOf(ReadingAnchor(anchorPage)) }
             var direction by rememberSaveable(
                 key,
                 stateSaver = ReadingDirectionSaver,
@@ -143,19 +150,19 @@ fun ReaderRoute(
                     pageCount = { spreadList.size },
                 )
                 LaunchedEffect(spreadList) {
-                    var sync = readingAnchorBeginSync(ReadingAnchor(anchorPage), spreadList)
-                    val index = readingAnchorTargetIndex(spreadList, sync)
+                    anchorSync = readingAnchorBeginSync(ReadingAnchor(anchorPage), spreadList)
+                    val index = readingAnchorTargetIndex(spreadList, anchorSync)
                     if (pagerState.currentPage != index) {
                         pagerState.scrollToPage(index)
                     } else {
-                        sync = sync.copy(pendingIndex = null)
+                        anchorSync = anchorSync.copy(pendingIndex = null)
                     }
                     snapshotFlow { pagerState.settledPage }.collectLatest { settled ->
-                        sync = readingAnchorAfterSettle(sync, spreadList, settled)
-                        if (sync.page != anchorPage) anchorPage = sync.page
+                        anchorSync = readingAnchorAfterSettle(anchorSync, spreadList, settled)
+                        if (anchorSync.page != anchorPage) anchorPage = anchorSync.page
                     }
                 }
-                LaunchedEffect(anchorPage, direction, autoCrop) {
+                LaunchedEffect(anchorPage, direction, autoCrop, spreadShift) {
                     store.save(
                         key,
                         state.copy(
@@ -164,6 +171,7 @@ fun ReaderRoute(
                             direction = direction,
                             openedAt = System.currentTimeMillis(),
                             autoCrop = autoCrop,
+                            spreadShift = if (spreadShift) 1 else 0,
                         ),
                     )
                 }
@@ -209,6 +217,15 @@ fun ReaderRoute(
                         fullScreenReading = fullScreenReading,
                         displayMode = displayMode,
                         keepScreenOn = keepScreenOn,
+                        spreadShift = spreadShift,
+                        onSpreadShiftChange = { spreadShift = it },
+                        onRestorePage = { page ->
+                            anchorPage = page
+                            anchorSync = ReadingAnchor(
+                                page = page,
+                                pendingIndex = spreadIndexOf(spreadList, page),
+                            )
+                        },
                     )
                 }
             }
