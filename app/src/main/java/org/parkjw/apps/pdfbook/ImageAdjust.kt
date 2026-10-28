@@ -199,8 +199,12 @@ internal const val GAMMA_SHADER = """
     uniform float p11;
 
     half4 main(half4 color) {
-        float3 v = float3(color.rgb) * bcScale + bcOffset;
-        v = pow(max(v, 0.0), 1.0 / max(gamma, 0.01));
+        float3 linear = float3(color.rgb) * bcScale + bcOffset;
+        // Gamma is undefined below 0, so keep the negative value instead of
+        // saturating it mid-chain: the page matrix then sees exactly what the
+        // matrix path (API 35) sees, and only the final clamp applies to both.
+        float3 lifted = pow(max(linear, 0.0), 1.0 / max(gamma, 0.01));
+        float3 v = mix(lifted, linear, step(linear, float3(-0.000001)));
         float luma = dot(v, float3(0.299, 0.587, 0.114));
         v = mix(v, float3(luma), gray);
         float3 outRgb = float3(
