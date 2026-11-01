@@ -254,16 +254,43 @@ class PageCurlComposeTest {
     }
 
     @Test
-    fun twoPageViewUsesSlideWithoutCurl() {
+    fun twoPageCoverCurlsOntoTheFirstSpread() {
+        // Spread 0 is the cover alone; #173 peels it over the 2·3 spread.
         setReader(twoPage = true)
         freezeClock()
         tapNext(ReadingDirection.LTR)
-        repeat(20) {
-            composeRule.mainClock.advanceTimeByFrame()
-            composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
-        }
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
         composeRule.mainClock.advanceTimeBy(2_000)
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(1, pagerState.currentPage)
+    }
+
+    @Test
+    fun twoPageCoverCurlsForwardInRtl() {
+        setReader(twoPage = true, direction = ReadingDirection.RTL)
+        freezeClock()
+        tapNext(ReadingDirection.RTL)
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(1, pagerState.currentPage)
+    }
+
+    @Test
+    fun twoPageLoneLastPageCurlsBackward() {
+        // 4 pages: spreads are [1] | [2, 3] | [4], so the last spread is a lone page.
+        setReader(pageCount = 4, twoPage = true, initialPage = 2)
+        freezeClock()
+        tapPrevious(ReadingDirection.LTR)
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
         assertEquals(1, pagerState.currentPage)
     }
 
@@ -398,14 +425,15 @@ class PageCurlComposeTest {
     }
 
     private fun setReader(
-        renderer: PageBitmaps = CachedPages(PAGE_COUNT),
+        pageCount: Int = PAGE_COUNT,
+        renderer: PageBitmaps = CachedPages(pageCount),
         direction: ReadingDirection = ReadingDirection.LTR,
         twoPage: Boolean = false,
         initialPage: Int = 0,
         animation: PageTurnAnimation = PageTurnAnimation.Curl,
         volumes: ReaderVolumes = ReaderVolumes(),
     ) {
-        val pageSpreads = spreads(PAGE_COUNT, twoPage = twoPage, coverAlone = true)
+        val pageSpreads = spreads(pageCount, twoPage = twoPage, coverAlone = true)
         composeRule.setContent {
             pagerState = rememberPagerState(initialPage = initialPage, pageCount = { pageSpreads.size })
             PdfBookTheme(themeMode = ThemeMode.Light) {
@@ -414,7 +442,7 @@ class PageCurlComposeTest {
                     pagerState = pagerState,
                     spreads = pageSpreads,
                     title = "책 1권",
-                    pageCount = PAGE_COUNT,
+                    pageCount = pageCount,
                     currentPage = 1,
                     twoPage = twoPage,
                     onBack = {},
@@ -437,6 +465,13 @@ class PageCurlComposeTest {
     private fun tapNext(direction: ReadingDirection) {
         composeRule.onRoot().performTouchInput {
             val x = if (direction == ReadingDirection.RTL) width * 0.1f else width * 0.9f
+            click(Offset(x, height / 2f))
+        }
+    }
+
+    private fun tapPrevious(direction: ReadingDirection) {
+        composeRule.onRoot().performTouchInput {
+            val x = if (direction == ReadingDirection.RTL) width * 0.9f else width * 0.1f
             click(Offset(x, height / 2f))
         }
     }
