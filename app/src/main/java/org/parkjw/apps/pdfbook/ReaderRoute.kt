@@ -77,6 +77,9 @@ fun ReaderRoute(
     coverAlone: Boolean = true,
     rendererOverride: PageBitmaps? = null,
     keepScreenOn: Boolean = true,
+    readingInfoPage: Boolean = false,
+    readingInfoTime: Boolean = false,
+    readingInfoBattery: Boolean = false,
 ) {
     OrientationLock(screenOrientation)
     ReaderSystemBarsScope()
@@ -228,6 +231,9 @@ fun ReaderRoute(
                                 pendingIndex = spreadIndexOf(spreadList, page),
                             )
                         },
+                        readingInfoPage = readingInfoPage,
+                        readingInfoTime = readingInfoTime,
+                        readingInfoBattery = readingInfoBattery,
                     )
                 }
             }

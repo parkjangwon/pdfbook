@@ -75,4 +75,7 @@ data class AppSettings(
     val readerBrightnessPercent: Int = DEFAULT_READER_BRIGHTNESS_PERCENT,
     val fullScreenReading: Boolean = true,
     val displayMode: DisplayMode = DisplayMode.Default,
+    val readingInfoPage: Boolean = false,
+    val readingInfoTime: Boolean = false,
+    val readingInfoBattery: Boolean = false,
 )
