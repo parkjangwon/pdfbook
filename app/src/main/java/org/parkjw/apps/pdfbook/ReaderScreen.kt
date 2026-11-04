@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
@@ -62,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -74,6 +76,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -86,6 +90,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -1823,7 +1828,12 @@ private fun SpreadPageLayout(
     }
 }
 
-/** A wide page shown alone in Book posture fills the virtual spread; the hinge gap is painted over it. */
+/**
+ * A wide page shown alone in Book posture is laid out on the virtual spread (both halves butted
+ * together, hinge gap removed) and drawn in two passes, the way a curled frame is: everything left
+ * of the spine as it is, everything right of the spine shifted by the gap width. The page therefore
+ * reaches both window edges and only the hinge itself stays unpainted (V071-TWOPAGE.md §4, option A).
+ */
 @Composable
 private fun BookAcrossPage(
     renderer: PageBitmaps,
@@ -1834,24 +1844,56 @@ private fun BookAcrossPage(
     autoCrop: Boolean,
 ) {
     val density = LocalDensity.current
-    val width = halves.first.width + halves.second.width
-    if (width <= 0 || window.height <= 0) return
+    val virtualWidth = halves.first.width + halves.second.width
+    val gap = (halves.second.left - halves.first.right).coerceAtLeast(0)
+    if (virtualWidth <= 0 || halves.first.width <= 0 || window.height <= 0) return
+    val virtualDp = with(density) { virtualWidth.toDp() }
+    val heightDp = with(density) { window.height.toDp() }
+    val spine = halves.first.width.toFloat()
+    val gapPx = gap.toFloat()
     Box(
         Modifier
-            .offset { IntOffset(halves.first.left, 0) }
-            .width(with(density) { width.toDp() })
-            .height(with(density) { window.height.toDp() })
+            .fillMaxSize()
             .then(if (tagged) Modifier.testTag("reader_page_$page") else Modifier),
     ) {
-        PageBitmap(
-            renderer = renderer,
-            page = page,
-            maxWidth = width,
-            maxHeight = window.height,
-            modifier = Modifier.fillMaxSize(),
-            alignment = Alignment.Center,
-            autoCrop = autoCrop,
-        )
+        // Left of the spine: virtual x is the window x.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawWithContent {
+                    clipRect(0f, 0f, spine, size.height) { this@drawWithContent.drawContent() }
+                },
+        ) {
+            PageBitmap(
+                renderer = renderer,
+                page = page,
+                maxWidth = virtualWidth,
+                maxHeight = window.height,
+                modifier = Modifier.requiredSize(virtualDp, heightDp),
+                alignment = Alignment.Center,
+                autoCrop = autoCrop,
+            )
+        }
+        // Right of the spine: virtual x lands on the window x plus the gap width.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawWithContent {
+                    clipRect(spine + gapPx, 0f, size.width, size.height) {
+                        translate(gapPx, 0f) { this@drawWithContent.drawContent() }
+                    }
+                },
+        ) {
+            PageBitmap(
+                renderer = renderer,
+                page = page,
+                maxWidth = virtualWidth,
+                maxHeight = window.height,
+                modifier = Modifier.requiredSize(virtualDp, heightDp),
+                alignment = Alignment.Center,
+                autoCrop = autoCrop,
+            )
+        }
     }
 }
 
