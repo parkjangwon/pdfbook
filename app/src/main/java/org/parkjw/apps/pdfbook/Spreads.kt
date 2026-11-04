@@ -1,12 +1,13 @@
 package org.parkjw.apps.pdfbook
 
-fun spreads(pageCount: Int, twoPage: Boolean, coverAlone: Boolean): List<List<Int>> {
+fun spreads(pageCount: Int, twoPage: Boolean, coverAlone: Boolean, shift: Int = 0): List<List<Int>> {
     if (pageCount <= 0) return emptyList()
     val pages = (1..pageCount).toList()
     if (!twoPage) return pages.map { listOf(it) }
-    val head = if (coverAlone) listOf(listOf(1)) else emptyList()
-    val rest = if (coverAlone) pages.drop(1) else pages
-    return head + rest.chunked(2)
+    val lone = (if (coverAlone) 1 else 0) + shift.coerceAtLeast(0)
+    if (lone == 0) return pages.chunked(2)
+    val head = pages.take(lone).map { listOf(it) }
+    return head + pages.drop(lone).chunked(2)
 }
 
 fun spreadIndexOf(spreads: List<List<Int>>, page: Int): Int {
