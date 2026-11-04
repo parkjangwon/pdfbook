@@ -725,17 +725,45 @@ PY
     # The reader restores the last read page, so start each state at page 1.
     assert_page "$PAGE_FIRST"
     # Warm-up pass: the first draw after opening the book uploads the page
-    # bitmaps, so it must not sit inside a measured run.
+    # bitmaps, so it must not sit inside a measured run. A state switch only
+    # changes the colour filter, so the later switches need no warm-up.
     turn_pages
     back_to_first
+    # Back to the library from the reader, ready for a settings trip.
+    leave_reader() {
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_library
+    }
+    # Cheap adjustment toggles for the repeated switches: no screenshots.
+    set_adjust_off() {
+      leave_reader
+      open_adjust_screen
+      tap_reset
+      "$ADB" shell input keyevent KEYCODE_BACK
+      expect_id settings_reading_screen
+      "$ADB" shell input keyevent KEYCODE_BACK
+      expect_id settings_screen
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_book
+      assert_page "$PAGE_FIRST"
+    }
+    set_adjust_on() {
+      leave_reader
+      open_adjust_screen
+      set_adjustment_values
+      "$ADB" shell input keyevent KEYCODE_BACK
+      expect_id settings_reading_screen
+      "$ADB" shell input keyevent KEYCODE_BACK
+      expect_id settings_screen
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_book
+      assert_page "$PAGE_FIRST"
+    }
     measure_page_turns off1
     back_to_first
-    measure_page_turns off2
-    back_to_first
-    measure_page_turns off3
-    back_to_first
-    "$ADB" shell input keyevent KEYCODE_BACK
-    open_library
+    # The first switch to "on" also captures 02-06, once; later switches are
+    # screenshot-free so the documented capture numbers stay the same.
+    leave_reader
     open_reading_settings
     scroll_image_adjust_row || die "image adjustment row not found"
     shot image-adjust-off-row
@@ -755,12 +783,18 @@ PY
     open_book
     shot image-adjust-reader
     assert_page "$PAGE_FIRST"
-    turn_pages
-    back_to_first
     measure_page_turns on1
     back_to_first
+    set_adjust_off
+    measure_page_turns off2
+    back_to_first
+    set_adjust_on
     measure_page_turns on2
     back_to_first
+    set_adjust_off
+    measure_page_turns off3
+    back_to_first
+    set_adjust_on
     measure_page_turns on3
     back_to_first
     with_page_color 'Inverted|색 반전' image-adjust-reader-invert
@@ -779,10 +813,10 @@ PY
     expect_id settings_screen
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
-    shot image-adjust-reader-control
+    # Unnumbered: the documented 01-12 captures keep their names.
+    dump_ui
+    "$ADB" exec-out screencap -p >"$OUT/image-adjust-reader-control.png"
     assert_page "$PAGE_FIRST"
-    turn_pages
-    back_to_first
     measure_page_turns ctrl1
     back_to_first
     measure_page_turns ctrl2
