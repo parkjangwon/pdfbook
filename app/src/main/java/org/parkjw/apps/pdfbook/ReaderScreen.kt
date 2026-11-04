@@ -1161,6 +1161,7 @@ private fun ReaderScreenContent(
                     ReadingInfoHost(
                         spreads = currentSpreads,
                         pagerState = pagerState,
+                        pageCount = pageCount,
                         maxWidth = infoMaxWidth,
                         showPage = readingInfoPage,
                         showTime = readingInfoTime,

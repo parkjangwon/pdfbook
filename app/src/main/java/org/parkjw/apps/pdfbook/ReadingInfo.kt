@@ -126,6 +126,7 @@ fun readingInfoEdgeInsetPx(cutoutPx: Int, cornerRadiusPx: Int, density: Float): 
 fun ReadingInfoHost(
     spreads: List<List<Int>>,
     pagerState: PagerState,
+    pageCount: Int,
     maxWidth: Dp,
     showPage: Boolean,
     showTime: Boolean,
@@ -164,6 +165,7 @@ fun ReadingInfoHost(
         ReadingInfoLive(
             spreads = spreads,
             pagerState = pagerState,
+            pageCount = pageCount,
             maxWidth = maxWidth,
             showPage = showPage,
             showTime = showTime,
@@ -177,6 +179,8 @@ fun ReadingInfoHost(
 private fun ReadingInfoLive(
     spreads: List<List<Int>>,
     pagerState: PagerState,
+    // The pager counts spreads, not pages, so the page total has to come from the renderer.
+    pageCount: Int,
     maxWidth: Dp,
     showPage: Boolean,
     showTime: Boolean,
@@ -184,7 +188,7 @@ private fun ReadingInfoLive(
     omitPage: Boolean,
 ) {
     val page = if (showPage && !omitPage) {
-        readingInfoPage(spreads.getOrNull(pagerState.settledPage).orEmpty(), pagerState.pageCount)
+        readingInfoPage(spreads.getOrNull(pagerState.settledPage).orEmpty(), pageCount)
     } else {
         null
     }
