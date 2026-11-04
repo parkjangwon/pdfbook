@@ -723,6 +723,7 @@ private fun App(
                 fullScreenReading = settings.fullScreenReading,
                 displayMode = settings.displayMode,
                 coverAlone = settings.coverAlone,
+                widePageAlone = settings.widePageAlone,
                 keepScreenOn = settings.keepScreenOn,
                 readingInfoPage = settings.readingInfoPage,
                 readingInfoTime = settings.readingInfoTime,

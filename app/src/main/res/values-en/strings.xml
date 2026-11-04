@@ -54,6 +54,8 @@
     <string name="settings_two_page_single">Always single</string>
     <string name="settings_two_page_double">Always double</string>
     <string name="settings_cover_alone">Cover alone</string>
+    <string name="settings_wide_page_alone">Show wide pages alone</string>
+    <string name="settings_wide_page_alone_desc">Pages wider than tall fill the screen instead of pairing with a neighbor</string>
     <string name="settings_page_turn_animation">Page turn animation</string>
     <string name="settings_animation_slide">Slide</string>
     <string name="settings_animation_none">None</string>

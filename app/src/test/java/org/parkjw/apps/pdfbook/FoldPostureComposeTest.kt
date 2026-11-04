@@ -189,6 +189,45 @@ class FoldPostureComposeTest {
     }
 
     @Test
+    fun zf6_bookWideLonePageSpansBothHalves() {
+        val wide = setOf(12)
+        val pageSpreads = spreads(pageCount, twoPage = true, coverAlone = true, widePages = wide)
+        composeRule.setContent {
+            PdfBookTheme(themeMode = ThemeMode.Dark) {
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val posture = FoldPosture.Book(verticalFold(constraints.maxWidth, constraints.maxHeight))
+                    val pagerState = rememberPagerState(
+                        initialPage = spreadIndexOf(pageSpreads, 12),
+                        pageCount = { pageSpreads.size },
+                    )
+                    ReaderScreen(
+                        renderer = SolidPageBitmaps(pageCount, 0xFFF7F2E8.toInt(), 0xFF3D5A80.toInt()),
+                        pagerState = pagerState,
+                        spreads = pageSpreads,
+                        title = "책",
+                        pageCount = pageCount,
+                        currentPage = 12,
+                        twoPage = true,
+                        posture = posture,
+                        onBack = {},
+                        onDirectionChange = {},
+                        direction = ReadingDirection.LTR,
+                        showTapZoneGuide = false,
+                        widePages = wide,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        val page = composeRule.onNodeWithTag("reader_page_12").getBoundsInRoot()
+        val gap = composeRule.onNodeWithTag("book_posture_fold_gap").getBoundsInRoot()
+        assertTrue("wide page starts at the left half: $page", page.left <= gap.left)
+        assertTrue("wide page reaches the right half: $page", page.right >= gap.right)
+    }
+
+    @Test
     fun zf1_tabletopHidesPageModeToggleOnly() {
         var postureKind by mutableStateOf("tabletop")
         composeRule.setContent {

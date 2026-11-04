@@ -14,6 +14,7 @@ class AppSettingsTest {
         assertTrue(s.volumeKeyPaging)
         assertEquals(ReadingDirection.RTL, s.defaultReadingDirection)
         assertTrue(s.coverAlone)
+        assertEquals(false, s.widePageAlone)
         assertEquals(TwoPageMode.Auto, s.twoPageMode)
         assertTrue(s.keepScreenOn)
         assertEquals(AppLanguage.System, s.language)

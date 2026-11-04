@@ -53,6 +53,8 @@
     <string name="settings_two_page_single">항상 한쪽</string>
     <string name="settings_two_page_double">항상 두쪽</string>
     <string name="settings_cover_alone">표지 단독 표시</string>
+    <string name="settings_wide_page_alone">넓은 쪽은 혼자 보기</string>
+    <string name="settings_wide_page_alone_desc">가로가 더 긴 쪽은 옆 쪽과 묶지 않고 한 화면을 다 써요</string>
     <string name="settings_page_turn_animation">넘김 애니메이션</string>
     <string name="settings_animation_slide">슬라이드</string>
     <string name="settings_animation_none">없음</string>
