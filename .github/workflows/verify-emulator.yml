@@ -46,10 +46,20 @@ jobs:
     needs: decide
     if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 75
     concurrency:
-      group: verify-emulator-${{ github.event.pull_request.number }}
+      group: verify-emulator-${{ github.event.pull_request.number }}-${{ matrix.group }}
       cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: core
+            features: "library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode spread-shift"
+          - group: page-fit
+            features: "page-fit"
+          - group: image-adjust
+            features: "image-adjust"
     steps:
       - uses: actions/checkout@v4
       - name: Enable KVM
@@ -64,7 +74,7 @@ jobs:
           cache: gradle
       - name: Build debug APK
         run: ./gradlew assembleDebug --console=plain
-      - name: Run verify.sh for all features
+      - name: Run verify.sh for this group
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -74,15 +84,15 @@ jobs:
           ram-size: 2560M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: bash scripts/verify.sh all
+          script: for feature in ${{ matrix.features }}; do bash scripts/verify.sh "$feature"; done
       - name: Summary
         if: always()
         run: |
-          if [ -f build/verify/summary.md ]; then cat build/verify/summary.md >> "$GITHUB_STEP_SUMMARY"; fi
+          for f in build/verify/*/summary.md; do [ -f "$f" ] && cat "$f" >> "$GITHUB_STEP_SUMMARY"; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: verify-evidence
+          name: verify-evidence-${{ matrix.group }}
           path: build/verify/**
           if-no-files-found: warn
 
