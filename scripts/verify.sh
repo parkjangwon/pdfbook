@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode spread-shift"
+FEATURES="library open-book sort-menu tap-width-sheet jump-back book-list bookmarks settings keep-zoom one-finger-zoom display-mode image-adjust spread-shift"
 PKG="org.parkjw.apps.pdfbook"
 ACTIVITY="$PKG/.MainActivity"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -493,6 +493,393 @@ case "$FEATURE" in
     "$ADB" shell input keyevent KEYCODE_BACK
     open_book
     shot display-mode-invert
+    ;;
+  image-adjust)
+    image_adjust='Image adjustments|이미지 보정'
+    page_color='Page color|페이지 색'
+    scroll_image_adjust_row() {
+      found=""
+      for _ in 1 2 3 4 5 6; do
+        if found="$(wait_node text "$image_adjust" 2)"; then return 0; fi
+        "$ADB" shell input swipe 540 1500 540 1150 300
+      done
+      return 1
+    }
+    open_reading_settings() {
+      tap_id library_settings
+      expect_id settings_screen
+      tap_id settings_reading_entry
+      expect_id settings_reading_screen
+    }
+    open_image_adjust() {
+      open_reading_settings
+      scroll_image_adjust_row || die "image adjustment row not found"
+      set -- $found
+      "$ADB" shell input tap "$1" "$2"
+      expect_id image_adjust_screen
+      sleep 2
+    }
+    # C7: page turns, adjustment off against on. One run each way cannot tell
+    # a regression from noise (round-3 review), so this runs three alternating
+    # pairs plus an Inverted-page-colour control, all over pages 1..21 of the
+    # 30-page test book. Each run resets gfxinfo, and the page range is
+    # asserted before and after it. The CI emulator disables animations, so the
+    # pager never owns a swipe; the tap zone turns the page in every run.
+    TURNS=20
+    PAGE_FIRST='1 / 30'
+    PAGE_LAST='21 / 30'
+    page_zones() {
+      local found
+      found="$(wait_node resource-id reader_zone_Next)" || die "Next tap zone not found (last dump: $OUT/ui.xml)"
+      set -- $found; NEXT_X="$1"; NEXT_Y="$2"
+      found="$(wait_node resource-id reader_zone_Previous)" || die "Previous tap zone not found (last dump: $OUT/ui.xml)"
+      set -- $found; PREV_X="$1"; PREV_Y="$2"
+      found="$(wait_node resource-id reader_zone_Menu)" || die "Menu tap zone not found (last dump: $OUT/ui.xml)"
+      set -- $found; MENU_X="$1"; MENU_Y="$2"
+    }
+    turn_pages() {
+      local i
+      for i in $(seq 1 "$TURNS"); do "$ADB" shell input tap "$NEXT_X" "$NEXT_Y"; done
+    }
+    reader_page_now() {
+      show_overlay
+      node_text reader_progress || true
+      local i
+      for i in $(seq 1 6); do
+        "$ADB" shell input tap "$MENU_X" "$MENU_Y"
+        sleep 1
+        dump_ui
+        find_node resource-id reader_overlay_bottom >/dev/null || return 0
+      done
+      die "Reader overlay did not close (last dump: $OUT/ui.xml)"
+    }
+    assert_page() {
+      local want="$1" page
+      page="$(reader_page_now)"
+      [ "$page" = "$want" ] || die "Expected page $want (got '$page'; last dump: $OUT/ui.xml)"
+    }
+    back_to_first() {
+      local i
+      for i in $(seq 1 "$TURNS"); do "$ADB" shell input tap "$PREV_X" "$PREV_Y"; done
+      sleep 1
+      assert_page "$PAGE_FIRST"
+    }
+    measure_page_turns() {
+      local name="$1" frames
+      "$ADB" shell dumpsys gfxinfo "$PKG" reset >/dev/null 2>&1
+      turn_pages
+      sleep 1
+      "$ADB" shell dumpsys gfxinfo "$PKG" >"$OUT/page-turn-$name.txt"
+      frames="$(sed -n 's/^Total frames rendered: \([0-9]*\).*/\1/p' "$OUT/page-turn-$name.txt" | head -1)"
+      [ "${frames:-0}" -gt 0 ] || die "page-turn $name rendered no frames (last dump: $OUT/ui.xml)"
+      assert_page "$PAGE_LAST"
+      echo "verify: page turns ($name): $frames frames"
+    }
+    # Median off/on and the off-off spread decide C7; the Inverted control says
+    # whether "on" costs more than a colour filter the page colour already pays.
+    page_turn_report() {
+      python3 - "$OUT" <<'PY'
+import glob
+import os
+import re
+import statistics
+import sys
+
+out = sys.argv[1]
+rows = []
+for path in sorted(glob.glob(os.path.join(out, "page-turn-*.txt"))):
+    name = re.fullmatch(r"page-turn-(.+)\.txt", os.path.basename(path)).group(1)
+    if name == "gfxinfo":
+        continue
+    text = open(path, encoding="utf-8", errors="replace").read()
+
+    def value(pattern):
+        match = re.search(pattern, text)
+        return match.group(1) if match else "-"
+
+    janky = re.search(r"Janky frames: (\d+) \(([\d.]+)%\)", text)
+    rows.append({
+        "name": name,
+        "frames": value(r"Total frames rendered: (\d+)"),
+        "janky": "%s (%s%%)" % janky.groups() if janky else "-",
+        "p50": value(r"50th percentile: (\d+)ms"),
+        "p90": value(r"90th percentile: (\d+)ms"),
+        "p95": value(r"95th percentile: (\d+)ms"),
+    })
+
+order = {"off": 0, "on": 1, "ctrl": 2}
+
+
+def sort_key(row):
+    match = re.fullmatch(r"(off|on|ctrl)(\d+)", row["name"])
+    return (order[match.group(1)], int(match.group(2))) if match else (9, row["name"])
+
+
+rows.sort(key=sort_key)
+print("| run | frames | janky | p50 | p90 | p95 |")
+print("|---|---|---|---|---|---|")
+for row in rows:
+    print("| %(name)s | %(frames)s | %(janky)s | %(p50)s ms | %(p90)s ms | %(p95)s ms |" % row)
+
+
+def p50s(prefix):
+    return [int(row["p50"]) for row in rows
+            if re.fullmatch(prefix + r"\d+", row["name"]) and row["p50"].isdigit()]
+
+
+off, on, control = p50s("off"), p50s("on"), p50s("ctrl")
+print("")
+if not (off and on):
+    print("C7 verdict: no measurements")
+    raise SystemExit(0)
+med_off = statistics.median(off)
+med_on = statistics.median(on)
+spread = max(off) - min(off)
+print("median off p50: %g ms (runs: %s)" % (med_off, ", ".join(str(v) for v in off)))
+print("median on p50: %g ms (runs: %s)" % (med_on, ", ".join(str(v) for v in on)))
+print("off-off p50 spread: %d ms" % spread)
+if control:
+    print("control (off + Inverted) p50: %s ms" % ", ".join(str(v) for v in control))
+within = abs(med_on - med_off) <= spread or med_on <= med_off * 1.10
+if not within and control:
+    within = abs(med_on - statistics.median(control)) <= spread
+if within:
+    print("C7 verdict: PASS (on p50 %g ms is within 10%% of off or the %d ms off-off spread%s)"
+          % (med_on, spread, ", or matches the Inverted control" if control else ""))
+else:
+    print("C7 verdict: ON ABOVE BOTH (on p50 %g ms > off %g ms + %d ms spread%s)"
+          % (med_on, med_off, spread, " and above the Inverted control" if control else ""))
+PY
+    }
+    set_adjustment_values() {
+      local found tap_x
+      # Tap the contrast slider at 3/4 of its width: a positive value.
+      found="$(wait_node resource-id image_adjust_contrast)" || die "contrast slider not found"
+      set -- $found
+      tap_x=$(( $3 + ($5 - $3) * 3 / 4 ))
+      "$ADB" shell input tap "$tap_x" "$2"
+      sleep 1
+      # Grayscale at 50%: a partial value must keep some colour, not turn the page gray.
+      found="$(wait_node resource-id image_adjust_grayscale)" || die "grayscale slider not found"
+      set -- $found
+      tap_x=$(( $3 + ($5 - $3) / 2 ))
+      "$ADB" shell input tap "$tap_x" "$2"
+      sleep 1
+    }
+    # Reset sits at the end of the scrolling column, below the fold on the
+    # 1080x2400 emulator, so scroll to it before tapping.
+    tap_reset() {
+      local found=""
+      for _ in 1 2 3 4; do
+        if found="$(wait_node resource-id image_adjust_reset 2)"; then
+          set -- $found
+          "$ADB" shell input tap "$1" "$2"
+          sleep 1
+          return 0
+        fi
+        "$ADB" shell input swipe 540 2100 540 1500 300
+      done
+      die "image adjustment reset not found (last dump: $OUT/ui.xml)"
+    }
+    open_adjust_screen() {
+      open_reading_settings
+      scroll_image_adjust_row || die "image adjustment row not found"
+      set -- $found
+      "$ADB" shell input tap "$1" "$2"
+      expect_id image_adjust_screen
+      sleep 2
+    }
+    # Runs on the reading settings screen; the row opens a dialog that closes
+    # on selection, so one BACK leaves us on settings_screen.
+    set_page_color() {
+      local label="$1" color_found=""
+      for _ in 1 2 3; do
+        if color_found="$(wait_node text "$page_color" 2)"; then break; fi
+        "$ADB" shell input swipe 540 1600 540 900 300
+      done
+      tap_node text "$page_color"
+      tap_node text "$label"
+      sleep 1
+      expect_id settings_reading_screen
+    }
+    with_page_color() {
+      local label="$1" name="$2"
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_reading_settings
+      set_page_color "$label"
+      "$ADB" shell input keyevent KEYCODE_BACK
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_book
+      shot "$name"
+    }
+    # No book has been read yet after pm clear: the row is disabled.
+    open_library
+    open_reading_settings
+    scroll_image_adjust_row || die "image adjustment row not found"
+    shot image-adjust-no-book-row
+    "$ADB" shell input keyevent KEYCODE_BACK
+    "$ADB" shell input keyevent KEYCODE_BACK
+    # The row targets the last read book, so open one first.
+    open_book
+    page_zones
+    # The reader restores the last read page, so start each state at page 1.
+    assert_page "$PAGE_FIRST"
+    # Warm-up pass: the first draw after opening the book uploads the page
+    # bitmaps, so it must not sit inside a measured run. A state switch only
+    # changes the colour filter, so the later switches need no warm-up.
+    turn_pages
+    back_to_first
+    # Back to the library from the reader, ready for a settings trip.
+    leave_reader() {
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_library
+    }
+    # Cheap adjustment toggles for the repeated switches: no screenshots.
+    set_adjust_off() {
+      leave_reader
+      open_adjust_screen
+      tap_reset
+      "$ADB" shell input keyevent KEYCODE_BACK
+      expect_id settings_reading_screen
+      "$ADB" shell input keyevent KEYCODE_BACK
+      expect_id settings_screen
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_book
+      assert_page "$PAGE_FIRST"
+    }
+    set_adjust_on() {
+      leave_reader
+      open_adjust_screen
+      set_adjustment_values
+      "$ADB" shell input keyevent KEYCODE_BACK
+      expect_id settings_reading_screen
+      "$ADB" shell input keyevent KEYCODE_BACK
+      expect_id settings_screen
+      "$ADB" shell input keyevent KEYCODE_BACK
+      open_book
+      assert_page "$PAGE_FIRST"
+    }
+    measure_page_turns off1
+    back_to_first
+    # The first switch to "on" also captures 02-06, once; later switches are
+    # screenshot-free so the documented capture numbers stay the same.
+    leave_reader
+    open_reading_settings
+    scroll_image_adjust_row || die "image adjustment row not found"
+    shot image-adjust-off-row
+    set -- $found
+    "$ADB" shell input tap "$1" "$2"
+    expect_id image_adjust_screen
+    sleep 2
+    shot image-adjust-off
+    set_adjustment_values
+    shot image-adjust-on
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_reading_screen
+    shot image-adjust-on-row
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_book
+    shot image-adjust-reader
+    assert_page "$PAGE_FIRST"
+    measure_page_turns on1
+    back_to_first
+    set_adjust_off
+    measure_page_turns off2
+    back_to_first
+    set_adjust_on
+    measure_page_turns on2
+    back_to_first
+    set_adjust_off
+    measure_page_turns off3
+    back_to_first
+    set_adjust_on
+    measure_page_turns on3
+    back_to_first
+    with_page_color 'Inverted|색 반전' image-adjust-reader-invert
+    with_page_color 'Sepia|세피아' image-adjust-reader-sepia
+    # CONTROL: adjustment off, page colour Inverted, same page range. If "on"
+    # lands here, the adjustment costs no more than a colour filter.
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_library
+    open_adjust_screen
+    tap_reset
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_reading_screen
+    set_page_color 'Inverted|색 반전'
+    expect_id settings_reading_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_book
+    # Unnumbered: the documented 01-12 captures keep their names.
+    dump_ui
+    "$ADB" exec-out screencap -p >"$OUT/image-adjust-reader-control.png"
+    assert_page "$PAGE_FIRST"
+    measure_page_turns ctrl1
+    back_to_first
+    measure_page_turns ctrl2
+    back_to_first
+    measure_page_turns ctrl3
+    back_to_first
+    echo "verify: page-turn gfxinfo -> $OUT/page-turn-gfxinfo.txt"
+    page_turn_report | tee "$OUT/page-turn-gfxinfo.txt"
+    # Restore for the captures below: adjustment on, page colour Original.
+    "$ADB" shell input keyevent KEYCODE_BACK
+    open_library
+    open_adjust_screen
+    set_adjustment_values
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_reading_screen
+    set_page_color 'Original|기본'
+    expect_id settings_reading_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_screen
+    "$ADB" shell input keyevent KEYCODE_BACK
+    # Reopen the screen last: the window resizes below must not feed navigation.
+    open_image_adjust
+    "$ADB" shell cmd uimode night yes
+    sleep 2
+    shot image-adjust-on-dark
+    "$ADB" shell cmd uimode night no
+    sleep 1
+    # 320dp width with the 2.0x font scale; taller so the sliders and 원래대로 all fit.
+    "$ADB" shell wm size 320x1400
+    "$ADB" shell wm density 160
+    "$ADB" shell settings put system font_scale 2.0
+    sleep 3
+    shot image-adjust-a11y
+    # The settings row itself at 320dp / font 2.0: the title and the ellipsized book line.
+    "$ADB" shell input keyevent KEYCODE_BACK
+    expect_id settings_reading_screen
+    found=""
+    for _ in 1 2 3 4 5 6; do
+      found="$(wait_node text "$image_adjust" 2)" && break
+      "$ADB" shell input swipe 160 1200 160 900 300
+    done
+    [ -n "$found" ] || die "image adjustment row not found at 320dp (last dump: $OUT/ui.xml)"
+    shot image-adjust-row-a11y
+    # Unfolded (>=600dp), default font scale: the 149-unfolded mockup.
+    "$ADB" shell settings put system font_scale 1.0
+    "$ADB" shell wm size 700x1000
+    sleep 3
+    found=""
+    for _ in 1 2 3 4 5 6; do
+      found="$(wait_node text "$image_adjust" 2)" && break
+      "$ADB" shell input swipe 350 850 350 550 300
+    done
+    [ -n "$found" ] || die "image adjustment row not found at 700dp (last dump: $OUT/ui.xml)"
+    set -- $found
+    "$ADB" shell input tap "$1" "$2"
+    expect_id image_adjust_screen
+    sleep 2
+    shot image-adjust-unfolded
+    # Last feature in the run: the emulator is discarded, so a failed restore
+    # (adb sometimes drops during a resize) must not fail the captured evidence.
+    "$ADB" shell settings put system font_scale 1.0 || true
+    "$ADB" shell wm size reset || true
+    "$ADB" shell wm density reset || true
     ;;
   spread-shift)
     open_book

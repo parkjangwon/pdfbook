@@ -36,8 +36,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,10 +57,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.parkjw.apps.pdfbook.BookInfo
+import org.parkjw.apps.pdfbook.BookStore
+import org.parkjw.apps.pdfbook.ImageAdjust
+import org.parkjw.apps.pdfbook.ImageAdjustScreen
 import org.parkjw.apps.pdfbook.R
 import org.parkjw.apps.pdfbook.ReadingDirection
+import org.parkjw.apps.pdfbook.bookKey
+import org.parkjw.apps.pdfbook.gammaAvailable
+import org.parkjw.apps.pdfbook.rememberBookRenderer
+import org.parkjw.apps.pdfbook.titleOf
 import org.parkjw.apps.pdfbook.TapZoneWidthSheet
 import org.parkjw.apps.pdfbook.TapZoneWidthSheetDefaults
 import org.parkjw.apps.pdfbook.lock.AppLockMode
@@ -75,6 +91,7 @@ import org.parkjw.apps.pdfbook.update.openBrowsableUrl
 enum class SettingsSubScreen {
     Main,
     Reading,
+    ImageAdjust,
     OpenSource,
 }
 
@@ -106,20 +123,63 @@ fun SettingsScreen(
     initiallyShowDisplayChoice: Boolean = false,
     // Test hook: opens the animation choice dialog on first composition.
     initiallyShowAnimationChoice: Boolean = false,
+    bookStore: BookStore? = null,
+    lastBook: BookInfo? = null,
+    lastBookPage: Int = 1,
 ) {
     var subScreen by rememberSaveable { mutableStateOf(initialSubScreen.name) }
     var showStartChoice by rememberSaveable { mutableStateOf(initiallyShowStartChoice) }
     var showLanguageChoice by rememberSaveable { mutableStateOf(false) }
     when (subScreen) {
-        SettingsSubScreen.Reading.name -> ReadingSettingsScreen(
-            settings = settings,
-            onSettingsChange = onSettingsChange,
-            onBack = { subScreen = SettingsSubScreen.Main.name },
-            initiallyShowTapWidthSheet = initiallyShowTapWidthSheet,
-            initiallyShowDisplayChoice = initiallyShowDisplayChoice,
-            initiallyShowAnimationChoice = initiallyShowAnimationChoice,
-            modifier = modifier,
-        )
+        SettingsSubScreen.Reading.name -> {
+            val key = lastBook?.let { bookKey(it.uri, it.size) }
+            val adjust by remember(key, bookStore) {
+                bookStore?.adjustFlow(key.orEmpty()) ?: flowOf(ImageAdjust.Default)
+            }.collectAsState(ImageAdjust.Default)
+            ReadingSettingsScreen(
+                settings = settings,
+                onSettingsChange = onSettingsChange,
+                onBack = { subScreen = SettingsSubScreen.Main.name },
+                initiallyShowTapWidthSheet = initiallyShowTapWidthSheet,
+                initiallyShowDisplayChoice = initiallyShowDisplayChoice,
+                initiallyShowAnimationChoice = initiallyShowAnimationChoice,
+                lastBookTitle = lastBook?.let { titleOf(it.name) },
+                adjustOn = !adjust.isDefault,
+                onOpenImageAdjust = {
+                    if (lastBook != null && bookStore != null) {
+                        subScreen = SettingsSubScreen.ImageAdjust.name
+                    }
+                },
+                modifier = modifier,
+            )
+        }
+        SettingsSubScreen.ImageAdjust.name -> {
+            val key = lastBook?.let { bookKey(it.uri, it.size) }
+            val storedAdjust by remember(key, bookStore) {
+                bookStore?.adjustFlow(key.orEmpty()) ?: flowOf(ImageAdjust.Default)
+            }.collectAsState(ImageAdjust.Default)
+            // Slider moves stay local and reach the store once the gesture ends.
+            var draft by remember(key) { mutableStateOf<ImageAdjust?>(null) }
+            val adjust = draft ?: storedAdjust
+            val scope = rememberCoroutineScope()
+            val renderer = rememberBookRenderer(lastBook)
+            ImageAdjustScreen(
+                adjust = adjust,
+                bookTitle = lastBook?.let { titleOf(it.name) }.orEmpty(),
+                page = lastBookPage,
+                renderer = renderer,
+                displayMode = settings.displayMode,
+                pageColorLabel = displayModeLabel(settings.displayMode),
+                gammaSupported = gammaAvailable(),
+                onAdjustChange = { draft = it },
+                onBack = { subScreen = SettingsSubScreen.Reading.name },
+                onAdjustCommit = { value ->
+                    draft = value
+                    if (bookStore != null && key != null) scope.launch { bookStore.saveAdjust(key, value) }
+                },
+                modifier = modifier,
+            )
+        }
         SettingsSubScreen.OpenSource.name -> OpenSourceLicensesScreen(
             onBack = { subScreen = SettingsSubScreen.Main.name },
             modifier = modifier,
@@ -350,6 +410,9 @@ private fun ReadingSettingsScreen(
     initiallyShowTapWidthSheet: Boolean,
     initiallyShowDisplayChoice: Boolean,
     initiallyShowAnimationChoice: Boolean = false,
+    lastBookTitle: String? = null,
+    adjustOn: Boolean = false,
+    onOpenImageAdjust: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
@@ -468,6 +531,19 @@ private fun ReadingSettingsScreen(
                     label = stringResource(R.string.settings_display_mode),
                     value = displayOptions.first { it.first == settings.displayMode }.second,
                     onClick = { choice = SettingsChoice.Display.name },
+                )
+                GroupDivider()
+                SettingsValueRow(
+                    label = stringResource(R.string.settings_image_adjust),
+                    value = stringResource(
+                        if (adjustOn) R.string.settings_image_adjust_on else R.string.settings_image_adjust_off,
+                    ),
+                    supporting = lastBookTitle?.let {
+                        stringResource(R.string.settings_image_adjust_book, it)
+                    } ?: stringResource(R.string.settings_image_adjust_no_book),
+                    enabled = lastBookTitle != null,
+                    onClick = onOpenImageAdjust,
+                    modifier = Modifier.testTag("settings_image_adjust_row"),
                 )
                 GroupDivider()
                 SwitchRow(
@@ -699,6 +775,70 @@ internal fun SettingsNavRow(
         modifier = modifier
             .fillMaxWidth()
             .selectable(selected = false, onClick = onClick),
+    )
+}
+
+@Composable
+private fun displayModeLabel(mode: DisplayMode): String = stringResource(
+    when (mode) {
+        DisplayMode.Default -> R.string.settings_display_default
+        DisplayMode.Invert -> R.string.settings_display_invert
+        DisplayMode.Sepia -> R.string.settings_display_sepia
+    },
+)
+
+@Composable
+internal fun SettingsValueRow(
+    label: String,
+    value: String,
+    supporting: String?,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val ink = MaterialTheme.colorScheme
+    val muted = MaterialTheme.extendedColors.muted
+    val rowDescription = listOfNotNull(label, value, supporting).joinToString(", ")
+    ListItem(
+        headlineContent = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) ink.onSurface else muted,
+            )
+        },
+        supportingContent = supporting?.let {
+            {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
+                    ),
+                    color = ink.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (enabled) ink.onSurfaceVariant else muted,
+                )
+                Icon(
+                    painter = painterResource(R.drawable.ic_chevron_right),
+                    contentDescription = null,
+                    tint = if (enabled) ink.onSurfaceVariant else muted,
+                )
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = rowDescription }
+            .selectable(selected = false, enabled = enabled, onClick = onClick),
     )
 }
 

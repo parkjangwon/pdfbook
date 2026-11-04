@@ -1109,7 +1109,7 @@ private fun ReaderScreenContent(
                         null
                     }
                     val displayMode = LocalDisplayMode.current
-                    val curlFilter = remember(displayMode) { displayMode.colorFilter() }
+                    val curlFilter = rememberReaderColorFilter(displayMode)
                     val curlLook = remember(displayMode) { displayMode.curlLook() }
                     val two = curlTwoPage
                     PageCurlOverlay(
@@ -2114,7 +2114,7 @@ internal fun PageBitmap(
         }
     }
     val displayMode = LocalDisplayMode.current
-    val colorFilter = remember(displayMode) { displayMode.colorFilter() }
+    val colorFilter = rememberReaderColorFilter(displayMode)
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val bmp = bitmap
         val pageCrop = crop
