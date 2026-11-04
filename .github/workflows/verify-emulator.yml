@@ -84,14 +84,7 @@ jobs:
           ram-size: 2560M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: |
-            supported=$(sed -n 's/^FEATURES="\(.*\)"/\1/p' scripts/verify.sh | head -1)
-            for feature in ${{ matrix.features }}; do
-              case " $supported " in
-                *" $feature "*) bash scripts/verify.sh "$feature" ;;
-                *) echo "verify: skip $feature (this branch does not have it)" ;;
-              esac
-            done
+          script: bash scripts/verify-group.sh "${{ matrix.features }}"
       - name: Summary
         if: always()
         run: |
