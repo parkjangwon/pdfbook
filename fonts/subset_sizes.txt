@@ -1,5 +1,5 @@
 Pretendard 1.3.9 Regular 2725828 -> 463292
 Pretendard 1.3.9 SemiBold 2671468 -> 453592
-JetBrainsMono 2.304 Regular 273900 -> 23316
-JetBrainsMono 2.304 SemiBold 277136 -> 23880
+JetBrainsMono 2.304 Regular 273900 -> 23392
+JetBrainsMono 2.304 SemiBold 277136 -> 23956
 RFN: Pretendard declared -> renamed file/name table to PDFBook Sans; JetBrains Mono no RFN declared -> kept name

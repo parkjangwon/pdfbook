@@ -50,6 +50,20 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun readingInfoDefaultsOffAndRoundTrips() = runTest {
+        val repo = repository()
+        val defaults = repo.settings.first()
+        assertFalse(defaults.readingInfoPage)
+        assertFalse(defaults.readingInfoTime)
+        assertFalse(defaults.readingInfoBattery)
+        repo.update { it.copy(readingInfoPage = true, readingInfoBattery = true) }
+        val loaded = repo.settings.first()
+        assertEquals(true, loaded.readingInfoPage)
+        assertFalse(loaded.readingInfoTime)
+        assertEquals(true, loaded.readingInfoBattery)
+    }
+
+    @Test
     fun corruptEnumFallsBackToDefault() {
         val prefs = androidx.datastore.preferences.core.emptyPreferences().toMutablePreferences()
         prefs[SettingsRepository.ThemeModeKey] = "NotATheme"

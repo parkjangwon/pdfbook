@@ -19,6 +19,14 @@ class FontCharsetGuardTest {
         val root = projectRoot()
         val charset = File(root, "fonts/pretendard_subset_chars.txt").readText(Charsets.UTF_8).toSet()
         assertTrue(charset.size > 2000)
+        // Numbers and the punctuation around them are drawn with the JetBrains Mono subset,
+        // which the build script bundles from MONO_CHARS. A numeric string must therefore be
+        // drawable by one of the two bundled fonts; a glyph in neither is a .notdef box.
+        val monoChars = monoChars(root)
+        assertTrue("the page range separator needs the mono subset", '–' in monoChars)
+        // A number placeholder still paints a digit, so it stays as a digit; other
+        // placeholders carry words and are dropped before the character check.
+        val numberArg = Regex("""%(\d+\$)?d""")
         val formatArg = Regex("""%(\d+\$)?[a-zA-Z]""")
         val missing = linkedSetOf<Char>()
         File(root, "app/src/main/res").walkTopDown()
@@ -28,7 +36,19 @@ class FontCharsetGuardTest {
                 for (tag in listOf("string", "item")) {
                     val nodes = doc.getElementsByTagName(tag)
                     for (i in 0 until nodes.length) {
-                        val text = formatArg.replace(nodes.item(i).textContent ?: continue, "")
+                        val text = formatArg.replace(
+                            numberArg.replace(nodes.item(i).textContent ?: continue, "0"),
+                            "",
+                        )
+                        if (isNumeric(text)) {
+                            val undrawable = text.filter { it !in monoChars && it !in charset }.toSet()
+                            assertEquals(
+                                "numeric string that neither bundled font can draw: $text -> $undrawable",
+                                emptySet<Char>(),
+                                undrawable,
+                            )
+                            continue
+                        }
                         for (ch in text) {
                             if (ch !in charset) missing.add(ch)
                         }
@@ -36,6 +56,16 @@ class FontCharsetGuardTest {
                 }
             }
         assertEquals("missing from pretendard charset: $missing", emptySet<Char>(), missing)
+    }
+
+    private fun isNumeric(text: String): Boolean =
+        text.any { it.isDigit() } && text.none { it.isLetter() }
+
+    private fun monoChars(root: File): Set<Char> {
+        val script = File(root, "scripts/subset_fonts.py").readText(Charsets.UTF_8)
+        val line = Regex("""MONO_CHARS = "([^"]*)"""").find(script)
+            ?: fail("MONO_CHARS not found in scripts/subset_fonts.py").let { error("unreachable") }
+        return line.groupValues[1].toSet()
     }
 
     private fun projectRoot(): File {

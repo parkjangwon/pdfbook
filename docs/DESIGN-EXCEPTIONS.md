@@ -43,6 +43,12 @@ The book page is the hero. The reader is always on black with neutral gray overl
 ## Naming
 - Extended colors class: `PdfBookColors` via `LocalPdfBookColors`.
 
+## Numeric font
+- The numeric style keeps the team's JetBrains Mono subset (`docs/DESIGN.md` §3) but PDFBook adds U+2013 en dash to it, because the reading info chip prints a two-page range as `12–13/180`. Without the glyph the separator renders as .notdef.
+- The digit run is matched by `NUMERIC_CHUNK` in `ui/theme/NumericText.kt`; the en dash is in that character class so the range is drawn in the numeric font as one run. `scripts/subset_fonts.py` bundles the same alphabet in `MONO_CHARS`.
+- This is a project change on top of the synced copy of the team design system v1.0: `docs/DESIGN.md` stays untouched, and a project that renders no page ranges keeps the smaller subset.
+- `FontCharsetGuardTest` holds the line: a string made only of digits and punctuation must stay inside `MONO_CHARS`, otherwise the test fails.
+
 ## Reader accent beyond the slider (approved exception)
 - In the reader, orange is also used for the "open" text button on the next-book notice, the "reading" label in the book list, and the current-book bar. These come from approved designs (v0.3 and v0.3.2). Everywhere else in the reader, orange stays limited to the slider.
 
@@ -50,6 +56,11 @@ The book page is the hero. The reader is always on black with neutral gray overl
 - Shared bottom-bar tools sit in one row directly under the page slider (above the page number). Tap-zone entry stays above the slider.
 - Fixed left-to-right order: Brightness, AutoTurn, Bookmarks, AutoCrop. Only tools that are passed in are shown, always in that enum order. The row does **not** mirror with RTL reading direction (volume buttons and the page slider still do).
 - Each item: 24dp line icon over `labelSmall`, `readerOnOverlay` content, ~56dp tall equal-width slots (min 48×48 touch target). No `readerAccent`, no elevation, no new shapes.
+
+## Reading info pill (#152, off by default)
+- One small pill at the reader's bottom right, on `readerTapZoneLabel` (readerOverlay 86%), fully rounded, with `readerOnOverlayVariant` text in the 11sp numeric style (5.0:1 over a white page).
+- The battery line icon is drawn on the 24dp grid but rendered at 12dp; pill padding is 4dp vertical and 8dp between items.
+- The pill hides while the reader overlay is open, and raises the end notices from 28dp to 40dp only while it is shown.
 
 ## Reader more menu and the Expanded ⋮ (#147, approved exception)
 - Compact (<400dp) and Medium (400–599dp) keep the existing more menu. While two-page view is active it gains a "두 쪽 짝 한 칸 밀기 / Shift page pairs by one" on/off row directly under the two-page status row. The row is not drawn in single-page view or tabletop posture.

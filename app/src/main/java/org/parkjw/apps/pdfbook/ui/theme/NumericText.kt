@@ -4,7 +4,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 
-private val NUMERIC_CHUNK = Regex("""[\d.,%/×:\- ]+""")
+private val NUMERIC_CHUNK = Regex("""[\d.,%/×:\-– ]+""")
 
 fun numericRuns(text: String): List<IntRange> =
     NUMERIC_CHUNK.findAll(text)
