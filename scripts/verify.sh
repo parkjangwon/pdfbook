@@ -349,9 +349,15 @@ import xml.etree.ElementTree as ET
 
 try:
     root = ET.parse(sys.argv[1]).getroot()
-except (ET.ParseError, FileNotFoundError):
+except (ET.ParseError, OSError):
     sys.exit(1)
-x1, y1, x2, y2 = map(int, re.findall(r"\d+", root.get("bounds", "")))
+node = root if root.get("bounds") else next((n for n in root.iter("node") if n.get("bounds")), None)
+if node is None:
+    sys.exit(1)
+coords = [int(n) for n in re.findall(r"\d+", node.get("bounds", ""))]
+if len(coords) < 4:
+    sys.exit(1)
+x1, y1, x2, y2 = coords[:4]
 cx = (x1 + x2) // 2
 height = y2 - y1
 print(cx, y2 - height // 5, y1 + height // 5)
