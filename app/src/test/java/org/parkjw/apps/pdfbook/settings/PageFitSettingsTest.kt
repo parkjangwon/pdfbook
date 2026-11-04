@@ -3,6 +3,7 @@ package org.parkjw.apps.pdfbook.settings
 import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -84,7 +85,12 @@ class PageFitSettingsTest {
     @Test
     fun noLastBookDisablesTheRow() {
         setReading(bookTitle = null, pageFit = PageFit.Screen, onPageFitChange = {})
-        composeRule.onNodeWithText(app.getString(R.string.settings_page_fit_no_book))
+        // Image adjustments has its own "open a book first" row with the same words, so the
+        // no-book hint is matched together with the row's label.
+        composeRule.onNode(
+            hasText(app.getString(R.string.settings_page_fit_no_book)) and
+                hasText(app.getString(R.string.settings_page_fit)),
+        )
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText(app.getString(R.string.settings_page_fit))

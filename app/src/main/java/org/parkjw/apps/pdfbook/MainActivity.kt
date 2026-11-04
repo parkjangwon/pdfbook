@@ -634,6 +634,10 @@ private fun App(
             }
         }
     }
+    val lastBook = findLastBookTarget(resumeFolders, resumeListings, states)?.let { target ->
+        resumeListings[target.folderUri]?.books?.firstOrNull { it.uri == target.bookUri }
+    }
+    val lastBookPage = lastBook?.let { states[bookKey(it.uri, it.size)]?.page ?: 1 } ?: 1
     val togglePeek = {
         HiddenPeek.set(!HiddenPeek.enabled.value)
     }
@@ -655,9 +659,6 @@ private fun App(
             onUnhide = { item -> scope.launch { hiddenRepo.unhide(item.kind, item.id) } },
         )
         showSettings -> {
-            val lastBook = findLastBookTarget(resumeFolders, resumeListings, states)?.let { target ->
-                resumeListings[target.folderUri]?.books?.firstOrNull { it.uri == target.bookUri }
-            }
             val lastBookKey = lastBook?.let { bookKey(it.uri, it.size) }
             val pageFit by remember(lastBookKey) {
                 lastBookKey?.let { store.fit(it) } ?: flowOf(PageFit.Screen)
@@ -680,6 +681,9 @@ private fun App(
                 onPageFitChange = { fit ->
                     lastBookKey?.let { key -> scope.launch { store.saveFit(key, fit) } }
                 },
+                bookStore = store,
+                lastBook = lastBook,
+                lastBookPage = lastBookPage,
             )
         }
         showLostForUri != null -> FolderPickScreen(

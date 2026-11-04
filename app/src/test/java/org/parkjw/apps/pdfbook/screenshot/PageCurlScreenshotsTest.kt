@@ -27,6 +27,7 @@ import org.parkjw.apps.pdfbook.settings.SettingsSubScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.parkjw.apps.pdfbook.ui.theme.ReaderListCurrent
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -83,6 +84,53 @@ class PageCurlScreenshotsTest {
             }
         }
         composeRule.onRoot().captureRoboImage("settings-animation-curl-light-folded-en.png")
+    }
+
+    @Test
+    @Config(qualifiers = "ko-w920dp-h400dp-xxhdpi")
+    fun pageCurlCoverLandscape() {
+        // Landscape: the lone page is narrow, so only a lone target page fits inside its rect.
+        // A two-page target spread would not fit and the reader slides instead (#173).
+        val cover = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFFB07A2A.toInt())
+        val target = syntheticTwoPageCurlPage(0xFFF7F2E8.toInt(), 0xFF2E7D32.toInt())
+        composeRule.setContent {
+            ScreenshotTheme(dark = false, systemBarsColor = ReaderBackground) {
+                SingleSheetCurlPreview(
+                    side = CurlSide.Right,
+                    progress = 0.5f,
+                    page = cover,
+                    targetLeft = target,
+                    targetRight = target,
+                    twoPageTarget = false,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onRoot().captureRoboImage("reader-page-curl-cover-landscape-ltr-p50.png")
+    }
+
+    @Test
+    @Config(qualifiers = FOLDED_QUALIFIERS)
+    fun settingsAnimationCurlFontScale2() {
+        // The four-sentence description must still wrap cleanly at 360dp with font scale 2.0.
+        // The font scale comes from the resources, not a LocalDensity override: the choice
+        // panel is a Dialog with its own window, which ignored the composition override and
+        // rendered the description at 1.0 (pixel-identical block, so wrapping was unchecked).
+        RuntimeEnvironment.setFontScale(2f)
+        composeRule.setContent {
+            ScreenshotTheme(dark = false) {
+                SettingsScreen(
+                    settings = AppSettings(pageTurnAnimation = PageTurnAnimation.Curl),
+                    onSettingsChange = {},
+                    versionName = "0.5.0",
+                    initialSubScreen = SettingsSubScreen.Reading,
+                    initiallyShowAnimationChoice = true,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onRoot().captureRoboImage("settings-animation-curl-light-folded-font2.png")
     }
 
     @Test
