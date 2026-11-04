@@ -17,7 +17,10 @@ class SolidPageBitmaps(
     private val pageColor: Int,
     private val accentColor: Int,
     private val outlineEntries: List<OutlineEntry> = emptyList(),
+    private val widePageSet: Set<Int> = emptySet(),
 ) : PageBitmaps {
+    override suspend fun widePages(anchor: Int): Set<Int> = widePageSet
+
     override suspend fun outline(): List<OutlineEntry> = outlineEntries
 
     override suspend fun thumbnail(request: PageRequest): Bitmap? =

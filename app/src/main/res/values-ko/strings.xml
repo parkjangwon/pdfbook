@@ -63,6 +63,8 @@
     <string name="page_fit_height_desc">쪽 높이를 화면에 맞춰요. 넘치는 옆쪽은 이어서 봐요.</string>
     <string name="page_fit_note_rtl">넘치면 책 방향대로 오른쪽 위부터 보여 줘요. 한쪽 보기에서만 적용되고, 두쪽 보기에서는 화면 맞춤으로 보여요.</string>
     <string name="page_fit_note_ltr">넘치면 책 방향대로 왼쪽 위부터 보여 줘요. 한쪽 보기에서만 적용되고, 두쪽 보기에서는 화면 맞춤으로 보여요.</string>
+    <string name="settings_wide_page_alone">넓은 쪽은 혼자 보기</string>
+    <string name="settings_wide_page_alone_desc">가로가 더 긴 쪽은 옆 쪽과 묶지 않고 한 화면을 다 써요</string>
     <string name="settings_page_turn_animation">넘김 애니메이션</string>
     <string name="settings_animation_slide">슬라이드</string>
     <string name="settings_animation_none">없음</string>

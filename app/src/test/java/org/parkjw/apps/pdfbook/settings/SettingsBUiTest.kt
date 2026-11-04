@@ -142,6 +142,7 @@ class SettingsBUiTest {
             R.string.settings_default_direction,
             R.string.settings_two_page,
             R.string.settings_cover_alone,
+            R.string.settings_wide_page_alone,
             R.string.settings_page_turn_animation,
             R.string.settings_keep_zoom,
             R.string.settings_volume_key_paging,

@@ -59,6 +59,7 @@ data class AppSettings(
     val volumeKeyPaging: Boolean = true,
     val defaultReadingDirection: ReadingDirection = ReadingDirection.RTL,
     val coverAlone: Boolean = true,
+    val widePageAlone: Boolean = false,
     val twoPageMode: TwoPageMode = TwoPageMode.Auto,
     val keepScreenOn: Boolean = true,
     val language: AppLanguage = AppLanguage.System,

@@ -546,6 +546,13 @@ private fun ReadingSettingsScreen(
                     onCheckedChange = { checked -> onSettingsChange { it.copy(coverAlone = checked) } },
                 )
                 GroupDivider()
+                SwitchRow(
+                    title = stringResource(R.string.settings_wide_page_alone),
+                    supporting = stringResource(R.string.settings_wide_page_alone_desc),
+                    checked = settings.widePageAlone,
+                    onCheckedChange = { checked -> onSettingsChange { it.copy(widePageAlone = checked) } },
+                )
+                GroupDivider()
                 SecurityValueRow(
                     label = stringResource(R.string.settings_page_fit),
                     value = fitOptions.first { it.first == pageFit }.second,
@@ -1113,7 +1120,12 @@ internal fun SwitchRow(
 ) {
     ListItem(
         headlineContent = {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
+                ),
+            )
         },
         supportingContent = supporting?.let {
             {
