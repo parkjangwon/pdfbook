@@ -30,6 +30,7 @@ import org.parkjw.apps.pdfbook.settings.DisplayMode
 import org.parkjw.apps.pdfbook.settings.SettingsScreen
 import org.parkjw.apps.pdfbook.settings.SettingsSubScreen
 import org.parkjw.apps.pdfbook.settings.ThemeMode
+import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.parkjw.apps.pdfbook.spreadIndexOf
 import org.parkjw.apps.pdfbook.spreads
 import org.robolectric.annotation.Config
@@ -199,7 +200,8 @@ class WidePageAloneScreenshotsTest {
         )
         val index = spreadIndexOf(pageSpreads, page)
         composeRule.setContent {
-            ScreenshotTheme(dark = dark) {
+            // N4: the reader draws its own system bars in ReaderBackground, so the capture must too.
+            ScreenshotTheme(dark = dark, systemBarsColor = ReaderBackground) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val posture = if (book) {
                         val mid = constraints.maxWidth / 2
