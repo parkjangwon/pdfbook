@@ -1,6 +1,8 @@
 package org.parkjw.apps.pdfbook
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -17,6 +19,9 @@ import org.parkjw.apps.pdfbook.ui.theme.ReaderSepiaPaper
 
 /** Applied at draw time, so cached page bitmaps stay valid when the mode changes. */
 val LocalDisplayMode = compositionLocalOf { DisplayMode.Default }
+
+/** The last read book's screen-only adjustment; set by the reader route. */
+val LocalImageAdjust = compositionLocalOf { ImageAdjust.Default }
 
 private const val LUMA_RED = 0.299f
 private const val LUMA_GREEN = 0.587f
@@ -61,6 +66,13 @@ internal fun sepiaMatrix(
 
 internal fun DisplayMode.colorFilter(): ColorFilter? =
     colorMatrix()?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
+
+/** Adjustment then page color, built once per value change, never per frame. */
+@Composable
+internal fun rememberReaderColorFilter(displayMode: DisplayMode): ColorFilter? {
+    val adjust = LocalImageAdjust.current
+    return remember(displayMode, adjust) { readerColorFilter(displayMode, adjust) }
+}
 
 /** Per-mode paper, shadow and fold values for the page-curl overlay (v0.7.0 mockups). */
 internal data class CurlLook(
