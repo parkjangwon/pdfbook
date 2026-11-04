@@ -666,6 +666,21 @@ PY
       "$ADB" shell input tap "$tap_x" "$2"
       sleep 1
     }
+    # Reset sits at the end of the scrolling column, below the fold on the
+    # 1080x2400 emulator, so scroll to it before tapping.
+    tap_reset() {
+      local found=""
+      for _ in 1 2 3 4; do
+        if found="$(wait_node resource-id image_adjust_reset 2)"; then
+          set -- $found
+          "$ADB" shell input tap "$1" "$2"
+          sleep 1
+          return 0
+        fi
+        "$ADB" shell input swipe 540 2100 540 1500 300
+      done
+      die "image adjustment reset not found (last dump: $OUT/ui.xml)"
+    }
     open_adjust_screen() {
       open_reading_settings
       scroll_image_adjust_row || die "image adjustment row not found"
@@ -755,8 +770,7 @@ PY
     "$ADB" shell input keyevent KEYCODE_BACK
     open_library
     open_adjust_screen
-    tap_id image_adjust_reset
-    sleep 1
+    tap_reset
     "$ADB" shell input keyevent KEYCODE_BACK
     expect_id settings_reading_screen
     set_page_color 'Inverted|색 반전'
