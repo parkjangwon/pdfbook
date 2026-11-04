@@ -458,13 +458,19 @@ private fun ReaderScreenContent(
         val slot = renderSlot
         if (slot.width <= 1 || slot.height <= 1) return@LifecycleEventEffect
         wasStopped = false
+        val fitRender = fitMode != PageFit.Screen
+        val (prerenderWidth, prerenderHeight) = pageFitRenderSize(fitMode, slot.width, slot.height)
         renderer.prerender(
             spreadRequests(
                 currentSpreads.getOrNull(pagerState.settledPage).orEmpty(),
-                slot.width,
-                slot.height,
+                prerenderWidth,
+                prerenderHeight,
             ),
-            prerenderTargets(currentSpreads, pagerState.settledPage, slot.width, slot.height),
+            if (fitRender) {
+                emptyList()
+            } else {
+                prerenderTargets(currentSpreads, pagerState.settledPage, prerenderWidth, prerenderHeight)
+            },
         )
     }
 

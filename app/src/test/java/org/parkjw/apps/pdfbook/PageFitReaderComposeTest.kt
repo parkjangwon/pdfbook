@@ -12,6 +12,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import org.junit.Assert.assertNotNull
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -283,6 +289,68 @@ class PageFitReaderComposeTest {
         companion object {
             // 1.2x the 400x800 test pane, so a width fit overflows by 80px and one tap reaches the end.
             const val ASPECT = 2.4f
+        }
+    }
+
+    @Test
+    fun resumeWithPageFitPrerendersAtFitRenderSize() {
+        var lastPrerenderCurrent: List<PageRequest>? = null
+        val renderer = object : PageBitmaps by TallPageBitmaps(PAGE_COUNT) {
+            override fun prerender(current: List<PageRequest>, targets: List<PageRequest>) {
+                lastPrerenderCurrent = current
+            }
+        }
+        val owner = TestLifecycleOwner()
+        val pageSpreads = spreads(PAGE_COUNT, twoPage = false, coverAlone = true)
+        composeRule.setContent {
+            pagerState = rememberPagerState(initialPage = 0, pageCount = { pageSpreads.size })
+            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                PdfBookTheme(themeMode = ThemeMode.Light) {
+                    ReaderScreen(
+                        renderer = renderer,
+                        pagerState = pagerState,
+                        spreads = pageSpreads,
+                        title = "t",
+                        pageCount = PAGE_COUNT,
+                        currentPage = 1,
+                        twoPage = false,
+                        onBack = {},
+                        onDirectionChange = {},
+                        direction = ReadingDirection.LTR,
+                        volumeDelta = volume,
+                        pageFit = PageFit.Width,
+                    )
+                }
+            }
+        }
+        settle()
+        owner.foreground()
+        settle()
+        owner.background()
+        owner.foreground()
+        settle()
+
+        val size = viewportSize()
+        val expected = pageFitRenderSize(PageFit.Width, size.width, size.height)
+        val request = lastPrerenderCurrent?.firstOrNull()
+        assertNotNull(request)
+        assertEquals(expected.first, request?.maxWidth)
+        assertEquals(expected.second, request?.maxHeight)
+    }
+
+    private class TestLifecycleOwner : LifecycleOwner {
+        private val registry = LifecycleRegistry(this)
+        override val lifecycle: Lifecycle get() = registry
+
+        fun foreground() {
+            registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+            registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+            registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        }
+
+        fun background() {
+            registry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+            registry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         }
     }
 
