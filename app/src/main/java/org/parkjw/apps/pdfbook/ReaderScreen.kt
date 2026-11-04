@@ -571,6 +571,7 @@ private fun ReaderScreenContent(
                 endNoticeOnly = false,
                 fromSpreadPages = fromSpread.size,
                 toSpreadPages = nextSpread.size,
+                hingeGap = (posture as? FoldPosture.Book)?.let { hingeGap(it.foldBounds) > 0 } == true,
             )
             if (mode != ResolvedPageTurn.Curl) {
                 // Field-report diagnostics: why the turn did not curl. Geometry and mode only,
@@ -1757,7 +1758,8 @@ private fun SpreadPageLayout(
                     BookAcrossPage(
                         renderer = renderer,
                         page = lone,
-                        halves = halves,
+                        fold = book.foldBounds,
+                        direction = direction,
                         window = window,
                         tagged = tagged,
                         autoCrop = autoCrop,
@@ -1829,70 +1831,57 @@ private fun SpreadPageLayout(
 }
 
 /**
- * A wide page shown alone in Book posture is laid out on the virtual spread (both halves butted
- * together, hinge gap removed) and drawn in two passes, the way a curled frame is: everything left
- * of the spine as it is, everything right of the spine shifted by the gap width. The page therefore
- * reaches both window edges and only the hinge itself stays unpainted (V071-TWOPAGE.md §4, option A).
+ * A wide page shown alone in Book posture follows [acrossPagePasses]: one layout at the render slot,
+ * drawn once left of the spine as it is and once right of the spine shifted by the hinge gap, so the
+ * page reaches both window edges and only the hinge itself stays unpainted
+ * (V071-TWOPAGE.md §4, option A).
  */
 @Composable
 private fun BookAcrossPage(
     renderer: PageBitmaps,
     page: Int,
-    halves: FoldHalves,
+    fold: IntRect,
+    direction: ReadingDirection,
     window: IntSize,
     tagged: Boolean,
     autoCrop: Boolean,
 ) {
     val density = LocalDensity.current
-    val virtualWidth = halves.first.width + halves.second.width
-    val gap = (halves.second.left - halves.first.right).coerceAtLeast(0)
-    if (virtualWidth <= 0 || halves.first.width <= 0 || window.height <= 0) return
-    val virtualDp = with(density) { virtualWidth.toDp() }
+    if (window.height <= 0 || window.width <= 0) return
+    val passes = remember(fold, direction, window) { acrossPagePasses(window, fold, direction) }
+    val slotDp = with(density) { passes.first().slotWidth.toDp() }
     val heightDp = with(density) { window.height.toDp() }
-    val spine = halves.first.width.toFloat()
-    val gapPx = gap.toFloat()
     Box(
         Modifier
             .fillMaxSize()
             .then(if (tagged) Modifier.testTag("reader_page_$page") else Modifier),
     ) {
-        // Left of the spine: virtual x is the window x.
-        Box(
-            Modifier
-                .fillMaxSize()
-                .drawWithContent {
-                    clipRect(0f, 0f, spine, size.height) { this@drawWithContent.drawContent() }
-                },
-        ) {
-            PageBitmap(
-                renderer = renderer,
-                page = page,
-                maxWidth = virtualWidth,
-                maxHeight = window.height,
-                modifier = Modifier.requiredSize(virtualDp, heightDp),
-                alignment = Alignment.Center,
-                autoCrop = autoCrop,
-            )
-        }
-        // Right of the spine: virtual x lands on the window x plus the gap width.
-        Box(
-            Modifier
-                .fillMaxSize()
-                .drawWithContent {
-                    clipRect(spine + gapPx, 0f, size.width, size.height) {
-                        translate(gapPx, 0f) { this@drawWithContent.drawContent() }
-                    }
-                },
-        ) {
-            PageBitmap(
-                renderer = renderer,
-                page = page,
-                maxWidth = virtualWidth,
-                maxHeight = window.height,
-                modifier = Modifier.requiredSize(virtualDp, heightDp),
-                alignment = Alignment.Center,
-                autoCrop = autoCrop,
-            )
+        passes.forEach { pass ->
+            val width = pass.slotWidth
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .drawWithContent {
+                        clipRect(
+                            pass.clip.left.toFloat(),
+                            pass.clip.top.toFloat(),
+                            pass.clip.right.toFloat(),
+                            pass.clip.bottom.toFloat(),
+                        ) {
+                            translate(pass.dx.toFloat(), 0f) { this@drawWithContent.drawContent() }
+                        }
+                    },
+            ) {
+                PageBitmap(
+                    renderer = renderer,
+                    page = page,
+                    maxWidth = width,
+                    maxHeight = window.height,
+                    modifier = Modifier.requiredSize(slotDp, heightDp),
+                    alignment = Alignment.Center,
+                    autoCrop = autoCrop,
+                )
+            }
         }
     }
 }

@@ -117,6 +117,7 @@ fun resolvePageTurn(
     endNoticeOnly: Boolean,
     fromSpreadPages: Int = 1,
     toSpreadPages: Int = 1,
+    hingeGap: Boolean = false,
 ): ResolvedPageTurn = when {
     endNoticeOnly -> ResolvedPageTurn.Instant
     animationsOff -> ResolvedPageTurn.Instant
@@ -124,6 +125,8 @@ fun resolvePageTurn(
     preference == PageTurnAnimation.Slide -> ResolvedPageTurn.Slide
     zoomed || !nextPageCached -> ResolvedPageTurn.Slide
     twoPage && fromSpreadPages >= 2 && toSpreadPages <= 1 -> ResolvedPageTurn.Slide
+    // A lone page's flap would have to cross a real hinge gap: it slides (#172, #148).
+    twoPage && hingeGap && (fromSpreadPages == 1 || toSpreadPages == 1) -> ResolvedPageTurn.Slide
     else -> ResolvedPageTurn.Curl
 }
 

@@ -6,7 +6,13 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.IntRect
@@ -64,6 +70,18 @@ class WidePageAloneBookPixelsTest {
         const val PAPER = 0xFFF7F2E8.toInt()
         const val RED = 0xFFFF0000.toInt()
         const val BLUE = 0xFF0000FF.toInt()
+    }
+
+    @Test
+    fun turningOffTheWidePageSlidesInsteadOfCurlingOverTheHinge() {
+        showWidePageOnBook()
+        composeRule.onNodeWithTag("reader_screen").performTouchInput {
+            click(Offset(width * 0.85f, height / 2f))
+        }
+        composeRule.waitForIdle()
+        // A curl over the hinge would compose the overlay at some progress; the hinge guard slides.
+        composeRule.onAllNodesWithTag("reader_page_curl").assertCountEquals(0)
+        composeRule.onNodeWithTag("reader_page_13").assertIsDisplayed()
     }
 
     private fun capture() = composeRule.onNodeWithTag("reader_screen").captureToImage().toPixelMap()

@@ -15,6 +15,38 @@ fun bookHalves(window: IntSize, fold: IntRect): FoldHalves {
     return FoldHalves(left, right)
 }
 
+/**
+ * Hinge width that the reader treats as a gap. A 1px seam keeps window coordinates: the render
+ * slot, the settled page and the curl canvas all read this rule from here.
+ */
+fun hingeGap(fold: IntRect): Int = if (fold.width > 1) fold.width else 0
+
+/** One clip pass of a lone wide page drawn across a Book hinge. */
+data class AcrossPagePass(val clip: IntRect, val dx: Int, val slotWidth: Int)
+
+/**
+ * How a lone wide page is drawn in Book posture (V071-TWOPAGE.md §4, option A): laid out at the
+ * render slot (the virtual spread when there is a hinge gap), then drawn once clipped left of the
+ * spine as it is and once clipped right of the spine shifted by the gap. With no real gap the page
+ * is drawn in a single pass across the window, matching [pageRenderSlot].
+ */
+fun acrossPagePasses(
+    window: IntSize,
+    fold: IntRect,
+    direction: ReadingDirection,
+): List<AcrossPagePass> {
+    val slot = pageRenderSlot(window, FoldPosture.Book(fold), direction, twoPage = true).width
+    val gap = hingeGap(fold)
+    if (gap <= 0) {
+        return listOf(AcrossPagePass(IntRect(0, 0, window.width, window.height), 0, slot))
+    }
+    val halves = bookHalves(window, fold)
+    return listOf(
+        AcrossPagePass(IntRect(0, 0, halves.first.right, window.height), 0, slot),
+        AcrossPagePass(IntRect(halves.second.left, 0, window.width, window.height), gap, slot),
+    )
+}
+
 /** Top / bottom of a horizontal hinge (tabletop posture). */
 fun tabletopHalves(window: IntSize, fold: IntRect): FoldHalves {
     val top = IntRect(0, 0, window.width, fold.top.coerceIn(0, window.height))

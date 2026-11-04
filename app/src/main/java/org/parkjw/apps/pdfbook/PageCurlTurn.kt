@@ -112,8 +112,7 @@ fun pageRenderSlot(
                 val half = bookSingleHalf(halves, direction)
                 return IntSize(half.width.coerceAtLeast(1), half.height.coerceAtLeast(1))
             }
-            val gap = (halves.second.left - halves.first.right).coerceAtLeast(0)
-            if (gap > 1) {
+            if (hingeGap(posture.foldBounds) > 0) {
                 return IntSize(
                     (halves.first.width + halves.second.width).coerceAtLeast(1),
                     window.height.coerceAtLeast(1),
