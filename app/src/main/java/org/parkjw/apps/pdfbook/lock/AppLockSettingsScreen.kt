@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.parkjw.apps.pdfbook.R
@@ -321,28 +322,44 @@ internal fun SecurityValueRow(
     label: String,
     value: String,
     onClick: () -> Unit,
+    supporting: String? = null,
+    enabled: Boolean = true,
 ) {
+    val muted = MaterialTheme.extendedColors.muted
+    val titleColor = if (enabled) Color.Unspecified else muted
+    val valueColor = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else muted
     ListItem(
         headlineContent = {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
+            Text(label, style = MaterialTheme.typography.bodyLarge, color = titleColor)
+        },
+        supportingContent = supporting?.let {
+            {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = value,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = valueColor,
                 )
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron_right),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else muted,
                 )
             }
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier
             .fillMaxWidth()
-            .selectable(selected = false, onClick = onClick),
+            .selectable(selected = false, enabled = enabled, onClick = onClick),
     )
 }

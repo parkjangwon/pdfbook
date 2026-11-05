@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -106,7 +107,8 @@ class ImageAdjustComposeTest {
     fun rowIsDisabledWithoutAReadBook() {
         settings(store(), null)
         composeRule.onNodeWithTag("settings_image_adjust_row").assertIsNotEnabled()
-        composeRule.onNodeWithText("먼저 책을 열어 주세요").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_image_adjust_row")
+            .assert(hasText("먼저 책을 열어 주세요"))
         composeRule.onNodeWithTag("settings_image_adjust_row").performClick()
         composeRule.onNodeWithTag(IMAGE_ADJUST_SCREEN_TAG).assertDoesNotExist()
     }

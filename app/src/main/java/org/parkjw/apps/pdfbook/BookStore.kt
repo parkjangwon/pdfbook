@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.map
 
 private const val BOOK_PREFIX = "book:"
 private const val BOOKMARK_PREFIX = "bookmarks:"
+private const val FIT_PREFIX = "fit:"
 private const val ADJUST_PREFIX = "adjust:"
 
 class BookStore(private val store: DataStore<Preferences>) {
@@ -49,6 +50,17 @@ class BookStore(private val store: DataStore<Preferences>) {
         store.edit {
             val k = stringPreferencesKey(BOOKMARK_PREFIX + key)
             it[k] = encodeBookmarks(toggledBookmark(decodeBookmarks(it[k]), page))
+        }
+    }
+
+    fun fit(key: String): Flow<PageFit> =
+        store.data.map { pageFitOrDefault(it[stringPreferencesKey(FIT_PREFIX + key)]) }
+            .distinctUntilChanged()
+
+    suspend fun saveFit(key: String, fit: PageFit) {
+        store.edit {
+            val k = stringPreferencesKey(FIT_PREFIX + key)
+            if (fit == PageFit.Screen) it.remove(k) else it[k] = fit.name
         }
     }
 

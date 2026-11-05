@@ -151,9 +151,19 @@ fun oneFingerZoomHoldStart(
     viewportWidth: Float,
     viewportHeight: Float,
     targetScale: Float = DoubleTapZoomScale,
+    contentWidth: Float = viewportWidth,
+    contentHeight: Float = viewportHeight,
 ): ZoomState =
     if (base.scale > MinZoomScale) {
         base
     } else {
-        ZoomState().applyPinch(targetScale, x, y, viewportWidth, viewportHeight)
+        base.applyPinch(
+            zoomChange = targetScale / base.scale.coerceAtLeast(MinZoomScale),
+            centroidX = x,
+            centroidY = y,
+            viewportWidth = viewportWidth,
+            viewportHeight = viewportHeight,
+            contentWidth = contentWidth,
+            contentHeight = contentHeight,
+        )
     }
