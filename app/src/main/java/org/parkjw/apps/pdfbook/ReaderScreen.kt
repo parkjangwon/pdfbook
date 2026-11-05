@@ -1853,7 +1853,7 @@ internal fun buildSingleSpreadCurlBuild(
 ): TwoPageCurlBuild {
     if (targetSpread.size !in 1..2) return TwoPageCurlBuild(null, TwoPageCurlFallback.SpreadPages)
     // The flap must not cross the hinge gap in Book posture: that is #172, not this turn.
-    if (posture is FoldPosture.Book && posture.foldBounds.width > 0) {
+    if (posture is FoldPosture.Book && hingeGap(posture.foldBounds) > 0) {
         return TwoPageCurlBuild(null, TwoPageCurlFallback.HingeGap)
     }
     val canvas = curlCanvas(window, posture) ?: return TwoPageCurlBuild(null, TwoPageCurlFallback.NoCanvas)

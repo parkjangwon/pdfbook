@@ -52,6 +52,21 @@ class WidePageAloneHingeCurlTest {
     }
 
     @Test
+    fun aOnePixelSeamStillCurvesItsLonePage() {
+        val build = buildSingleSpreadCurlBuild(
+            renderer = Pages(),
+            currentPage = 3,
+            targetSpread = listOf(4),
+            direction = ReadingDirection.LTR,
+            side = CurlSide.Right,
+            posture = FoldPosture.Book(IntRect(200, 0, 201, 800)),
+            window = window,
+            autoCrop = false,
+        )
+        assertNotEquals(TwoPageCurlFallback.HingeGap, build.fallback)
+    }
+
+    @Test
     fun hingeGapSlidesEveryTurnThatTouchesALoneSpread() {
         fun mode(from: Int, to: Int) = resolvePageTurn(
             preference = PageTurnAnimation.Curl,
