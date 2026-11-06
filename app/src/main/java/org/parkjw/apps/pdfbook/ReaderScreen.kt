@@ -1014,7 +1014,7 @@ private fun ReaderScreenContent(
                                     isHolding = { oneFingerZoomBase != null },
                                 )
                             }
-                            .pointerInput(activePage, instantSwipes, direction, pagerWidth, fitApplies) {
+                            .pointerInput(activePage, instantSwipes, direction, pagerWidth, fitApplies, zoomed) {
                                 if (!activePage || !instantSwipes || zoomed || fitApplies) return@pointerInput
                                 detectCurlSwipe(
                                     direction = direction,
