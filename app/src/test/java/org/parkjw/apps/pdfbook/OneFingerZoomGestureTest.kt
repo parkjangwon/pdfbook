@@ -158,6 +158,29 @@ class OneFingerZoomGestureTest {
     }
 
     @Test
+    fun offNoneModeSwipeDoesNotTurnPageWhileZoomed() {
+        setReader(oneFingerZoom = false, pageTurnAnimation = PageTurnAnimation.None)
+        doubleTap()
+        settle()
+        assertEquals(DoubleTapZoomScale, zoom().scale, 0f)
+
+        composeRule.onRoot().performTouchInput {
+            down(Offset(width * 0.6f, height / 2f))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.45f, height / 2f))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.2f, height / 2f))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.05f, height / 2f))
+            advanceEventTime(16)
+            up()
+        }
+        settle()
+        assertEquals(0, pagerState.currentPage)
+        assertEquals(DoubleTapZoomScale, zoom().scale, 0f)
+    }
+
+    @Test
     fun onSwipeWithCurlStillTurnsPage() {
         setReader(oneFingerZoom = true, pageTurnAnimation = PageTurnAnimation.Curl)
         swipe()
