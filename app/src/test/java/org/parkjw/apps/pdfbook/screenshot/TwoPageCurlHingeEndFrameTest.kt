@@ -65,25 +65,26 @@ class TwoPageCurlHingeEndFrameTest {
         }
         composeRule.waitForIdle()
 
-        fun staticSpread(page: Int): Array<IntArray> {
+        fun staticSpread(page: Int): Pair<Array<IntArray>, PixelMap> {
             composeRule.runOnIdle {
                 showOverlay = false
                 pagerPage = page
             }
             composeRule.waitForIdle()
             val pixels = capture()
-            return arrayOf(
+            val bounds = arrayOf(
                 pageBounds(pixels, 0, pixels.width / 2),
                 pageBounds(pixels, pixels.width / 2, pixels.width),
             )
+            return bounds to pixels
         }
 
-        for (hingeGap in listOf(HINGE_GAP, ODD_HINGE_GAP)) {
+        for (hingeGap in listOf(0, HINGE_GAP, ODD_HINGE_GAP)) {
             composeRule.runOnIdle { gap = hingeGap }
             composeRule.waitForIdle()
             // The settled spreads for this gap: the pager alone on the current and target page.
-            val current = staticSpread(page = 0)
-            val target = staticSpread(page = 1)
+            val (current, _) = staticSpread(page = 0)
+            val (target, targetPixels) = staticSpread(page = 1)
 
             for (turningSide in listOf(CurlSide.Right, CurlSide.Left)) {
                 val tag = "${if (turningSide == CurlSide.Right) "ltr" else "rtl"} gap=$hingeGap"
@@ -110,6 +111,42 @@ class TwoPageCurlHingeEndFrameTest {
                 val last = capture()
                 assertSpread(tag, "p=1", target, last)
                 assertGapBackground("$tag p=1", hingeGap, last)
+                assertNoSpineShade(tag, turningSide, hingeGap, targetPixels, last)
+            }
+        }
+    }
+
+        /**
+     * Verifies that the 24dp inner shade and 1dp crease line have fully collapsed at p=1,
+     * so the flap paper near the spine matches the settled spread paper pixels exactly.
+     */
+    private fun assertNoSpineShade(
+        tag: String,
+        side: CurlSide,
+        gap: Int,
+        settled: PixelMap,
+        frame: PixelMap,
+    ) {
+        val spine = frame.width / 2
+        val shadeWidthPx = 72 // 24dp at 3x xxhdpi
+        val xRange = if (side == CurlSide.Right) {
+            val foldEdge = spine - gap / 2
+            (foldEdge - shadeWidthPx) until foldEdge
+        } else {
+            val foldEdge = spine + (gap + 1) / 2
+            foldEdge until (foldEdge + shadeWidthPx)
+        }
+        val yStart = frame.height * 2 / 3
+        val yEnd = frame.height - 100
+        for (y in yStart until yEnd) {
+            for (x in xRange) {
+                val s = settled[x, y]
+                val f = frame[x, y]
+                assertEquals(
+                    "$tag: p=1 pixel at ($x, $y) differs from settled paper (s=$s vs f=$f)",
+                    s,
+                    f,
+                )
             }
         }
     }
@@ -134,6 +171,7 @@ class TwoPageCurlHingeEndFrameTest {
     }
 
     private fun assertGapBackground(tag: String, gap: Int, pixels: PixelMap) {
+        if (gap == 0) return
         val gapLeft = pixels.width / 2 - gap / 2
         for (y in 0 until pixels.height) {
             for (x in gapLeft until gapLeft + gap) {

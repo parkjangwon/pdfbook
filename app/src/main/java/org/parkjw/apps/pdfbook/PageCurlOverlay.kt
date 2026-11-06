@@ -273,7 +273,10 @@ fun PageCurlOverlay(
         val foldTop = Offset(left + shape.foldTopX, top + shape.foldTopY)
         val foldBottom = Offset(left + shape.foldBottomX, top + shape.foldBottomY)
         val mid = Offset(left + shape.midX, top + shape.midY)
-        val shadowWidth = CURL_SHADOW_WIDTH_DP.dp.toPx() * curlShadowWidthFraction(p)
+        val shadowFraction = curlShadowWidthFraction(p)
+        val shadowWidth = CURL_SHADOW_WIDTH_DP.dp.toPx() * shadowFraction
+        val shadeWidth = CURL_SHADE_WIDTH_DP.dp.toPx() * shadowFraction
+        val creaseWidth = CURL_FOLD_HIGHLIGHT_DP.dp.toPx() * shadowFraction
         // The revealed page keeps its own measured rect, which can differ by a few pixels from the
         // turning page. Clip it to the part the fold has uncovered so it never peeks out beside
         // the turning page. Equal-size pages draw exactly as before.
@@ -430,13 +433,15 @@ fun PageCurlOverlay(
                             spineSide = null,
                         )
                     }
-                    drawFoldGradient(
-                        brush = shadeBrush,
-                        origin = mid,
-                        angle = atan2(shape.normalY, shape.normalX),
-                        lengthPx = CURL_SHADE_WIDTH_DP.dp.toPx(),
-                        diagonal = diag,
-                    )
+                    if (shadeWidth > 0.5f) {
+                        drawFoldGradient(
+                            brush = shadeBrush,
+                            origin = mid,
+                            angle = atan2(shape.normalY, shape.normalX),
+                            lengthPx = shadeWidth,
+                            diagonal = diag,
+                        )
+                    }
                 }
                 // The crease reaches the union's rows, which can be a few pixels past the pages that
                 // are actually there at the end of the turn; clip it to the rows both the back face
@@ -452,13 +457,13 @@ fun PageCurlOverlay(
                     creaseTop = foldTop.y
                     creaseBottom = foldBottom.y
                 }
-                if (creaseBottom > creaseTop) {
+                if (creaseBottom > creaseTop && creaseWidth > 0.1f) {
                     clipRect(top = creaseTop, bottom = creaseBottom) {
                         drawLine(
                             color = foldHighlightColor,
                             start = foldTop,
                             end = foldBottom,
-                            strokeWidth = CURL_FOLD_HIGHLIGHT_DP.dp.toPx(),
+                            strokeWidth = creaseWidth,
                         )
                     }
                 }
