@@ -98,7 +98,7 @@ fun GoToPageDialog(
                             stringResource(R.string.go_to_page_hint, pageCount),
                             SpanStyle(fontFamily = PdfBookNumeric.fontFamily),
                         ),
-                        style = PdfBookNumeric.copy(fontSize = 14.sp, color = ReaderOnOverlayVariant),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, color = ReaderOnOverlayVariant),
                     )
                 },
                 supportingText = if (page == null) {
