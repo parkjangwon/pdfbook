@@ -1,5 +1,7 @@
 package org.parkjw.apps.pdfbook.ui.theme
 
+import org.parkjw.apps.pdfbook.signedValue
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -71,21 +73,25 @@ class FontCharsetGuardTest {
     fun pdfBookNumericIsNotAppliedDirectlyToSignedValue() {
         val root = projectRoot()
         val monoChars = monoChars(root)
-        // A string styled directly with PdfBookNumeric must only contain characters in monoChars.
-        // Code-generated strings like "+5" contain '+' which is outside monoChars.
-        val signedPositive = "+5"
-        val undrawable = signedPositive.filter { it !in monoChars }.toSet()
+        // Ensure the actual signedValue output contains characters outside monoChars when positive.
+        val positive = signedValue(5)
+        val undrawable = positive.filter { it !in monoChars }.toSet()
         assertEquals(
-            "'+' in signed values cannot be drawn by mono font and must not use direct PdfBookNumeric",
+            "signedValue(+5) produces '+' which mono font cannot draw: $positive",
             setOf('+'),
             undrawable,
         )
 
-        // Ensure ImageAdjustScreen does not style signed valueText with PdfBookNumeric directly
+        // Ensure ImageAdjustScreen does not style valueText with PdfBookNumeric directly,
+        // and explicitly uses withNumericSpans to keep '+' in body font.
         val imageAdjustKt = File(root, "app/src/main/java/org/parkjw/apps/pdfbook/ImageAdjustScreen.kt").readText(Charsets.UTF_8)
+        assertTrue(
+            "ImageAdjustScreen must use withNumericSpans(valueText, ...) so '+' is rendered with body font",
+            Regex("""text\s*=\s*withNumericSpans\s*\(\s*valueText""").containsMatchIn(imageAdjustKt),
+        )
         assertFalse(
-            "ImageAdjustScreen must use withNumericSpans or body font, not direct PdfBookNumeric for signed valueText",
-            imageAdjustKt.contains("text = valueText,") && imageAdjustKt.contains("style = PdfBookNumeric"),
+            "ImageAdjustScreen must not use style = PdfBookNumeric directly on valueText",
+            Regex("""text\s*=\s*valueText\s*,\s*style\s*=\s*PdfBookNumeric""").containsMatchIn(imageAdjustKt),
         )
     }
 
