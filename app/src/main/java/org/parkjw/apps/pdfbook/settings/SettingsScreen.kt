@@ -44,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -1031,12 +1032,14 @@ internal fun SettingsSection(title: String) {
         text = title,
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(
-            start = PdfBookSpacing.screenHorizontalFolded,
-            end = PdfBookSpacing.screenHorizontalFolded,
-            top = PdfBookSpacing.lg,
-            bottom = PdfBookSpacing.xs,
-        ),
+        modifier = Modifier
+            .semantics { heading() }
+            .padding(
+                start = PdfBookSpacing.screenHorizontalFolded,
+                end = PdfBookSpacing.screenHorizontalFolded,
+                top = PdfBookSpacing.lg,
+                bottom = PdfBookSpacing.xs,
+            ),
     )
 }
 

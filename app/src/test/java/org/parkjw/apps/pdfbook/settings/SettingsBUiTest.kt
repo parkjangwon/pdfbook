@@ -6,6 +6,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -65,8 +67,10 @@ class SettingsBUiTest {
             text(R.string.settings_section_update),
             text(R.string.settings_section_about),
         )
+        val headingMatcher = SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading)
+        composeRule.onAllNodes(headingMatcher).assertCountEquals(6)
         sections.forEach { label ->
-            composeRule.onNodeWithText(label).performScrollTo().assertIsDisplayed()
+            composeRule.onNode(hasText(label) and headingMatcher).performScrollTo().assertIsDisplayed()
         }
         val ordered = sections.map { label ->
             composeRule.onNodeWithText(label).fetchSemanticsNode().positionInRoot.y
