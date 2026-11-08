@@ -55,7 +55,10 @@ import org.parkjw.apps.pdfbook.settings.SettingsGroup
 import org.parkjw.apps.pdfbook.settings.SettingsSection
 import org.parkjw.apps.pdfbook.ui.SafeTopBar
 import org.parkjw.apps.pdfbook.ui.theme.CardCorner
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.unit.sp
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookNumeric
+import org.parkjw.apps.pdfbook.ui.theme.withNumericSpans
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookReaderSlider
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookSpacing
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
@@ -374,9 +377,14 @@ private fun AdjustSliderRow(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = valueText,
-                style = PdfBookNumeric,
-                color = if (enabled) ink.onSurfaceVariant else MaterialTheme.extendedColors.muted,
+                text = withNumericSpans(
+                    valueText,
+                    SpanStyle(fontFamily = PdfBookNumeric.fontFamily),
+                ),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    letterSpacing = (-0.2).sp,
+                    color = if (enabled) ink.onSurfaceVariant else MaterialTheme.extendedColors.muted,
+                ),
             )
         }
         if (supporting != null) {

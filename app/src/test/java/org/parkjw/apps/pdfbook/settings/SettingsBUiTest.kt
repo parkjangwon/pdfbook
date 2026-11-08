@@ -68,6 +68,7 @@ class SettingsBUiTest {
             text(R.string.settings_section_about),
         )
         val headingMatcher = SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading)
+        composeRule.onAllNodes(headingMatcher).assertCountEquals(6)
         sections.forEach { label ->
             composeRule.onNode(hasText(label) and headingMatcher).performScrollTo().assertIsDisplayed()
         }

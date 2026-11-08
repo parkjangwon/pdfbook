@@ -1,6 +1,7 @@
 package org.parkjw.apps.pdfbook.ui.theme
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -26,7 +27,10 @@ class FontCharsetGuardTest {
         val monoChars = monoChars(root)
         assertTrue("the page range separator needs the mono subset", '–' in monoChars)
         val monoFont = File(root, "app/src/main/res/font/jetbrains_mono_regular.ttf")
-        assertTrue("jetbrains_mono_regular.ttf cmap must contain en dash", Font.createFont(Font.TRUETYPE_FONT, monoFont).canDisplay('–'))
+        val font = Font.createFont(Font.TRUETYPE_FONT, monoFont)
+        assertTrue("jetbrains_mono_regular.ttf cmap must contain en dash", font.canDisplay('–'))
+        assertFalse("jetbrains_mono_regular.ttf cmap must not contain '+'", font.canDisplay('+'))
+        assertFalse("jetbrains_mono_regular.ttf cmap must not contain '~'", font.canDisplay('~'))
         // A number placeholder still paints a digit, so it stays as a digit; other
         // placeholders carry words and are dropped before the character check.
         val numberArg = Regex("""%(\d+\$)?d""")
@@ -60,6 +64,17 @@ class FontCharsetGuardTest {
                 }
             }
         assertEquals("missing from pretendard charset: $missing", emptySet<Char>(), missing)
+    }
+
+
+    @Test
+    fun numericSpansExcludeTildeAndPlusFromMonoFont() {
+        // '+' and '~' are not in the committed mono font cmap and must be rendered with body font.
+        val plusRuns = numericRuns("+5")
+        assertEquals("'+' must not be in numeric mono run", listOf(1..1), plusRuns)
+
+        val tildeRuns = numericRuns("1~180")
+        assertEquals("'~' must not be in numeric mono run", listOf(0..0, 2..4), tildeRuns)
     }
 
     private fun isNumeric(text: String): Boolean =
