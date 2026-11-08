@@ -1,5 +1,7 @@
 package org.parkjw.apps.pdfbook.ui.theme
 
+import org.parkjw.apps.pdfbook.signedValue
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -66,6 +68,32 @@ class FontCharsetGuardTest {
         assertEquals("missing from pretendard charset: $missing", emptySet<Char>(), missing)
     }
 
+
+    @Test
+    fun pdfBookNumericIsNotAppliedDirectlyToSignedValue() {
+        val root = projectRoot()
+        val monoChars = monoChars(root)
+        // Ensure the actual signedValue output contains characters outside monoChars when positive.
+        val positive = signedValue(5)
+        val undrawable = positive.filter { it !in monoChars }.toSet()
+        assertEquals(
+            "signedValue(+5) produces '+' which mono font cannot draw: $positive",
+            setOf('+'),
+            undrawable,
+        )
+
+        // Ensure ImageAdjustScreen does not style valueText with PdfBookNumeric directly,
+        // and explicitly uses withNumericSpans to keep '+' in body font.
+        val imageAdjustKt = File(root, "app/src/main/java/org/parkjw/apps/pdfbook/ImageAdjustScreen.kt").readText(Charsets.UTF_8)
+        assertTrue(
+            "ImageAdjustScreen must use withNumericSpans(valueText, ...) so '+' is rendered with body font",
+            Regex("""text\s*=\s*withNumericSpans\s*\(\s*valueText""").containsMatchIn(imageAdjustKt),
+        )
+        assertFalse(
+            "ImageAdjustScreen must not use style = PdfBookNumeric directly on valueText",
+            Regex("""text\s*=\s*valueText\s*,\s*style\s*=\s*PdfBookNumeric""").containsMatchIn(imageAdjustKt),
+        )
+    }
 
     @Test
     fun numericSpansExcludeTildeAndPlusFromMonoFont() {

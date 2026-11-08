@@ -468,4 +468,4 @@ private fun ResetRow(enabled: Boolean, onReset: () -> Unit) {
     }
 }
 
-private fun signedValue(value: Int): String = if (value > 0) "+$value" else "$value"
+internal fun signedValue(value: Int): String = if (value > 0) "+$value" else "$value"
