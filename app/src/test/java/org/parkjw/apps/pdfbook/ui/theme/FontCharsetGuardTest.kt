@@ -68,6 +68,28 @@ class FontCharsetGuardTest {
 
 
     @Test
+    fun pdfBookNumericIsNotAppliedDirectlyToSignedValue() {
+        val root = projectRoot()
+        val monoChars = monoChars(root)
+        // A string styled directly with PdfBookNumeric must only contain characters in monoChars.
+        // Code-generated strings like "+5" contain '+' which is outside monoChars.
+        val signedPositive = "+5"
+        val undrawable = signedPositive.filter { it !in monoChars }.toSet()
+        assertEquals(
+            "'+' in signed values cannot be drawn by mono font and must not use direct PdfBookNumeric",
+            setOf('+'),
+            undrawable,
+        )
+
+        // Ensure ImageAdjustScreen does not style signed valueText with PdfBookNumeric directly
+        val imageAdjustKt = File(root, "app/src/main/java/org/parkjw/apps/pdfbook/ImageAdjustScreen.kt").readText(Charsets.UTF_8)
+        assertFalse(
+            "ImageAdjustScreen must use withNumericSpans or body font, not direct PdfBookNumeric for signed valueText",
+            imageAdjustKt.contains("text = valueText,") && imageAdjustKt.contains("style = PdfBookNumeric"),
+        )
+    }
+
+    @Test
     fun numericSpansExcludeTildeAndPlusFromMonoFont() {
         // '+' and '~' are not in the committed mono font cmap and must be rendered with body font.
         val plusRuns = numericRuns("+5")

@@ -47,7 +47,7 @@ The book page is the hero. The reader is always on black with neutral gray overl
 - The numeric style keeps the team's JetBrains Mono subset (`docs/DESIGN.md` §3) but PDFBook adds U+2013 en dash to it, because the reading info chip prints a two-page range as `12–13/180`. Without the glyph the separator renders as .notdef.
 - The digit run is matched by `NUMERIC_CHUNK` in `ui/theme/NumericText.kt`; the en dash is in that character class so the range is drawn in the numeric font as one run. `scripts/subset_fonts.py` bundles the same alphabet in `MONO_CHARS`.
 - This is a project change on top of the synced copy of the team design system v1.0: `docs/DESIGN.md` stays untouched, and a project that renders no page ranges keeps the smaller subset.
-- `FontCharsetGuardTest` holds the line: a string made only of digits and punctuation must stay inside `MONO_CHARS` (with `go_to_page_hint` using Pretendard for `~` via `withNumericSpans`), otherwise the test fails.
+- `FontCharsetGuardTest` holds the line: a string made only of digits and punctuation must stay inside `MONO_CHARS` (with `go_to_page_hint` using Pretendard for `~` and ImageAdjust positive values using Pretendard for `+` via `withNumericSpans`), otherwise the test fails.
 
 ## Reader accent beyond the slider (approved exception)
 - In the reader, orange is also used for the "open" text button on the next-book notice, the "reading" label in the book list, and the current-book bar. These come from approved designs (v0.3 and v0.3.2). Everywhere else in the reader, orange stays limited to the slider.
