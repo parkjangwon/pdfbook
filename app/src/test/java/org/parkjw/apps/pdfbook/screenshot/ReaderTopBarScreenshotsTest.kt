@@ -78,6 +78,11 @@ class ReaderTopBarScreenshotsTest {
     fun fontScale2Light360() =
         capture("reader-topbar-fontscale2-light-360dp.png", 360, dark = false, fontScale = 2f)
 
+    @Test
+    @Config(qualifiers = "ko-w320dp-h920dp-xxhdpi")
+    fun menuFontScale2Light320() =
+        capture("reader-topbar-menu-fontscale2-light-320dp.png", 320, dark = false, menuOpen = true, fontScale = 2f)
+
     @OptIn(ExperimentalRoborazziApi::class)
     private fun capture(
         file: String,
