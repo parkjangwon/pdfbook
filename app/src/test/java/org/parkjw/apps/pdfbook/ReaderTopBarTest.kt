@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
+import org.junit.Assert.assertFalse
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -33,6 +36,7 @@ import org.parkjw.apps.pdfbook.settings.ThemeMode
 import org.parkjw.apps.pdfbook.ui.theme.PdfBookTheme
 import org.parkjw.apps.pdfbook.ui.theme.ReaderBackground
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [37], qualifiers = "ko-w940dp-h920dp")
@@ -278,5 +282,82 @@ class ReaderTopBarTest {
         setBar(360, showPageMode = false)
         openMenu()
         composeRule.onNodeWithTag("reader_more_status").assertDoesNotExist()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "ko-w320dp-h920dp", fontScale = 2f)
+    fun statusRowWrapsAtWordBoundaryAtFontScale2() {
+        setBar(320, twoPage = false)
+        openMenu()
+        val node = composeRule.onNodeWithTag("reader_more_status", useUnmergedTree = true)
+        node.assertExists()
+        val textNode = node.fetchSemanticsNode().children.first {
+            SemanticsActions.GetTextLayoutResult in it.config
+        }
+        val layouts = mutableListOf<TextLayoutResult>()
+        textNode.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        assertTrue("layouts should not be empty", layouts.isNotEmpty())
+        val layout = layouts.first()
+        val fullText = layout.layoutInput.text.text
+        val words = fullText.split(" ")
+
+        assertFalse("didOverflowHeight must be false", layout.didOverflowHeight)
+        assertFalse("hasVisualOverflow must be false", layout.hasVisualOverflow)
+        assertTrue("lineCount must be at least 2 at fontScale 2", layout.lineCount > 1)
+
+        // Verify that wrapping only happens at word boundaries (each line consists of whole words)
+        for (i in 0 until layout.lineCount) {
+            val start = layout.getLineStart(i)
+            if (i > 0) {
+                val prevChar = fullText[start - 1]
+                assertTrue(
+                    "Line $i must start at word boundary, but previous char was '$prevChar'",
+                    prevChar == ' ' || prevChar == '\n',
+                )
+            }
+            val lineWords = fullText.substring(start, layout.getLineEnd(i)).trim().split(Regex("\\s+"))
+            for (w in lineWords) {
+                assertTrue("Word '$w' must be one of original words: $words", words.contains(w))
+            }
+        }
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "ko-w320dp-h920dp", fontScale = 2f)
+    fun doublePageStatusRowWrapsAtWordBoundaryAtFontScale2() {
+        setBar(320, twoPage = true, spreadShift = false)
+        openMenu()
+        val node = composeRule.onNodeWithTag("reader_more_status", useUnmergedTree = true)
+        node.assertExists()
+        val textNode = node.fetchSemanticsNode().children.first {
+            SemanticsActions.GetTextLayoutResult in it.config
+        }
+        val layouts = mutableListOf<TextLayoutResult>()
+        textNode.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        assertTrue("layouts should not be empty", layouts.isNotEmpty())
+        val layout = layouts.first()
+        val fullText = layout.layoutInput.text.text
+        val words = fullText.split(" ")
+
+        assertFalse("didOverflowHeight must be false", layout.didOverflowHeight)
+        assertFalse("hasVisualOverflow must be false", layout.hasVisualOverflow)
+        assertTrue("lineCount must be at least 2 at fontScale 2", layout.lineCount > 1)
+
+        for (i in 0 until layout.lineCount) {
+            val start = layout.getLineStart(i)
+            if (i > 0) {
+                val prevChar = fullText[start - 1]
+                assertTrue(
+                    "Line $i must start at word boundary, but previous char was '$prevChar'",
+                    prevChar == ' ' || prevChar == '\n',
+                )
+            }
+            val lineWords = fullText.substring(start, layout.getLineEnd(i)).trim().split(Regex("\\s+"))
+            for (w in lineWords) {
+                assertTrue("Word '$w' must be one of original words: $words", words.contains(w))
+            }
+        }
     }
 }

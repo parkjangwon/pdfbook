@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -414,17 +415,25 @@ private fun ReaderMenuRow(
             modifier = Modifier.size(24.dp),
         )
         Spacer(Modifier.width(12.dp))
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(
                 text = label,
                 color = ReaderOnOverlay,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    lineBreak = LineBreak.Paragraph.copy(
+                        wordBreak = LineBreak.WordBreak.Phrase,
+                    ),
+                ),
             )
             if (value != null) {
                 Text(
                     text = value,
                     color = ReaderOnOverlayVariant,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        lineBreak = LineBreak.Paragraph.copy(
+                            wordBreak = LineBreak.WordBreak.Phrase,
+                        ),
+                    ),
                     modifier = if (checked != null) Modifier.clearAndSetSemantics {} else Modifier,
                 )
             }
