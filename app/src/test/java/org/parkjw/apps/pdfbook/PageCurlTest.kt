@@ -586,6 +586,14 @@ class PageCurlTest {
         assertEquals(150L, curlRemainingDurationMs(1f, fromProgress = 0.1f, animateForward = false))
         assertEquals(75L, curlRemainingDurationMs(0.5f, fromProgress = 0.1f, animateForward = false))
         assertEquals(0L, curlRemainingDurationMs(0f, 0.5f, animateForward = true))
+        // Release velocity: flinging forward reduces settle duration down to the 150ms floor.
+        assertEquals(200L, curlRemainingDurationMs(1f, fromProgress = 0.2f, animateForward = true, alongVelocityPx = 4000f, widthPx = 1000f))
+        // Extreme fling respects the 150ms minimum settle duration floor.
+        assertEquals(150L, curlRemainingDurationMs(1f, fromProgress = 0.2f, animateForward = true, alongVelocityPx = 8000f, widthPx = 1000f))
+        // Flinging opposite the settle direction falls back to base duration.
+        assertEquals(240L, curlRemainingDurationMs(1f, fromProgress = 0.2f, animateForward = true, alongVelocityPx = -2000f, widthPx = 1000f))
+        // Animator scale 0 turns instantly regardless of velocity.
+        assertEquals(0L, curlRemainingDurationMs(0f, fromProgress = 0.2f, animateForward = true, alongVelocityPx = 8000f, widthPx = 1000f))
     }
 
     @Test

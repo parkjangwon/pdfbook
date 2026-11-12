@@ -190,6 +190,48 @@ class PageCurlComposeTest {
     }
 
     @Test
+    fun dragDuringSettleCatchesAndCompletesTurn() {
+        setReader()
+        freezeClock()
+        tapNext(ReadingDirection.LTR)
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        // Catch mid-settle and drag forward to complete
+        composeRule.onRoot().performTouchInput {
+            down(Offset(width * 0.7f, height / 2f))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.3f, height / 2f))
+            advanceEventTime(16)
+            up()
+        }
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(1, pagerState.currentPage)
+    }
+
+    @Test
+    fun dragDuringSettleRevertsTurnWhenDraggedBack() {
+        setReader()
+        freezeClock()
+        tapNext(ReadingDirection.LTR)
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.onNodeWithTag("reader_page_curl").assertExists()
+        // Catch mid-settle and drag backward across the screen to revert
+        composeRule.onRoot().performTouchInput {
+            down(Offset(width * 0.3f, height / 2f))
+            advanceEventTime(16)
+            moveTo(Offset(width * 0.95f, height / 2f))
+            advanceEventTime(16)
+            up()
+        }
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("reader_page_curl").assertDoesNotExist()
+        assertEquals(0, pagerState.currentPage)
+    }
+
+    @Test
     fun uncachedNextPageUsesSlideWithoutCurl() {
         setReader(renderer = UncachedPages(PAGE_COUNT))
         freezeClock()

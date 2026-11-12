@@ -602,13 +602,22 @@ fun curlRemainingDurationMs(
     animatorDurationScale: Float,
     fromProgress: Float,
     animateForward: Boolean,
+    alongVelocityPx: Float = 0f,
+    widthPx: Float = 0f,
 ): Long {
     if (animatorDurationScale <= 0f) return 0L
-    val remaining = if (animateForward) 1f - fromProgress else fromProgress
-    val ms = max(
+    val remaining = (if (animateForward) 1f - fromProgress else fromProgress).coerceIn(0f, 1f)
+    val settleVelocityPx = if (animateForward) alongVelocityPx else -alongVelocityPx
+    val baseMs = max(
         CURL_MIN_SETTLE_DURATION_MS.toFloat(),
-        CURL_BASE_DURATION_MS * remaining.coerceIn(0f, 1f),
+        CURL_BASE_DURATION_MS * remaining,
     )
+    val ms = if (settleVelocityPx > 0f && widthPx > 0f) {
+        val flingMs = (remaining * widthPx / settleVelocityPx) * 1000f
+        min(baseMs, max(CURL_MIN_SETTLE_DURATION_MS.toFloat(), flingMs))
+    } else {
+        baseMs
+    }
     return max(1L, (ms * animatorDurationScale).toLong())
 }
 
