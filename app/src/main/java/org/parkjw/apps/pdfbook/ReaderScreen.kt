@@ -604,6 +604,8 @@ private fun ReaderScreenContent(
         fromProgress: Float = 0f,
         animateForward: Boolean = true,
         twoPage: TwoPageCurl? = null,
+        alongVelocityPx: Float = 0f,
+        widthPx: Float = 0f,
     ) {
         beginCurl(
             CurlEffectState(
@@ -619,10 +621,21 @@ private fun ReaderScreenContent(
             twoPage,
         )
         // Scroll first so TalkBack page announcements are not delayed by the effect.
-        if (animateForward) pagerState.scrollToPage(toIndex)
-        val duration = curlRemainingDurationMs(animatorScale, fromProgress, animateForward)
+        if (animateForward && pagerState.targetPage != toIndex) {
+            pagerState.scrollToPage(toIndex)
+        }
+        val duration = curlRemainingDurationMs(
+            animatorDurationScale = animatorScale,
+            fromProgress = fromProgress,
+            animateForward = animateForward,
+            alongVelocityPx = alongVelocityPx,
+            widthPx = widthPx,
+        )
         if (duration <= 0L) {
-            if (!animateForward) pagerState.scrollToPage(fromIndex)
+            val targetPage = if (animateForward) toIndex else fromIndex
+            if (pagerState.targetPage != targetPage) {
+                pagerState.scrollToPage(targetPage)
+            }
             clearCurlOverlay()
             return
         }
@@ -634,7 +647,9 @@ private fun ReaderScreenContent(
         ) {
             curlProgress = value
         }
-        if (!animateForward) pagerState.scrollToPage(fromIndex)
+        if (!animateForward && pagerState.targetPage != fromIndex) {
+            pagerState.scrollToPage(fromIndex)
+        }
         clearCurlOverlay()
     }
 
@@ -647,10 +662,23 @@ private fun ReaderScreenContent(
         fromProgress: Float = 0f,
         animateForward: Boolean = true,
         twoPage: TwoPageCurl? = null,
+        alongVelocityPx: Float = 0f,
+        widthPx: Float = 0f,
     ) {
         curlJob?.cancel()
         curlJob = scope.launch {
-            runCurl(fromIndex, toIndex, side, front, back, fromProgress, animateForward, twoPage)
+            runCurl(
+                fromIndex = fromIndex,
+                toIndex = toIndex,
+                side = side,
+                front = front,
+                back = back,
+                fromProgress = fromProgress,
+                animateForward = animateForward,
+                twoPage = twoPage,
+                alongVelocityPx = alongVelocityPx,
+                widthPx = widthPx,
+            )
         }
     }
 
@@ -748,6 +776,8 @@ private fun ReaderScreenContent(
                     if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                     return@launch
                 }
+                curlDragWidth.floatValue =
+                    two.layout?.spread?.width ?: two.frontRect?.width ?: pageViewport.width
                 runCurl(from, target, side, two.front, two.back, twoPage = two)
                 return@launch
             }
@@ -772,6 +802,7 @@ private fun ReaderScreenContent(
                     if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                     return@launch
                 }
+                curlDragWidth.floatValue = single.frontRect?.width ?: pageViewport.width
                 runCurl(from, target, side, single.front, single.back, twoPage = single)
                 return@launch
             }
@@ -782,6 +813,7 @@ private fun ReaderScreenContent(
                 if (off) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
                 return@launch
             }
+            curlDragWidth.floatValue = pageViewport.width
             runCurl(from, target, side, front, back)
         }
     }
@@ -1026,7 +1058,7 @@ private fun ReaderScreenContent(
                                         false
                                     },
                                     onDrag = { _, _ -> },
-                                    onRelease = { _, from, targetIndex, _, _, forward, completes ->
+                                    onRelease = { _, from, targetIndex, _, _, forward, completes, _ ->
                                         if (!forward) endNotice = null
                                         if (completes) {
                                             if (targetIndex != from) {
@@ -1047,7 +1079,7 @@ private fun ReaderScreenContent(
                                 if (!activePage || !curlGestures) return@pointerInput
                                 detectCurlSwipe(
                                     direction = direction,
-                                    width = { curlDragWidth.floatValue },
+                                    width = { if (curlDragWidth.floatValue > 0f) curlDragWidth.floatValue else pagerWidth },
                                     currentIndex = { pagerState.targetPage },
                                     pageCount = { pagerState.pageCount },
                                     onDragStart = { targetIndex, forward ->
@@ -1142,7 +1174,7 @@ private fun ReaderScreenContent(
                                         curlSideState = side
                                         curlProgress = progress
                                     },
-                                    onRelease = { progress, from, targetIndex, side, startedCurl, forward, completes ->
+                                    onRelease = { progress, from, targetIndex, side, startedCurl, forward, completes, alongVelocity ->
                                         if (!forward) endNotice = null
                                         if (!startedCurl) {
                                             // Finger-follow via the pager, then settle here: this
@@ -1191,6 +1223,8 @@ private fun ReaderScreenContent(
                                             fromProgress = progress,
                                             animateForward = completes,
                                             twoPage = curlTwoPage,
+                                            alongVelocityPx = alongVelocity,
+                                            widthPx = if (curlDragWidth.floatValue > 0f) curlDragWidth.floatValue else pagerWidth,
                                         )
                                     },
                                     onSwipePastEnd = { nextAtEnd() },
@@ -1201,6 +1235,13 @@ private fun ReaderScreenContent(
                                         }
                                     },
                                     fling = true,
+                                    activeCurl = { curlEffect },
+                                    activeProgress = { curlProgress },
+                                    onCatchCurl = {
+                                        curlJob?.cancel()
+                                        curlJob = null
+                                        curlEffect = curlEffect?.copy(dragging = true)
+                                    },
                                 )
                             },
                     ) {
@@ -2665,11 +2706,15 @@ private suspend fun PointerInputScope.detectCurlSwipe(
         startedCurl: Boolean,
         forward: Boolean,
         completes: Boolean,
+        alongVelocityPx: Float,
     ) -> Unit,
     onSwipePastEnd: () -> Unit,
     onSlideFollow: ((from: Int, target: Int, progress: Float, forward: Boolean) -> Unit)? = null,
     fling: Boolean = false,
     isHolding: () -> Boolean = { false },
+    activeCurl: () -> CurlEffectState? = { null },
+    activeProgress: () -> Float = { 0f },
+    onCatchCurl: () -> Unit = {},
 ) {
     val touchSlop = viewConfiguration.touchSlop
     awaitEachGesture {
@@ -2678,11 +2723,14 @@ private suspend fun PointerInputScope.detectCurlSwipe(
         velocityTracker.addPosition(down.uptimeMillis, down.position)
         var drag = false
         var startedCurl = false
+        var caughtMidFlight = false
         var side = CurlSide.Right
         var fromIndex = currentIndex()
         var targetIndex = fromIndex
         var forward = true
         var progress = 0f
+        var startProgress = 0f
+        var dragAnchorX = down.position.x
         var followOffset = 0f
         var last = down.position
         var pressed = true
@@ -2694,6 +2742,7 @@ private suspend fun PointerInputScope.detectCurlSwipe(
                 // state so the overlay is never left half-turned, then stop
                 // consuming so pinch zoom can start.
                 if (drag && (startedCurl || targetIndex != fromIndex)) {
+                    val alongVelocity = curlAlongVelocity(velocityTracker.calculateVelocity().x, side)
                     onRelease(
                         progress,
                         fromIndex,
@@ -2702,6 +2751,7 @@ private suspend fun PointerInputScope.detectCurlSwipe(
                         startedCurl,
                         forward,
                         curlSettleCompletes(progress),
+                        alongVelocity,
                     )
                 }
                 return@awaitEachGesture
@@ -2716,24 +2766,48 @@ private suspend fun PointerInputScope.detectCurlSwipe(
             val dy = last.y - down.position.y
             if (!drag && abs(dx) > touchSlop && abs(dx) > abs(dy)) {
                 drag = true
-                forward = if (direction == ReadingDirection.RTL) dx > 0f else dx < 0f
-                side = curlSide(direction, forward)
-                fromIndex = currentIndex()
-                targetIndex = pagerTargetIndex(fromIndex, if (forward) 1 else -1, pageCount())
-                if (targetIndex != fromIndex) {
-                    startedCurl = onDragStart(targetIndex, forward)
-                    if (startedCurl) onDrag(0f, side)
+                val currentActive = activeCurl()
+                if (currentActive != null && !currentActive.dragging) {
+                    caughtMidFlight = true
+                    startedCurl = true
+                    fromIndex = currentActive.fromIndex
+                    targetIndex = currentActive.toIndex
+                    side = currentActive.side
+                    forward = targetIndex >= fromIndex
+                    startProgress = activeProgress()
+                    dragAnchorX = down.position.x + if (dx > 0f) touchSlop else -touchSlop
+                    onCatchCurl()
+                } else {
+                    forward = if (direction == ReadingDirection.RTL) dx > 0f else dx < 0f
+                    side = curlSide(direction, forward)
+                    fromIndex = currentIndex()
+                    targetIndex = pagerTargetIndex(fromIndex, if (forward) 1 else -1, pageCount())
+                    if (targetIndex != fromIndex) {
+                        startedCurl = onDragStart(targetIndex, forward)
+                        if (startedCurl) onDrag(0f, side)
+                    }
                 }
             }
             if (drag) {
-                val raw = curlProgressFromDrag(dx, width(), side)
-                val following = !startedCurl && targetIndex != fromIndex && onSlideFollow != null
-                progress = if (following) curlFollowProgress(raw, followOffset) else raw
-                when {
-                    startedCurl -> onDrag(progress, side)
-                    following && pressed -> {
-                        onSlideFollow(fromIndex, targetIndex, progress, forward)
-                        followOffset = curlSlideOffset(progress, forward)
+                if (caughtMidFlight) {
+                    val dragDx = last.x - dragAnchorX
+                    val along = when (side) {
+                        CurlSide.Left -> dragDx
+                        CurlSide.Right -> -dragDx
+                    }
+                    val w = width()
+                    progress = if (w > 0f) (startProgress + along / w).coerceIn(0f, 1f) else startProgress
+                    onDrag(progress, side)
+                } else {
+                    val raw = curlProgressFromDrag(dx, width(), side)
+                    val following = !startedCurl && targetIndex != fromIndex && onSlideFollow != null
+                    progress = if (following) curlFollowProgress(raw, followOffset) else raw
+                    when {
+                        startedCurl -> onDrag(progress, side)
+                        following && pressed -> {
+                            onSlideFollow(fromIndex, targetIndex, progress, forward)
+                            followOffset = curlSlideOffset(progress, forward)
+                        }
                     }
                 }
                 if (startedCurl || targetIndex != fromIndex) change.consume()
@@ -2757,7 +2831,7 @@ private suspend fun PointerInputScope.detectCurlSwipe(
         } else {
             shouldCompleteCurl(progress)
         }
-        onRelease(progress, fromIndex, targetIndex, side, startedCurl, forward, completes)
+        onRelease(progress, fromIndex, targetIndex, side, startedCurl, forward, completes, alongVelocity)
     }
 }
 
