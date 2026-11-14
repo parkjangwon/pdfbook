@@ -18,10 +18,14 @@ class SolidPageBitmaps(
     private val accentColor: Int,
     private val outlineEntries: List<OutlineEntry> = emptyList(),
     private val widePageSet: Set<Int> = emptySet(),
+    private val cacheOnFirstCall: Boolean = false,
 ) : PageBitmaps {
     override suspend fun widePages(anchor: Int): Set<Int> = widePageSet
 
     override suspend fun outline(): List<OutlineEntry> = outlineEntries
+
+    override fun cached(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? =
+        if (cacheOnFirstCall) renderNow(page, maxWidth, maxHeight) else null
 
     override suspend fun thumbnail(request: PageRequest): Bitmap? =
         render(request.page, request.maxWidth, request.maxHeight)
@@ -39,7 +43,10 @@ class SolidPageBitmaps(
 
     override val cropUpdates: Flow<Int> get() = cropUpdatesFlow
 
-    override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
+    override suspend fun render(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? =
+        renderNow(page, maxWidth, maxHeight)
+
+    private fun renderNow(page: Int, maxWidth: Int, maxHeight: Int): Bitmap? {
         if (page < 1 || page > pageCount || maxWidth <= 0 || maxHeight <= 0) return null
         val width = maxWidth.coerceAtMost(480).coerceAtLeast(1)
         val height = maxHeight.coerceAtMost(720).coerceAtLeast(1)

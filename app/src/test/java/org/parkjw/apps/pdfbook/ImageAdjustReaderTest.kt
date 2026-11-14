@@ -65,7 +65,12 @@ class ImageAdjustReaderTest {
                 ) {
                     Box(Modifier.size(200.dp).testTag("page_host")) {
                         PageBitmap(
-                            renderer = SolidPageBitmaps(1, page, 0xFF000000.toInt()),
+                            renderer = SolidPageBitmaps(
+                                1,
+                                page,
+                                0xFF000000.toInt(),
+                                cacheOnFirstCall = true,
+                            ),
                             page = 1,
                             maxWidth = 200,
                             maxHeight = 200,
